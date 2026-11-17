@@ -1,9 +1,8 @@
-// @ts-nocheck
 'use strict';
 
 /* Validation Panel — owns validation result state, rendering, navigation and
    panel event lifecycle while validation rules remain in validation.js. */
-(function initValidationPanelModule(root, factory) {
+(function initValidationPanelModule<Api>(root: typeof globalThis & { UMLValidationPanel?: Api }, factory: () => Api) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLValidationPanel = api;
@@ -23,7 +22,7 @@
     'renderAll',
     'setSelection',
     'validateProject',
-  ]);
+  ] as const);
   const REQUIRED_VALUES = Object.freeze([
     'closeButton',
     'document',
@@ -33,18 +32,62 @@
     'validationResults',
     'validationSummary',
     'wrap',
-  ]);
+  ] as const);
 
-  function create(dependencies) {
-    const deps = dependencies || {};
-    const missing = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
+  interface Issue {
+    severity: 'error' | 'warning' | 'info';
+    code: string;
+    message: string;
+    diagramId: string;
+    viewId: string;
+    diagramName?: string;
+    modelName?: string;
+  }
+  interface RelationRef { id: string; kind: string }
+  interface Endpoints { p1: DiagramPoint; p2: DiagramPoint; self?: boolean }
+  interface ValidationPanelState {
+    diagrams: { id: string; elements: { id: string }[]; relations: RelationRef[] }[];
+    models: Record<string, unknown>;
+    activeId: string;
+    tool: string;
+    validationStale: boolean;
+    zoom: number;
+  }
+  interface ValidationPanelDependencies {
+    bindingRoute(relation: RelationRef): { points: DiagramPoint[] } | null;
+    byId(id: string): DiagramBounds | null | undefined;
+    clearLinking(): void;
+    communicationMessagePoints(relation: RelationRef): Endpoints | null;
+    flashStatus(message: string): void;
+    isCommMsg(kind: string): boolean;
+    isMsg(kind: string): boolean;
+    msgPoints(relation: RelationRef): Endpoints | null;
+    polylineMidpoint(points: DiagramPoint[]): DiagramPoint;
+    relById(id: string): RelationRef | null | undefined;
+    relEndpoints(relation: RelationRef): Endpoints | null;
+    renderAll(): void;
+    setSelection(ids: string[]): void;
+    validateProject(project: Pick<ValidationPanelState, 'models' | 'diagrams'>): Issue[];
+    closeButton: HTMLElement;
+    document: Document;
+    rerunButton: HTMLElement;
+    state: ValidationPanelState;
+    validationPanel: HTMLElement;
+    validationResults: HTMLElement;
+    validationSummary: HTMLElement;
+    wrap: HTMLElement;
+  }
+
+  function create(dependencies?: ValidationPanelDependencies) {
+    const deps: Partial<ValidationPanelDependencies> = dependencies || {};
+    const missing: string[] = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
     REQUIRED_VALUES.forEach(name => {
       if (deps[name] == null) missing.push(name);
     });
     if (deps.document && typeof deps.document.createElement !== 'function') {
       missing.push('document.createElement');
     }
-    ['closeButton', 'rerunButton'].forEach(name => {
+    (['closeButton', 'rerunButton'] as const).forEach(name => {
       const target = deps[name];
       if (target && typeof target.addEventListener !== 'function') missing.push(`${name}.addEventListener`);
       if (target && typeof target.removeEventListener !== 'function') missing.push(`${name}.removeEventListener`);
@@ -83,9 +126,9 @@
       validationResults,
       validationSummary,
       wrap,
-    } = deps;
+    } = deps as ValidationPanelDependencies;
 
-    let issues = [];
+    let issues: Issue[] = [];
     let attached = false;
 
     const issueCounts = () => ({
@@ -102,7 +145,7 @@
       validationSummary.classList.toggle('validation-stale', state.validationStale);
     }
 
-    function navigateToIssue(item) {
+    function navigateToIssue(item: Issue) {
       const diagram = state.diagrams.find(candidate => candidate.id === item.diagramId);
       if (!diagram) return false;
       state.activeId = diagram.id;

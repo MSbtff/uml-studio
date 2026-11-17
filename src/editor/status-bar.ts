@@ -1,9 +1,8 @@
-// @ts-nocheck
 'use strict';
 
 /* Status Bar — owns tool guidance, project/save summaries, and temporary
    announcements without taking ownership of project or autosave state. */
-(function initStatusBarModule(root, factory) {
+(function initStatusBarModule<Api>(root: typeof globalThis & { UMLStatusBar?: Api }, factory: () => Api) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLStatusBar = api;
@@ -15,7 +14,7 @@
     'isCommMsg',
     'isMsg',
     'setTimeout',
-  ]);
+  ] as const);
   const REQUIRED_VALUES = Object.freeze([
     'ACTIVITY_PIN_KINDS',
     'DIAGRAM_META',
@@ -25,19 +24,46 @@
     'state',
     'statusLeft',
     'statusRight',
-  ]);
+  ] as const);
   const FLASH_DURATION_MS = 1800;
 
-  function create(dependencies) {
-    const deps = dependencies || {};
-    const missing = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
+  interface StatusBarState {
+    tool: string;
+    zoom: number;
+    projectName: string;
+    dirty?: boolean;
+    runtimeErrors?: { count: number };
+    autosaveStatus?: string;
+    autosaveBackend?: string;
+    lastAutosavedAt?: number;
+  }
+  interface StatusBarDependencies {
+    clearTimeout(timer: number): void;
+    dg(): { type: string; elements: unknown[]; relations: unknown[] };
+    diagramKindLabel(kind: string): string;
+    isCommMsg(kind: string): boolean;
+    isMsg(kind: string): boolean;
+    setTimeout(callback: () => void, delay: number): number;
+    ACTIVITY_PIN_KINDS: ReadonlySet<string>;
+    REQUIREMENT_RELATION_KINDS: ReadonlySet<string>;
+    DIAGRAM_META: Record<string, { label: string }>;
+    KIND_META: Record<string, { label: string }>;
+    REL_STYLE: Record<string, unknown>;
+    state: StatusBarState;
+    statusLeft: Pick<HTMLElement, 'textContent'>;
+    statusRight: Pick<HTMLElement, 'textContent'>;
+  }
+
+  function create(dependencies?: StatusBarDependencies) {
+    const deps: Partial<StatusBarDependencies> = dependencies || {};
+    const missing: string[] = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
     REQUIRED_VALUES.forEach(name => {
       if (deps[name] == null) missing.push(name);
     });
-    for (const name of ['ACTIVITY_PIN_KINDS', 'REQUIREMENT_RELATION_KINDS']) {
+    for (const name of ['ACTIVITY_PIN_KINDS', 'REQUIREMENT_RELATION_KINDS'] as const) {
       if (deps[name] && typeof deps[name].has !== 'function') missing.push(`${name}.has`);
     }
-    for (const name of ['DIAGRAM_META', 'KIND_META', 'REL_STYLE', 'state', 'statusLeft', 'statusRight']) {
+    for (const name of ['DIAGRAM_META', 'KIND_META', 'REL_STYLE', 'state', 'statusLeft', 'statusRight'] as const) {
       if (deps[name] != null && typeof deps[name] !== 'object') missing.push(name);
     }
     if (missing.length) {
@@ -59,8 +85,8 @@
       state,
       statusLeft,
       statusRight,
-    } = deps;
-    let flashTimer = null;
+    } = deps as StatusBarDependencies;
+    let flashTimer: number | null = null;
 
     function toolInstruction() {
       const diagram = dg();
@@ -153,7 +179,7 @@
       statusRight.textContent = `${runtimeErrorText()}${state.dirty ? '● 파일 저장 필요 · ' : ''}${autosaveStatusText()}${state.projectName} · ${DIAGRAM_META[diagram.type].label} · Elements ${diagram.elements.length} · Relations ${diagram.relations.length} · Zoom ${Math.round(state.zoom * 100)}%`;
     }
 
-    function flash(message) {
+    function flash(message: string) {
       if (flashTimer !== null) clearTimeout(flashTimer);
       statusLeft.textContent = message;
       flashTimer = setTimeout(() => {

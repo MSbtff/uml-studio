@@ -1,23 +1,35 @@
-// @ts-nocheck
 'use strict';
 
-(function initOrthogonalRouter(root, factory) {
+(function initOrthogonalRouter<Api>(root: typeof globalThis & { UMLOrthogonalRouter?: Api }, factory: () => Api) {
   const api = factory();
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.UMLOrthogonalRouter = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function createOrthogonalRouter() {
+  interface RouteOptions {
+    start: DiagramPoint;
+    end: DiagramPoint;
+    clearance?: number;
+    grid?: number;
+    startDirection?: DiagramPoint;
+    endDirection?: DiagramPoint;
+    obstacles?: DiagramBounds[];
+    existingRoutes?: DiagramPoint[][];
+  }
+  interface Segment { a: DiagramPoint; b: DiagramPoint }
+  interface Crossing { point: DiagramPoint; segmentIndex: number; routeIndex: number }
+
   const EPSILON = 0.001;
 
-  const samePoint = (a, b) =>
+  const samePoint = (a: DiagramPoint, b: DiagramPoint) =>
     Math.abs(a.x - b.x) < EPSILON && Math.abs(a.y - b.y) < EPSILON;
 
-  function simplifyPoints(points) {
-    const unique = [];
+  function simplifyPoints(points: readonly DiagramPoint[]) {
+    const unique: DiagramPoint[] = [];
     points.forEach(point => {
       const normalized = { x: Number(point.x), y: Number(point.y) };
       if (!unique.length || !samePoint(unique[unique.length - 1], normalized)) unique.push(normalized);
     });
-    const simplified = [];
+    const simplified: DiagramPoint[] = [];
     unique.forEach(point => {
       while (simplified.length >= 2) {
         const a = simplified[simplified.length - 2];
@@ -37,7 +49,7 @@
     return simplified;
   }
 
-  function polylineSegments(points) {
+  function polylineSegments(points: readonly DiagramPoint[]) {
     const segments = [];
     for (let index = 1; index < points.length; index++) {
       if (!samePoint(points[index - 1], points[index])) {
@@ -47,7 +59,7 @@
     return segments;
   }
 
-  function polylineMidpoint(points) {
+  function polylineMidpoint(points: readonly DiagramPoint[]) {
     const segments = polylineSegments(points);
     const lengths = segments.map(segment =>
       Math.abs(segment.b.x - segment.a.x) + Math.abs(segment.b.y - segment.a.y));
@@ -68,14 +80,14 @@
     return { ...segments[segments.length - 1].b };
   }
 
-  const expandRect = (rect, amount) => ({
+  const expandRect = (rect: DiagramBounds, amount: number) => ({
     x: rect.x - amount,
     y: rect.y - amount,
     w: rect.w + amount * 2,
     h: rect.h + amount * 2,
   });
 
-  function segmentIntersectsRect(segment, rect) {
+  function segmentIntersectsRect(segment: Segment, rect: DiagramBounds) {
     const { a, b } = segment;
     const right = rect.x + rect.w, bottom = rect.y + rect.h;
     if (Math.abs(a.x - b.x) < EPSILON) {
@@ -91,10 +103,10 @@
     return true;
   }
 
-  const betweenStrict = (value, a, b) =>
+  const betweenStrict = (value: number, a: number, b: number) =>
     value > Math.min(a, b) + EPSILON && value < Math.max(a, b) - EPSILON;
 
-  function segmentRelationship(first, second) {
+  function segmentRelationship(first: Segment, second: Segment) {
     const firstVertical = Math.abs(first.a.x - first.b.x) < EPSILON;
     const secondVertical = Math.abs(second.a.x - second.b.x) < EPSILON;
     if (firstVertical !== secondVertical) {
@@ -119,7 +131,7 @@
     return { crossings: 0, overlap: 0 };
   }
 
-  function segmentIntersectionPoint(first, second) {
+  function segmentIntersectionPoint(first: Segment, second: Segment) {
     const firstVertical = Math.abs(first.a.x - first.b.x) < EPSILON;
     const secondVertical = Math.abs(second.a.x - second.b.x) < EPSILON;
     if (firstVertical === secondVertical) return null;
@@ -130,8 +142,8 @@
     return { x: vertical.a.x, y: horizontal.a.y };
   }
 
-  function collectPolylineCrossings(points, existingRoutes) {
-    const crossings = [];
+  function collectPolylineCrossings(points: readonly DiagramPoint[], existingRoutes?: DiagramPoint[][]) {
+    const crossings: Crossing[] = [];
     const seen = new Set();
     polylineSegments(points).forEach((segment, segmentIndex) => {
       (Array.isArray(existingRoutes) ? existingRoutes : []).forEach((route, routeIndex) => {
@@ -148,10 +160,10 @@
     return crossings;
   }
 
-  function polylineJumpPath(points, crossings, options) {
+  function polylineJumpPath(points: DiagramPoint[], crossings?: Crossing[], options?: { style?: string; radius?: number }) {
     if (!Array.isArray(points) || !points.length) return '';
     const style = options?.style || 'arc';
-    const radius = Number.isFinite(options?.radius) ? Math.max(2, options.radius) : 6;
+    const radius = options?.radius !== undefined && Number.isFinite(options.radius) ? Math.max(2, options.radius) : 6;
     if (style === 'none' || !Array.isArray(crossings) || !crossings.length) {
       return points.map((point, index) =>
         `${index ? 'L' : 'M'} ${point.x} ${point.y}`).join(' ');
@@ -199,7 +211,7 @@
     return commands.join(' ');
   }
 
-  function routeMetrics(points, obstacles, existingRoutes, clearance) {
+  function routeMetrics(points: DiagramPoint[], obstacles: DiagramBounds[], existingRoutes: DiagramPoint[][], clearance: number) {
     const simplified = simplifyPoints(points);
     const segments = polylineSegments(simplified);
     const rawSegments = polylineSegments(points);
@@ -238,9 +250,9 @@
     };
   }
 
-  const snapLane = (value, grid) => Math.round(value / grid) * grid;
+  const snapLane = (value: number, grid: number) => Math.round(value / grid) * grid;
 
-  function appendOrthogonal(points, target, preferredFinalDirection) {
+  function appendOrthogonal(points: DiagramPoint[], target: DiagramPoint, preferredFinalDirection?: DiagramPoint) {
     const current = points[points.length - 1];
     if (samePoint(current, target)) return;
     if (Math.abs(current.x - target.x) < EPSILON
@@ -273,10 +285,10 @@
     points.push(target);
   }
 
-  function routeOrthogonal(options) {
+  function routeOrthogonal(options: RouteOptions) {
     const start = { ...options.start }, end = { ...options.end };
-    const clearance = Number.isFinite(options.clearance) ? options.clearance : 12;
-    const grid = Number.isFinite(options.grid) && options.grid > 0 ? options.grid : 8;
+    const clearance = options.clearance !== undefined && Number.isFinite(options.clearance) ? options.clearance : 12;
+    const grid = options.grid !== undefined && Number.isFinite(options.grid) && options.grid > 0 ? options.grid : 8;
     const startDirection = options.startDirection || { x: Math.sign(end.x - start.x) || 1, y: 0 };
     const endDirection = options.endDirection || { x: Math.sign(start.x - end.x) || -1, y: 0 };
     const startLead = {
@@ -351,9 +363,9 @@
     return ranked[0] || routeMetrics([start, end], obstacles, existingRoutes, clearance);
   }
 
-  function routeManualOrthogonal(options) {
+  function routeManualOrthogonal(options: RouteOptions & { waypoints?: DiagramPoint[] }) {
     const start = { ...options.start }, end = { ...options.end };
-    const clearance = Number.isFinite(options.clearance) ? options.clearance : 12;
+    const clearance = options.clearance !== undefined && Number.isFinite(options.clearance) ? options.clearance : 12;
     const startDirection = options.startDirection || { x: Math.sign(end.x - start.x) || 1, y: 0 };
     const endDirection = options.endDirection || { x: Math.sign(start.x - end.x) || -1, y: 0 };
     const waypoints = (Array.isArray(options.waypoints) ? options.waypoints : [])

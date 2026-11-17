@@ -1,8 +1,7 @@
-// @ts-nocheck
 'use strict';
 
 /* UML AssociationEnd / LinkEnd and ER RelationshipEnd domain helpers. */
-(function initRelationEnd(root, factory) {
+(function initRelationEnd<Api>(root: typeof globalThis & { UMLRelationEnd?: Api }, factory: () => Api) {
   const api = factory();
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.UMLRelationEnd = api;
@@ -15,26 +14,32 @@
   const ASSOCIATION_QUALIFIER_KINDS = new Set([
     'association', 'directed', 'aggregation', 'composition',
   ]);
-  const VISIBILITY_SYMBOL = {
+  const VISIBILITY_SYMBOL: Partial<Record<string, string>> = {
     public: '+', protected: '#', private: '-', package: '~',
   };
   const VISIBILITY_VALUE = {
     '+': 'public', '#': 'protected', '-': 'private', '~': 'package',
   };
 
-  function relationSupportsEndQuickEdit(relation) {
+  type End = 'source' | 'target';
+  type EndField = 'Label' | 'Aggregation' | 'Navigability' | 'EndStereotype' | 'EndVisibility' | 'EndName';
+  type EndRelation = { kind: string }
+    & Partial<Record<`${End}${EndField}`, string>>
+    & Partial<Record<`${End}Qualifiers`, string[]>>;
+
+  function relationSupportsEndQuickEdit(relation?: { kind: string } | null) {
     return !!relation && RELATION_END_QUICK_EDIT_KINDS.has(relation.kind);
   }
 
-  function relationEndField(end, suffix) {
+  function relationEndField<Suffix extends string>(end: End, suffix: Suffix): `${End}${Suffix}` {
     return `${end === 'source' ? 'source' : 'target'}${suffix}`;
   }
 
-  function relationEndMultiplicity(relation, end) {
+  function relationEndMultiplicity(relation: EndRelation, end: End) {
     return relation[end === 'source' ? 'sourceLabel' : 'targetLabel'] || '';
   }
 
-  function relationEndAggregation(relation, end) {
+  function relationEndAggregation(relation: EndRelation, end: End) {
     const field = relationEndField(end, 'Aggregation');
     if (relation[field] !== undefined) return relation[field] || 'none';
     if (end === 'target' && relation.kind === 'aggregation') return 'shared';
@@ -42,22 +47,22 @@
     return 'none';
   }
 
-  function relationEndNavigability(relation, end) {
+  function relationEndNavigability(relation: EndRelation, end: End) {
     const field = relationEndField(end, 'Navigability');
     if (relation[field] !== undefined) return relation[field] || 'unspecified';
     return end === 'target' && ['directed', 'directedlink'].includes(relation.kind)
       ? 'navigable' : 'unspecified';
   }
 
-  function relationEndExpression(relation, end) {
+  function relationEndExpression(relation: EndRelation, end: End) {
     const prefix = end === 'source' ? 'source' : 'target';
     const stereotype = relation[`${prefix}EndStereotype`];
-    const visibility = VISIBILITY_SYMBOL[relation[`${prefix}EndVisibility`]] || '';
+    const visibility = VISIBILITY_SYMBOL[relation[`${prefix}EndVisibility`] ?? ''] || '';
     return [stereotype ? `«${stereotype}»` : '', visibility, relation[`${prefix}EndName`] || '']
       .filter(Boolean).join(' ');
   }
 
-  function relationEndRoleLabel(relation, end) {
+  function relationEndRoleLabel(relation: EndRelation, end: End) {
     const expression = relationEndExpression(relation, end);
     const qualifiers = relation[relationEndField(end, 'Qualifiers')];
     const qualifierText = Array.isArray(qualifiers) && qualifiers.length
@@ -65,7 +70,7 @@
     return [expression, qualifierText].filter(Boolean).join(' ');
   }
 
-  function validRelationEndMultiplicity(value, erd = false) {
+  function validRelationEndMultiplicity(value: unknown, erd = false) {
     const text = String(value || '').trim();
     if (!text) return true;
     const atom = erd ? '[A-Za-z0-9*]+' : '(?:\\d+|\\*)';

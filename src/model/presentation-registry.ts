@@ -1,7 +1,6 @@
-// @ts-nocheck
 'use strict';
 
-(function initPresentationRegistry(root, factory) {
+(function initPresentationRegistry<Api>(root: typeof globalThis & { UMLPresentationRegistry?: Api }, factory: () => Api) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLPresentationRegistry = api;
@@ -213,8 +212,11 @@
     null, 'open', 'triangle', 'diamond', 'diamond-filled', 'circle-plus', 'filled', 'x',
   ]);
 
-  function presentationRegistryProblems(kindMeta = KIND_META, relationStyles = REL_STYLE) {
-    const problems = [];
+  function presentationRegistryProblems(
+    kindMeta: Record<string, { label: string; icon: string; color: string }> = KIND_META,
+    relationStyles: Record<string, { dash: string | null; head: string | null }> = REL_STYLE,
+  ) {
+    const problems: string[] = [];
     Object.entries(kindMeta).forEach(([kind, meta]) => {
       if (!meta.label || !meta.icon || !/^#[0-9a-f]{6}$/i.test(meta.color || '')) {
         problems.push(`잘못된 종류 메타데이터: ${kind}`);
@@ -233,10 +235,13 @@
   const problems = presentationRegistryProblems();
   if (problems.length) throw new Error(`표현 레지스트리가 올바르지 않습니다 · ${problems.join(' · ')}`);
 
-  function deepFreeze(value, seen = new WeakSet()) {
+  function deepFreeze<T>(value: T, seen = new WeakSet<object>()): Readonly<T> {
     if (!value || (typeof value !== 'object' && typeof value !== 'function') || seen.has(value)) return value;
     seen.add(value);
-    Reflect.ownKeys(value).forEach(key => deepFreeze(value[key], seen));
+    Reflect.ownKeys(value).forEach(key => {
+      const child: unknown = Reflect.get(value, key);
+      deepFreeze(child, seen);
+    });
     return Object.freeze(value);
   }
 

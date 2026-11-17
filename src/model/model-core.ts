@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use strict';
 
 /*
@@ -8,13 +7,21 @@
  * model objects by modelId. Accessors keep the existing editor API compatible
  * while a single model can be rendered by multiple views.
  */
-(function initModelCore(root, factory) {
+interface ModelSchemaValidation {
+  validateEntitySchema(entity: Record<string, unknown>, columns: string[]): unknown;
+  validateReferentialActions(relation: Record<string, unknown>): unknown;
+}
+
+(function initModelCore<Api>(
+  root: typeof globalThis & { UMLErdSchema?: ModelSchemaValidation; UMLModelCore?: Api },
+  factory: (erdSchema?: ModelSchemaValidation) => Api,
+) {
   const commonJs = typeof module !== 'undefined' && module.exports;
   const erdSchema = commonJs ? require('./erd-schema.js') : root.UMLErdSchema;
   const api = factory(erdSchema);
   if (commonJs) module.exports = api;
   else root.UMLModelCore = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createModelCore(erdSchema) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function createModelCore(erdSchema?: ModelSchemaValidation) {
   if (!erdSchema || typeof erdSchema.validateEntitySchema !== 'function'
     || typeof erdSchema.validateReferentialActions !== 'function') {
     throw new TypeError('Model Core에는 UMLErdSchema 스키마·FK 검증 API가 필요합니다.');
@@ -42,10 +49,21 @@
     'properties', 'constraints', 'constraintParameters', 'valueTypeUnit', 'quantityKind',
   ]);
 
-  const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
-  const own = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
+  type ProjectObject = Record<string, unknown>;
+  type Models = Record<string, ProjectObject>;
+  type ValidatedDiagram = { type: string; elements: ProjectObject[] };
+  interface ProjectValidationOptions {
+    diagramTypes?: Iterable<string>;
+    elementKinds?: Iterable<string>;
+    relationKinds?: Iterable<string>;
+    maxDiagrams?: number;
+    maxViews?: number;
+  }
 
-  function hydrateView(view, models, idFactory) {
+  const isObject = (value: unknown): value is ProjectObject => value !== null && typeof value === 'object' && !Array.isArray(value);
+  const own = (value: object, key: PropertyKey) => Object.prototype.hasOwnProperty.call(value, key);
+
+  function hydrateView(view: ProjectObject, models: Models, idFactory: () => string) {
     if (!isObject(view)) throw new Error('뷰 데이터가 객체가 아닙니다.');
     let modelId = typeof view.modelId === 'string' && view.modelId ? view.modelId : '';
     let model = modelId ? models[modelId] : null;
@@ -56,16 +74,17 @@
     }
     view.modelId = modelId;
 
+    const targetModel = model;
     MODEL_FIELDS.forEach(field => {
       if (own(view, field)) {
-        if (model[field] === undefined) model[field] = view[field];
+        if (targetModel[field] === undefined) targetModel[field] = view[field];
         delete view[field];
       }
       Object.defineProperty(view, field, {
         configurable: true,
         enumerable: false,
-        get() { return models[this.modelId] ? models[this.modelId][field] : undefined; },
-        set(value) {
+        get(this: { modelId: string }) { return models[this.modelId] ? models[this.modelId][field] : undefined; },
+        set(this: { modelId: string }, value: unknown) {
           const target = models[this.modelId];
           if (!target) throw new Error(`모델을 찾을 수 없습니다: ${this.modelId}`);
           target[field] = value;
@@ -74,36 +93,49 @@
     });
     if (own(view, '_m')) delete view._m;
     if (own(view, '_depth')) delete view._depth;
-    return view;
+    return view as ProjectObject & { modelId: string };
   }
 
-  function hydrateProject(diagrams, sourceModels, idFactory) {
+  function hydrateProject(diagrams: { elements?: ProjectObject[]; relations?: ProjectObject[] }[], sourceModels: Models | null | undefined, idFactory: () => string) {
     const models = isObject(sourceModels) ? sourceModels : {};
     if (!Array.isArray(diagrams)) throw new Error('다이어그램 목록이 없습니다.');
     diagrams.forEach(diagram => {
       const fragmentModels = new Set();
       (diagram.elements || []).forEach(view => {
-        hydrateView(view, models, idFactory);
-        if (view.kind !== 'fragment') return;
+        const hydrated = hydrateView(view, models, idFactory);
+        if (hydrated.kind !== 'fragment') return;
         /* Older clipboard copies in the same diagram shared a fragment model. */
-        if (fragmentModels.has(view.modelId)) {
+        if (fragmentModels.has(hydrated.modelId)) {
           const id = idFactory();
-          models[id] = { ...structuredClone(models[view.modelId]), id };
-          view.modelId = id;
+          models[id] = { ...structuredClone(models[hydrated.modelId]), id };
+          hydrated.modelId = id;
         }
-        fragmentModels.add(view.modelId);
+        fragmentModels.add(hydrated.modelId);
       });
       (diagram.relations || []).forEach(view => hydrateView(view, models, idFactory));
     });
     return models;
   }
 
-  function modelKindOf(view, models) {
-    if (typeof view.kind === 'string') return view.kind;
-    return view.modelId && models[view.modelId] ? models[view.modelId].kind : undefined;
+  function referencedModel(view: ProjectObject, models: Models) {
+    return typeof view.modelId === 'string' ? models[view.modelId] : undefined;
   }
 
-  function validateProjectData(data, options) {
+  function modelKindOf(view: ProjectObject, models: Models): string | undefined {
+    if (typeof view.kind === 'string') return view.kind;
+    const kind = referencedModel(view, models)?.kind;
+    return typeof kind === 'string' ? kind : undefined;
+  }
+
+  function matchesOneOf(value: unknown, allowed: readonly string[]) {
+    return typeof value === 'string' && allowed.includes(value);
+  }
+
+  function validCoordinate(value: unknown) {
+    return typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= 1000000;
+  }
+
+  function validateProjectData(data: unknown, options?: ProjectValidationOptions | null) {
     const opt = options || {};
     const diagramTypes = new Set(opt.diagramTypes || []);
     const elementKinds = new Set(opt.elementKinds || []);
@@ -111,7 +143,8 @@
     const maxDiagrams = opt.maxDiagrams || 500;
     const maxViews = opt.maxViews || 20000;
     if (!isObject(data)) throw new Error('프로젝트 루트가 객체가 아닙니다.');
-    if (data.version !== undefined && (!Number.isInteger(data.version) || data.version < 1 || data.version > 30)) {
+    const version = data.version;
+    if (version !== undefined && (typeof version !== 'number' || !Number.isInteger(version) || version < 1 || version > 30)) {
       throw new Error(`지원하지 않는 프로젝트 버전: ${data.version}`);
     }
     if (data.projectId !== undefined
@@ -123,7 +156,7 @@
       throw new Error('프로젝트 이름이 올바르지 않습니다.');
     }
 
-    const diagrams = Array.isArray(data.diagrams)
+    const diagrams: unknown[] | null = Array.isArray(data.diagrams)
       ? data.diagrams
       : (Array.isArray(data.elements) && Array.isArray(data.relations)
         ? [{ id: 'legacy', type: 'class', elements: data.elements, relations: data.relations }]
@@ -131,11 +164,11 @@
     if (!diagrams || !diagrams.length) throw new Error('프로젝트에 다이어그램이 없습니다.');
     if (diagrams.length > maxDiagrams) throw new Error(`다이어그램 수가 제한(${maxDiagrams})을 초과합니다.`);
 
-    const models = isObject(data.models) ? data.models : {};
-    if ((data.version || 0) >= 11 && !isObject(data.models)) {
+    const rawModels = isObject(data.models) ? data.models : {};
+    if ((version || 0) >= 11 && !isObject(data.models)) {
       throw new Error('v11 프로젝트의 모델 저장소가 올바르지 않습니다.');
     }
-    Object.entries(models).forEach(([id, model]) => {
+    Object.entries(rawModels).forEach(([id, model]) => {
       if (!isObject(model) || model.id !== id) throw new Error(`잘못된 모델 항목: ${id}`);
       if (typeof model.kind !== 'string') throw new Error(`모델 종류가 없습니다: ${id}`);
       for (const field of [
@@ -146,12 +179,13 @@
         'sourceEndName', 'targetEndName', 'sourceEndStereotype', 'targetEndStereotype',
         'sourceColumnName', 'targetColumnName',
       ]) {
-        if (typeof model[field] === 'string' && model[field].length > 100000) {
+        const value = model[field];
+        if (typeof value === 'string' && value.length > 100000) {
           throw new Error(`모델 텍스트가 너무 깁니다: ${id}.${field}`);
         }
       }
       if (model.foreignKeyEnd !== undefined
-        && !['', 'source', 'target'].includes(model.foreignKeyEnd)) {
+        && !matchesOneOf(model.foreignKeyEnd, ['', 'source', 'target'])) {
         throw new Error(`ERD FK 보유 끝점이 올바르지 않습니다: ${id}.foreignKeyEnd`);
       }
       for (const field of ['sourceColumnName', 'targetColumnName']) {
@@ -163,38 +197,41 @@
         try {
           validateReferentialActions(model);
         } catch (error) {
-          throw new Error(`ERD FK 참조 동작이 올바르지 않습니다: ${id} · ${error.message}`);
+          throw new Error(`ERD FK 참조 동작이 올바르지 않습니다: ${id} · ${error instanceof Error ? error.message : String(error)}`);
         }
       }
       if (model.kind === 'entity') validateEntitySchema(model, []);
       for (const field of ['sourceEndVisibility', 'targetEndVisibility']) {
         if (model[field] !== undefined
-          && !['public', 'protected', 'private', 'package'].includes(model[field])) {
+          && !matchesOneOf(model[field], ['public', 'protected', 'private', 'package'])) {
           throw new Error(`관계 끝점 가시성이 올바르지 않습니다: ${id}.${field}`);
         }
       }
       for (const field of ['sourceNavigability', 'targetNavigability']) {
         if (model[field] !== undefined
-          && !['unspecified', 'navigable', 'notNavigable'].includes(model[field])) {
+          && !matchesOneOf(model[field], ['unspecified', 'navigable', 'notNavigable'])) {
           throw new Error(`관계 끝점 탐색 방향이 올바르지 않습니다: ${id}.${field}`);
         }
       }
       for (const field of ['sourceAggregation', 'targetAggregation']) {
-        if (model[field] !== undefined && !['none', 'shared', 'composite'].includes(model[field])) {
+        if (model[field] !== undefined && !matchesOneOf(model[field], ['none', 'shared', 'composite'])) {
           throw new Error(`관계 끝점 집합 종류가 올바르지 않습니다: ${id}.${field}`);
         }
       }
       for (const field of ['sourceQualifiers', 'targetQualifiers']) {
-        if (model[field] !== undefined
-          && (!Array.isArray(model[field]) || model[field].length > 50
-            || model[field].some(value => typeof value !== 'string' || value.length > 1000))) {
+        const qualifiers = model[field];
+        if (qualifiers !== undefined
+          && (!Array.isArray(qualifiers) || qualifiers.length > 50
+            || qualifiers.some((value: unknown) => typeof value !== 'string' || value.length > 1000))) {
           throw new Error(`관계 끝점 한정자가 올바르지 않습니다: ${id}.${field}`);
         }
       }
     });
 
+    const models = rawModels as Models;
     let viewCount = 0;
-    const diagramIds = new Set();
+    const diagramIds = new Set<string>();
+    const diagramById = new Map<string, ValidatedDiagram>();
     diagrams.forEach((diagram, index) => {
       if (!isObject(diagram)) throw new Error(`다이어그램 ${index + 1} 데이터가 올바르지 않습니다.`);
       if (typeof diagram.id !== 'string' || !diagram.id) throw new Error(`다이어그램 ID가 올바르지 않습니다: ${index + 1}`);
@@ -212,56 +249,59 @@
       viewCount += diagram.elements.length + diagram.relations.length;
       if (viewCount > maxViews) throw new Error(`전체 요소 수가 제한(${maxViews})을 초과합니다.`);
 
-      const ids = new Set();
-      diagram.elements.forEach(view => {
+      const ids = new Set<string>();
+      const elements: ProjectObject[] = [];
+      const relations: ProjectObject[] = [];
+      diagram.elements.forEach((view: unknown) => {
         if (!isObject(view) || typeof view.id !== 'string' || !view.id) throw new Error('요소 ID가 올바르지 않습니다.');
         if (ids.has(view.id)) throw new Error(`중복된 뷰 ID: ${view.id}`);
         ids.add(view.id);
+        elements.push(view);
         const kind = modelKindOf(view, models);
-        if (!elementKinds.has(kind)) throw new Error(`지원하지 않는 요소 종류: ${kind || '(없음)'}`);
+        if (!kind || !elementKinds.has(kind)) throw new Error(`지원하지 않는 요소 종류: ${kind || '(없음)'}`);
         for (const key of ['x', 'y', 'w', 'h']) {
-          if (view[key] !== undefined && (!Number.isFinite(view[key]) || Math.abs(view[key]) > 1000000)) {
+          if (view[key] !== undefined && !validCoordinate(view[key])) {
             throw new Error(`잘못된 요소 좌표: ${view.id}.${key}`);
           }
         }
-        if ((data.version || 0) >= 11 && !models[view.modelId]) throw new Error(`요소 모델을 찾을 수 없습니다: ${view.modelId}`);
+        if ((version || 0) >= 11 && !referencedModel(view, models)) throw new Error(`요소 모델을 찾을 수 없습니다: ${view.modelId}`);
       });
-      diagram.elements.forEach(view => {
+      elements.forEach(view => {
         if (view.parentId === undefined || view.parentId === null || view.parentId === '') return;
         if (typeof view.parentId !== 'string' || view.parentId === view.id || !ids.has(view.parentId)) {
           throw new Error(`요소의 포함 부모를 찾을 수 없습니다: ${view.id}`);
         }
-        const visited = new Set([view.id]);
-        let current = view;
-        while (current.parentId) {
+        const visited = new Set<unknown>([view.id]);
+        let current: ProjectObject | undefined = view;
+        while (current?.parentId) {
           if (visited.has(current.parentId)) throw new Error(`요소 포함 관계가 순환합니다: ${view.id}`);
           visited.add(current.parentId);
-          current = diagram.elements.find(x => x.id === current.parentId);
+          const parentId: unknown = current.parentId;
+          current = elements.find(x => x.id === parentId);
           if (!current) break;
         }
       });
-      diagram.relations.forEach(view => {
+      diagram.relations.forEach((view: unknown) => {
         if (!isObject(view) || typeof view.id !== 'string' || !view.id) throw new Error('관계 ID가 올바르지 않습니다.');
         if (ids.has(view.id)) throw new Error(`중복된 뷰 ID: ${view.id}`);
         ids.add(view.id);
+        relations.push(view);
         const kind = modelKindOf(view, models);
-        if (!relationKinds.has(kind)) throw new Error(`지원하지 않는 관계 종류: ${kind || '(없음)'}`);
+        if (!kind || !relationKinds.has(kind)) throw new Error(`지원하지 않는 관계 종류: ${kind || '(없음)'}`);
         if (typeof view.from !== 'string' || typeof view.to !== 'string' || !ids.has(view.from) || !ids.has(view.to)) {
           throw new Error(`관계의 연결 대상을 찾을 수 없습니다: ${view.id}`);
         }
-        if ((data.version || 0) >= 11 && !models[view.modelId]) throw new Error(`관계 모델을 찾을 수 없습니다: ${view.modelId}`);
+        if ((version || 0) >= 11 && !referencedModel(view, models)) throw new Error(`관계 모델을 찾을 수 없습니다: ${view.modelId}`);
         const routeKind = modelKindOf(view, models);
-        if (view.routeMode !== undefined && !['auto', 'manual'].includes(view.routeMode)) {
+        if (view.routeMode !== undefined && !matchesOneOf(view.routeMode, ['auto', 'manual'])) {
           throw new Error(`관계 라우팅 모드가 올바르지 않습니다: ${view.id}`);
         }
         if (view.manualPoints !== undefined) {
           if (routeKind !== 'bindingconnector'
             || !Array.isArray(view.manualPoints)
             || view.manualPoints.length > 200
-            || view.manualPoints.some(point =>
-              !isObject(point)
-              || !Number.isFinite(point.x) || !Number.isFinite(point.y)
-              || Math.abs(point.x) > 1000000 || Math.abs(point.y) > 1000000)) {
+            || view.manualPoints.some((point: unknown) =>
+              !isObject(point) || !validCoordinate(point.x) || !validCoordinate(point.y))) {
             throw new Error(`수동 라우팅 굴곡점이 올바르지 않습니다: ${view.id}`);
           }
         }
@@ -269,44 +309,44 @@
           throw new Error(`수동 라우팅 굴곡점이 없습니다: ${view.id}`);
         }
         if (view.jumpStyle !== undefined
-          && (routeKind !== 'bindingconnector' || !['arc', 'gap', 'none'].includes(view.jumpStyle))) {
+          && (routeKind !== 'bindingconnector' || !matchesOneOf(view.jumpStyle, ['arc', 'gap', 'none']))) {
           throw new Error(`관계 Line Jump 스타일이 올바르지 않습니다: ${view.id}`);
         }
       });
-      if ((data.version || 0) >= 16) {
-        const relationIds = new Set(diagram.relations.map(view => view.id));
-        diagram.relations.forEach(view => {
+      if ((version || 0) >= 16) {
+        const relationIds = new Set(relations.map(view => view.id));
+        relations.forEach(view => {
           if (view.connectorId !== undefined
             && (typeof view.connectorId !== 'string' || !relationIds.has(view.connectorId))) {
             throw new Error(`Communication Message의 Connector를 찾을 수 없습니다: ${view.id}`);
           }
         });
       }
-      if ((data.version || 0) >= 19) {
-        diagram.elements.filter(view => modelKindOf(view, models) === 'timeconstraint').forEach(view => {
+      if ((version || 0) >= 19) {
+        elements.filter(view => modelKindOf(view, models) === 'timeconstraint').forEach(view => {
           if (typeof view.constrainedViewId !== 'string' || !ids.has(view.constrainedViewId)) {
             throw new Error(`Time Constraint의 연결 대상을 찾을 수 없습니다: ${view.id}`);
           }
         });
       }
+      diagramById.set(diagram.id, { type: diagram.type, elements });
     });
-    if ((data.version || 0) >= 23) {
-      const diagramById = new Map(diagrams.map(diagram => [diagram.id, diagram]));
-      diagrams.forEach(diagram => {
+    if ((version || 0) >= 23) {
+      diagramById.forEach(diagram => {
         diagram.elements.forEach(view => {
           const kind = modelKindOf(view, models);
           if (kind !== 'interactionuse' && kind !== 'interactioninline') return;
-          const model = models[view.modelId] || view;
+          const model = referencedModel(view, models) || view;
           const referenceId = model.interactionDiagramId;
           if (referenceId === undefined || referenceId === null || referenceId === '') return;
-          const referenced = diagramById.get(referenceId);
+          const referenced = typeof referenceId === 'string' ? diagramById.get(referenceId) : undefined;
           if (typeof referenceId !== 'string' || !referenced || referenced.type !== 'sequence') {
             throw new Error(`Interaction의 Sequence Diagram 참조가 올바르지 않습니다: ${view.id}`);
           }
         });
       });
     }
-    if ((data.version || 0) >= 24) {
+    if ((version || 0) >= 24) {
       Object.values(models).filter(model => model.kind === 'informationflow').forEach(model => {
         if (model.conveyedModelIds === undefined) return;
         if (!Array.isArray(model.conveyedModelIds)
@@ -315,7 +355,7 @@
         }
       });
     }
-    if ((data.version || 0) >= 27) {
+    if ((version || 0) >= 27) {
       Object.values(models).filter(model => model.kind === 'connector').forEach(model => {
         if (model.itemFlowModelIds === undefined) return;
         if (!Array.isArray(model.itemFlowModelIds)
@@ -324,11 +364,11 @@
         }
       });
     }
-    if (data.activeId !== undefined && !diagramIds.has(data.activeId)) throw new Error(`활성 다이어그램을 찾을 수 없습니다: ${data.activeId}`);
+    if (data.activeId !== undefined && (typeof data.activeId !== 'string' || !diagramIds.has(data.activeId))) throw new Error(`활성 다이어그램을 찾을 수 없습니다: ${data.activeId}`);
     return true;
   }
 
-  function stringifyProject(data, pretty) {
+  function stringifyProject(data: unknown, pretty?: boolean) {
     return JSON.stringify(data, (key, value) => (key === '_m' || key === '_depth') ? undefined : value, pretty ? 2 : 0);
   }
 

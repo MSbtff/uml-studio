@@ -351,7 +351,7 @@ assert.match(presentationRegistry, /const DASH_PATTERNS/);
 assert.match(presentationRegistry, /const KIND_META/);
 assert.match(presentationRegistry, /const REL_STYLE/);
 assert.match(presentationRegistry, /function presentationRegistryProblems\(/);
-assert.match(presentationRegistry, /function deepFreeze\(/);
+assert.match(presentationRegistry, /function deepFreeze(?:<[^>]+>)?\(/);
 assert.match(canvasGeometry, /function edgePoint\(/);
 assert.match(canvasGeometry, /function borderAnchorFrac\(/);
 assert.match(canvasGeometry, /function relationEndpoints\(/);
@@ -929,7 +929,7 @@ assert.doesNotMatch(app, /function (?:snapshot|undo|redo|resetHistory|rollbackLa
   'Undo/Redo 구현은 History Controller 모듈이 소유해야 합니다');
 
 /* ── Element Factory 모듈 ───────────────────────────────────── */
-assert.match(elementFactory, /const NAME_PREFIXES = Object\.freeze\(/);
+assert.match(elementFactory, /const NAME_PREFIXES(?::[^=\n]+)? = Object\.freeze\(/);
 assert.match(elementFactory, /function nextName\(/);
 assert.match(elementFactory, /function createElement\(/);
 assert.match(elementFactory, /Element Factory 의존성이 없습니다/);
@@ -975,9 +975,9 @@ assert.match(app, /^  syncConstraintParameters,$/m,
   'Constraint Parameter 동기화는 Parametric Binding 모듈에서 연결해야 합니다');
 
 /* ── Member Lists 모듈 ─────────────────────────────────────── */
-assert.match(memberListsModule, /function ensureMemberArray\(element, field\)/);
-assert.match(memberListsModule, /function memberLists\(element\)/);
-assert.match(memberListsModule, /function memberListByKind\(element, kind\)/);
+assert.match(memberListsModule, /function ensureMemberArray\(element: MemberArrays, field: MemberField\)/);
+assert.match(memberListsModule, /function memberLists\(element: MeasuredElement\)/);
+assert.match(memberListsModule, /function memberListByKind\(element: MeasuredElement, kind: MemberKind\)/);
 assert.match(memberListsModule, /const MEMBER_FIELDS = Object\.freeze\(\{/);
 assert.match(memberListsModule, /root\.UMLMemberLists = api/);
 assert.match(memberListsModule, /return Object\.freeze\(\{ ensureMemberArray, memberListByKind, memberLists \}\)/);
@@ -991,7 +991,7 @@ assert.match(statusBar, /root\.UMLStatusBar = api/);
 assert.match(statusBar, /const FLASH_DURATION_MS = 1800;/);
 assert.match(statusBar, /function toolInstruction\(\)/);
 assert.match(statusBar, /function autosaveStatusText\(\)/);
-assert.match(statusBar, /function flash\(message\)/);
+assert.match(statusBar, /function flash\(message(?:: string)?\)/);
 assert.match(statusBar, /if \(flashTimer !== null\) clearTimeout\(flashTimer\);/,
   '연속 알림은 이전 복원 타이머를 취소해야 합니다');
 assert.match(statusBar, /return Object\.freeze\(\{ clearFlash, flash, render \}\)/);
@@ -1006,7 +1006,7 @@ assert.match(html, /id="status-left" role="status" aria-live="polite" aria-atomi
 
 /* ── Modal Focus 모듈 ──────────────────────────────────────── */
 assert.match(modalFocus, /root\.UMLModalFocus = api/);
-assert.match(modalFocus, /function handleKeydown\(event\)/);
+assert.match(modalFocus, /function handleKeydown\(event(?:: KeyboardEvent)?\)/);
 assert.match(modalFocus, /event\.key === 'Escape'/);
 assert.match(modalFocus, /event\.key !== 'Tab'/);
 assert.match(modalFocus, /appRoot\.inert = true/);
@@ -1107,7 +1107,7 @@ assert.match(validationPanel, /function updateSummary\(\)/);
 assert.match(validationPanel, /function run\(\)/);
 assert.match(validationPanel, /function clear\(\)/);
 assert.match(validationPanel, /function render\(\)/);
-assert.match(validationPanel, /function navigateToIssue\(item\)/);
+assert.match(validationPanel, /function navigateToIssue\(item(?:: Issue)?\)/);
 assert.match(validationPanel, /function toggle\(\)/);
 assert.match(validationPanel, /function attach\(\)/);
 assert.match(validationPanel, /function detach\(\)/);
@@ -1187,7 +1187,7 @@ assert.match(hitTesting, /function relationAt\(/);
 assert.match(hitTesting, /function communicationConnectorAt\(/);
 assert.match(hitTesting, /function relationLabelAt\(/);
 assert.match(hitTesting, /function memberRowAt\(/);
-assert.match(hitTesting, /function curveHit\(/);
+assert.match(hitTesting, /function curveHit(?:<[^>]+>)?\(/);
 assert.match(hitTesting, /const HIT_TOLERANCES = Object\.freeze\(/);
 assert.match(hitTesting, /Hit Testing 의존성이 없습니다/);
 assert.match(hitTesting, /root\.UMLHitTesting = api/);

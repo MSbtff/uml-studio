@@ -1,17 +1,31 @@
-// @ts-nocheck
 'use strict';
 
 /* Safe, non-executing CREATE TABLE importer for PostgreSQL, MySQL and SQLite.
    It preserves the shared ERD subset: columns, PK/FK/NOT NULL/UNIQUE,
    DEFAULT, CHECK, and simple column indexes. */
-(function initDdlImporter(root, factory) {
+interface DdlColumnApi {
+  formatColumn(column: { flags: string[]; phys: string; logical: string; type: string }): string;
+  validateColumn(column: { flags: string[]; phys: string; logical: string; type: string }): { valid: boolean; error?: string };
+}
+
+interface DdlSchemaApi {
+  safeSqlFragment(value: unknown, description?: string): string;
+  normalizeErdChecks(value: unknown, columns?: string[]): ErdSchemaCheck[];
+  normalizeErdIndexes(value: unknown, columns?: string[]): ErdSchemaIndex[];
+  normalizeReferentialAction(value: unknown, description?: string): string;
+}
+
+(function initDdlImporter<Api>(
+  root: typeof globalThis & { UMLErdColumn?: DdlColumnApi; UMLErdSchema?: DdlSchemaApi; UMLDdlImporter?: Api },
+  factory: (erdColumn?: DdlColumnApi, erdSchema?: DdlSchemaApi) => Api,
+) {
   const commonJs = typeof module !== 'undefined' && module.exports;
   const erdColumn = commonJs ? require('../model/erd-column.js') : root.UMLErdColumn;
   const erdSchema = commonJs ? require('../model/erd-schema.js') : root.UMLErdSchema;
   const api = factory(erdColumn, erdSchema);
   if (commonJs) module.exports = api;
   else root.UMLDdlImporter = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createDdlImporter(erdColumn, erdSchema) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function createDdlImporter(erdColumn?: DdlColumnApi, erdSchema?: DdlSchemaApi) {
   if (!erdColumn || typeof erdColumn.formatColumn !== 'function'
     || typeof erdColumn.validateColumn !== 'function') {
     throw new TypeError('DDL Importer에는 UMLErdColumn.formatColumn/validateColumn이 필요합니다.');
@@ -26,6 +40,72 @@
   const {
     safeSqlFragment, normalizeErdChecks, normalizeErdIndexes, normalizeReferentialAction,
   } = erdSchema;
+  interface Token {
+    type: 'word' | 'string' | 'number' | 'identifier' | 'symbol';
+    value: string;
+    raw: string;
+    start: number;
+    end: number;
+  }
+  interface Column {
+    name: string;
+    type: string;
+    primaryKey: boolean;
+    foreignKey: boolean;
+    notNull: boolean;
+    unique: boolean;
+    uniqueName: string;
+    defaultValue: string;
+  }
+  interface ForeignKey {
+    name: string;
+    sourceColumns: string[];
+    targetTable: string;
+    targetParts: string[];
+    targetColumns: string[];
+    onDelete: string;
+    onUpdate: string;
+  }
+  interface Table {
+    name: string;
+    qualifiedName: string;
+    columns: Column[];
+    primaryKeyNames: string[];
+    foreignKeys: ForeignKey[];
+    checks: ErdSchemaCheck[];
+    indexes: ErdSchemaIndex[];
+  }
+  interface StandaloneIndex {
+    tableName: string;
+    index: ErdSchemaIndex;
+  }
+  interface EntityModel {
+    id: string;
+    kind: 'entity';
+    name: string;
+    columns: string[];
+    erdColumnDetails?: Record<string, ErdColumnDetails>;
+    erdChecks?: ErdSchemaCheck[];
+    erdIndexes?: ErdSchemaIndex[];
+  }
+  interface RelationModel {
+    id: string;
+    kind: 'erd-1n';
+    name: string;
+    sourceLabel: '0..N';
+    targetLabel: '0..1' | '1';
+    foreignKeyEnd: 'source';
+    sourceColumnName: string;
+    targetColumnName: string;
+    foreignKeyOnDelete: string;
+    foreignKeyOnUpdate: string;
+    fromModelId: string;
+    toModelId: string;
+  }
+  type EntityView = DiagramBounds & { id: string; modelId: string };
+  interface RelationView { id: string; modelId: string; from: string; to: string }
+  interface Options { diagramName?: string }
+
   const MAX_SOURCE_BYTES = 10 * 1024 * 1024;
   const MAX_TOKENS = 200000;
   const MAX_STATEMENTS = 2000;
@@ -36,27 +116,27 @@
     'REFERENCES', 'COLLATE', 'GENERATED', 'AUTO_INCREMENT', 'AUTOINCREMENT', 'COMMENT',
   ]);
 
-  const upper = token => String(token?.value || '').toUpperCase();
-  const isKeyword = (token, keyword) => token?.type === 'word' && upper(token) === keyword;
-  const isSymbol = (token, symbol) => token?.type === 'symbol' && token.value === symbol;
-  const isIdentifier = token => token?.type === 'word' || token?.type === 'identifier';
+  const upper = (token?: Token | null) => String(token?.value || '').toUpperCase();
+  const isKeyword = (token: Token | undefined, keyword: string) => token?.type === 'word' && upper(token) === keyword;
+  const isSymbol = (token: Token | undefined, symbol: string) => token?.type === 'symbol' && token.value === symbol;
+  const isIdentifier = (token?: Token) => token?.type === 'word' || token?.type === 'identifier';
 
-  function sourceLocation(source, index) {
+  function sourceLocation(source: unknown, index: number) {
     const before = String(source || '').slice(0, Math.max(0, index));
     const lines = before.split('\n');
-    return { line: lines.length, column: lines.at(-1).length + 1 };
+    return { line: lines.length, column: lines[lines.length - 1].length + 1 };
   }
 
-  function locatedError(message, source, index) {
+  function locatedError(message: string, source: unknown, index: number) {
     const location = sourceLocation(source, index);
     return new Error(`DDL ${location.line}:${location.column} · ${message}`);
   }
 
-  function tokenize(source) {
+  function tokenize(source: unknown) {
     const text = String(source || '');
-    const tokens = [];
+    const tokens: Token[] = [];
     let index = 0;
-    const push = (type, value, raw, start, end) => {
+    const push = (type: Token['type'], value: string, raw: string, start: number, end: number) => {
       tokens.push({ type, value, raw, start, end });
       if (tokens.length > MAX_TOKENS) throw new Error(`DDL 토큰 수가 제한(${MAX_TOKENS})을 초과합니다.`);
     };
@@ -133,9 +213,9 @@
     return tokens;
   }
 
-  function splitStatements(tokens) {
-    const statements = [];
-    let current = [];
+  function splitStatements(tokens: Token[]) {
+    const statements: Token[][] = [];
+    let current: Token[] = [];
     tokens.forEach(token => {
       if (isSymbol(token, ';')) {
         if (current.length) statements.push(current);
@@ -149,9 +229,9 @@
     return statements;
   }
 
-  function renderTokens(tokens) {
+  function renderTokens(tokens: Token[]) {
     let result = '';
-    let previous = null;
+    let previous: Token | null = null;
     tokens.forEach(token => {
       if (isSymbol(token, ')') || isSymbol(token, ',') || isSymbol(token, '.') || isSymbol(token, ']')) {
         result = result.trimEnd() + token.raw;
@@ -168,9 +248,9 @@
     return result.trim();
   }
 
-  function renderExpressionTokens(tokens) {
+  function renderExpressionTokens(tokens: Token[]) {
     let result = '';
-    let previous = null;
+    let previous: Token | null = null;
     tokens.forEach(token => {
       if (isSymbol(token, ',')) {
         result = result.trimEnd() + ', ';
@@ -185,7 +265,7 @@
     return result.trim();
   }
 
-  function qualifiedIdentifier(tokens, start) {
+  function qualifiedIdentifier(tokens: Token[], start: number) {
     if (!isIdentifier(tokens[start])) return null;
     const parts = [tokens[start].value];
     let index = start + 1;
@@ -193,10 +273,10 @@
       parts.push(tokens[index + 1].value);
       index += 2;
     }
-    return { parts, name: parts.at(-1), next: index };
+    return { parts, name: parts[parts.length - 1], next: index };
   }
 
-  function matchingParen(tokens, openIndex) {
+  function matchingParen(tokens: Token[], openIndex: number) {
     if (!isSymbol(tokens[openIndex], '(')) return -1;
     let depth = 0;
     for (let index = openIndex; index < tokens.length; index++) {
@@ -209,10 +289,10 @@
     return -1;
   }
 
-  function splitCommaItems(tokens) {
-    const items = [];
+  function splitCommaItems(tokens: Token[]) {
+    const items: Token[][] = [];
     let depth = 0;
-    let current = [];
+    let current: Token[] = [];
     tokens.forEach(token => {
       if (isSymbol(token, '(')) depth++;
       if (isSymbol(token, ')')) depth--;
@@ -225,7 +305,7 @@
     return items;
   }
 
-  function identifierList(tokens, openIndex) {
+  function identifierList(tokens: Token[], openIndex: number) {
     const close = matchingParen(tokens, openIndex);
     if (close < 0) throw new Error('컬럼 목록의 닫는 괄호가 없습니다.');
     const names = splitCommaItems(tokens.slice(openIndex + 1, close)).map(item => {
@@ -237,10 +317,10 @@
     return { names, next: close + 1 };
   }
 
-  function referenceAt(tokens, referenceIndex) {
+  function referenceAt(tokens: Token[], referenceIndex: number) {
     const target = qualifiedIdentifier(tokens, referenceIndex + 1);
     if (!target) throw new Error('REFERENCES 대상 테이블 이름이 없습니다.');
-    let targetColumns = [];
+    let targetColumns: string[] = [];
     let next = target.next;
     if (isSymbol(tokens[next], '(')) {
       const list = identifierList(tokens, next);
@@ -250,7 +330,7 @@
     return { targetParts: target.parts, targetTable: target.name, targetColumns, next };
   }
 
-  function referenceActionsAt(tokens, start, warnings) {
+  function referenceActionsAt(tokens: Token[], start: number, warnings: string[]) {
     const result = { onDelete: '', onUpdate: '' };
     for (let index = start; index < tokens.length; index++) {
       if (isKeyword(tokens[index], 'MATCH') || isKeyword(tokens[index], 'DEFERRABLE')
@@ -282,11 +362,11 @@
     return result;
   }
 
-  function addWarning(warnings, message) {
+  function addWarning(warnings: string[], message: string) {
     if (!warnings.includes(message) && warnings.length < 100) warnings.push(message);
   }
 
-  function nextColumnConstraint(tokens, start) {
+  function nextColumnConstraint(tokens: Token[], start: number) {
     const starters = new Set([
       'CONSTRAINT', 'NOT', 'PRIMARY', 'UNIQUE', 'CHECK', 'DEFAULT', 'REFERENCES',
       'COLLATE', 'GENERATED', 'AUTO_INCREMENT', 'AUTOINCREMENT', 'COMMENT',
@@ -300,7 +380,7 @@
     return tokens.length;
   }
 
-  function checkAt(tokens, checkIndex, constraintName = '', column = '') {
+  function checkAt(tokens: Token[], checkIndex: number, constraintName = '', column = '') {
     const open = tokens.findIndex((token, index) => index > checkIndex && isSymbol(token, '('));
     if (open < 0) throw new Error('CHECK 표현식의 여는 괄호가 없습니다.');
     const close = matchingParen(tokens, open);
@@ -309,16 +389,16 @@
     return { check: { name: constraintName, expression, column }, next: close + 1 };
   }
 
-  function defaultAt(tokens, defaultIndex) {
+  function defaultAt(tokens: Token[], defaultIndex: number) {
     const end = nextColumnConstraint(tokens, defaultIndex + 1);
     const expression = safeSqlFragment(renderExpressionTokens(tokens.slice(defaultIndex + 1, end)), 'DEFAULT 값');
     return { expression, next: end };
   }
 
-  function indexedColumns(tokens, openIndex, warnings) {
+  function indexedColumns(tokens: Token[], openIndex: number, warnings: string[]) {
     const close = matchingParen(tokens, openIndex);
     if (close < 0) throw new Error('인덱스 컬럼 목록의 닫는 괄호가 없습니다.');
-    const columns = splitCommaItems(tokens.slice(openIndex + 1, close)).map(item => {
+    const columns = splitCommaItems(tokens.slice(openIndex + 1, close)).map((item): ErdSchemaIndex['columns'][number] => {
       if (!isIdentifier(item[0])) throw new Error('식 기반 인덱스는 아직 지원하지 않습니다.');
       let index = 1;
       if (isSymbol(item[index], '(')) {
@@ -327,7 +407,9 @@
         addWarning(warnings, 'MySQL 인덱스 접두 길이는 제외하고 컬럼만 저장했습니다.');
         index = prefixClose + 1;
       }
-      const order = ['ASC', 'DESC'].includes(upper(item[index])) ? upper(item[index++]) : '';
+      const direction = upper(item[index]);
+      const order = direction === 'ASC' || direction === 'DESC' ? direction : '';
+      if (order) index++;
       if (index < item.length) {
         addWarning(warnings, '인덱스 COLLATE·NULLS·연산자 클래스 옵션은 제외하고 저장했습니다.');
       }
@@ -337,7 +419,7 @@
     return { columns, next: close + 1 };
   }
 
-  function parseIndexDefinition(item, start, warnings, kind = 'index', constraintName = '') {
+  function parseIndexDefinition(item: Token[], start: number, warnings: string[], kind: ErdSchemaIndex['kind'] = 'index', constraintName = ''): ErdSchemaIndex {
     let index = start;
     let unique = kind === 'unique';
     if (isKeyword(item[index], 'UNIQUE')) { unique = true; index++; }
@@ -368,7 +450,7 @@
     return { kind, name, unique, columns: parsed.columns, where };
   }
 
-  function parseColumnItem(item, table, warnings) {
+  function parseColumnItem(item: Token[], table: Table, warnings: string[]) {
     if (!isIdentifier(item[0])) throw new Error(`'${table.name}' 테이블에 올바르지 않은 컬럼 정의가 있습니다.`);
     const name = item[0].value;
     let depth = 0;
@@ -438,7 +520,7 @@
     table.columns.push(column);
   }
 
-  function parseTableConstraint(item, table, warnings) {
+  function parseTableConstraint(item: Token[], table: Table, warnings: string[]) {
     let index = 0;
     let constraintName = '';
     if (isKeyword(item[index], 'CONSTRAINT')) {
@@ -478,7 +560,7 @@
     throw new Error(`'${table.name}'에 지원하지 않는 테이블 정의가 있습니다: ${renderTokens(item).slice(0, 120)}`);
   }
 
-  function parseCreateTable(statement, warnings) {
+  function parseCreateTable(statement: Token[], warnings: string[]): Table | null {
     const tableKeyword = statement.findIndex((token, index) => index > 0 && index < 6 && isKeyword(token, 'TABLE'));
     if (!isKeyword(statement[0], 'CREATE') || tableKeyword < 0) return null;
     let index = tableKeyword + 1;
@@ -498,7 +580,7 @@
     if (statement.slice(close + 1).length) {
       addWarning(warnings, 'ENGINE·TABLESPACE·WITHOUT ROWID 등 테이블 옵션은 현재 ERD 모델에 저장하지 않습니다.');
     }
-    const table = {
+    const table: Table = {
       name: identifier.name, qualifiedName: identifier.parts.join('.'),
       columns: [], primaryKeyNames: [], foreignKeys: [], checks: [], indexes: [],
     };
@@ -515,7 +597,7 @@
     if (table.columns.length > MAX_COLUMNS_PER_TABLE) {
       throw new Error(`'${table.name}' 컬럼 수가 제한(${MAX_COLUMNS_PER_TABLE})을 초과합니다.`);
     }
-    const columnByName = new Map();
+    const columnByName = new Map<string, Column>();
     table.columns.forEach(column => {
       const key = column.name.toLocaleLowerCase();
       if (columnByName.has(key)) throw new Error(`'${table.name}'에 중복된 컬럼이 있습니다: ${column.name}`);
@@ -539,7 +621,7 @@
     return table;
   }
 
-  function parseCreateIndex(statement, warnings) {
+  function parseCreateIndex(statement: Token[], warnings: string[]): StandaloneIndex | null {
     if (!isKeyword(statement[0], 'CREATE')) return null;
     let index = 1;
     const unique = isKeyword(statement[index], 'UNIQUE');
@@ -588,7 +670,7 @@
     };
   }
 
-  function detectedDialect(source) {
+  function detectedDialect(source: unknown) {
     const text = String(source || '');
     const matches = [];
     if (/`[^`]+`|\bENGINE\s*=|\bAUTO_INCREMENT\b/i.test(text)) matches.push('MySQL');
@@ -597,19 +679,19 @@
     return matches.length === 1 ? matches[0] : (matches.length ? '혼합/자동' : '표준/자동');
   }
 
-  function buildProject(tables, warnings, options, dialect) {
-    const models = {};
-    const elements = [];
-    const relations = [];
-    const tableByName = new Map();
-    tables.forEach((table, tableIndex) => {
+  function buildProject(tables: Table[], warnings: string[], options: Options, dialect: string) {
+    const models: Record<string, EntityModel | RelationModel> = {};
+    const elements: EntityView[] = [];
+    const relations: RelationView[] = [];
+    const tableByName = new Map<string, Table & { modelId: string; viewId: string }>();
+    const placedTables = tables.map((table, tableIndex) => {
       const key = table.name.toLocaleLowerCase();
       if (tableByName.has(key)) throw new Error(`중복된 테이블 이름이 있습니다: ${table.name}`);
       const modelId = `ddl_entity_${tableIndex + 1}`;
       const viewId = `ddl_view_${tableIndex + 1}`;
-      table.modelId = modelId; table.viewId = viewId;
-      tableByName.set(key, table);
-      const model = {
+      const placedTable = { ...table, modelId, viewId };
+      tableByName.set(key, placedTable);
+      const model: EntityModel = {
         id: modelId, kind: 'entity', name: table.name,
         columns: table.columns.map(column => {
           const candidate = {
@@ -642,10 +724,11 @@
         y: 96 + Math.floor(tableIndex / 3) * 260,
         w: 280, h: Math.max(88, 48 + table.columns.length * 22),
       });
+      return placedTable;
     });
 
     let relationIndex = 0;
-    tables.forEach(sourceTable => {
+    placedTables.forEach(sourceTable => {
       sourceTable.foreignKeys.forEach(foreignKey => {
         const targetTable = tableByName.get(foreignKey.targetTable.toLocaleLowerCase());
         if (!targetTable) {
@@ -671,6 +754,9 @@
         }
         const sourceColumn = sourceTable.columns.find(column =>
           column.name.toLocaleLowerCase() === foreignKey.sourceColumns[0].toLocaleLowerCase());
+        if (!sourceColumn) {
+          throw new Error(`'${sourceTable.name}'의 FOREIGN KEY 컬럼을 찾을 수 없습니다: ${foreignKey.sourceColumns[0]}`);
+        }
         relationIndex++;
         const modelId = `ddl_relation_${relationIndex}`;
         const viewId = `ddl_relation_view_${relationIndex}`;
@@ -696,7 +782,7 @@
     return {
       version: 30,
       models,
-      diagrams: [{ id: 'ddl_diagram_1', type: 'erd', name: diagramName, elements, relations }],
+      diagrams: [{ id: 'ddl_diagram_1', type: 'erd' as const, name: diagramName, elements, relations }],
       importMeta: {
         dialect,
         warnings,
@@ -710,15 +796,15 @@
     };
   }
 
-  function parseDdl(source, options = {}) {
+  function parseDdl(source: unknown, options: Options = {}) {
     const text = String(source || '');
     if (!text.trim()) throw new Error('DDL 내용이 비어 있습니다.');
     if (new TextEncoder().encode(text).length > MAX_SOURCE_BYTES) {
       throw new Error('DDL은 10MB 이하만 가져올 수 있습니다.');
     }
-    const warnings = [];
-    const tables = [];
-    const standaloneIndexes = [];
+    const warnings: string[] = [];
+    const tables: Table[] = [];
+    const standaloneIndexes: StandaloneIndex[] = [];
     splitStatements(tokenize(text)).forEach(statement => {
       if (!statement.length) return;
       try {
@@ -740,8 +826,9 @@
         }
         throw new Error(`지원하지 않는 SQL 문장입니다: ${renderTokens(statement).slice(0, 120)}`);
       } catch (error) {
-        if (/^DDL \d+:\d+ · /.test(error.message)) throw error;
-        throw locatedError(error.message, text, statement[0]?.start || 0);
+        const message = error instanceof Error ? error.message : String(error);
+        if (/^DDL \d+:\d+ · /.test(message)) throw error;
+        throw locatedError(message, text, statement[0]?.start || 0);
       }
     });
     if (!tables.length) throw new Error('가져올 CREATE TABLE 문이 없습니다.');

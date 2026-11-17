@@ -1,11 +1,21 @@
-// @ts-nocheck
 'use strict';
 
-(function initCanvasGeometry(root, factory) {
+(function initCanvasGeometry<Api>(root: typeof globalThis & { UMLCanvasGeometry?: Api }, factory: () => Api) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLCanvasGeometry = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function createCanvasGeometry() {
+  interface ElementOutline extends DiagramBounds {
+    id?: string;
+    kind: string;
+    parentId?: string | null;
+  }
+  interface EndpointAnchors {
+    kind?: string;
+    srcAnchor?: DiagramAnchor | null;
+    dstAnchor?: DiagramAnchor | null;
+  }
+
   const GRID = 8;
 
   const ELLIPSE_KINDS = new Set([
@@ -18,19 +28,19 @@
   ]);
   const DIAMOND_KINDS = new Set(['decision', 'choice']);
 
-  function snap(value, grid = GRID) {
+  function snap(value: number, grid = GRID) {
     return Math.round(value / grid) * grid;
   }
 
-  function snapUp(value, grid = GRID) {
+  function snapUp(value: number, grid = GRID) {
     return Math.ceil(value / grid) * grid;
   }
 
-  function center(rect) {
+  function center(rect: DiagramBounds) {
     return { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 };
   }
 
-  function pointInside(rect, point, inset = 0) {
+  function pointInside(rect: DiagramBounds, point: DiagramPoint, inset = 0) {
     return point.x >= rect.x + inset
       && point.x <= rect.x + rect.w - inset
       && point.y >= rect.y + inset
@@ -39,7 +49,7 @@
 
   /* Point where the ray from the element center toward `toward` meets its
      rendered outline. UML shapes use ellipse, circle, diamond, or rectangle. */
-  function edgePoint(element, toward) {
+  function edgePoint(element: ElementOutline, toward: DiagramPoint) {
     const middle = center(element);
     const dx = toward.x - middle.x, dy = toward.y - middle.y;
     if (dx === 0 && dy === 0) return middle;
@@ -59,13 +69,13 @@
     return { x: middle.x + dx * scale, y: middle.y + dy * scale };
   }
 
-  function anchorPoint(element, anchor) {
+  function anchorPoint(element: DiagramBounds, anchor: DiagramAnchor) {
     return { x: element.x + anchor.fx * element.w, y: element.y + anchor.fy * element.h };
   }
 
   /* Fractional anchor on the nearest outline. Curved shapes use angular
      projection; rectangular shapes preserve the cursor's nearest-edge offset. */
-  function borderAnchorFrac(host, point) {
+  function borderAnchorFrac(host: ElementOutline, point: DiagramPoint) {
     if (ELLIPSE_KINDS.has(host.kind) || CIRCLE_KINDS.has(host.kind) || DIAMOND_KINDS.has(host.kind)) {
       const outline = edgePoint(host, point);
       return { fx: (outline.x - host.x) / host.w, fy: (outline.y - host.y) / host.h };
@@ -82,7 +92,7 @@
     return { fx: 1, fy };
   }
 
-  function nestedContainmentEndpoints(relation, child, owner) {
+  function nestedContainmentEndpoints(relation: EndpointAnchors, child: ElementOutline, owner: ElementOutline) {
     if (relation.kind !== 'containment'
       || child.parentId !== owner.id
       || relation.srcAnchor
@@ -111,7 +121,7 @@
     return { p1: { x, y: child.y + child.h }, p2: { x, y: owner.y + owner.h } };
   }
 
-  function relationEndpoints(relation, from, to) {
+  function relationEndpoints(relation: EndpointAnchors, from?: ElementOutline | null, to?: ElementOutline | null) {
     if (!from || !to) return null;
     const containment = nestedContainmentEndpoints(relation, from, to);
     if (containment) return containment;
@@ -123,8 +133,8 @@
     };
   }
 
-  function compactBindingWaypoints(points, grid = GRID) {
-    return points.reduce((result, point) => {
+  function compactBindingWaypoints(points: readonly DiagramPoint[], grid = GRID) {
+    return points.reduce<DiagramPoint[]>((result, point) => {
       const current = { x: point.x, y: point.y };
       const previous = result[result.length - 1];
       if (previous
@@ -137,7 +147,7 @@
     }, []);
   }
 
-  function distToSegment(point, a, b) {
+  function distToSegment(point: DiagramPoint, a: DiagramPoint, b: DiagramPoint) {
     const lengthSquared = (b.x - a.x) ** 2 + (b.y - a.y) ** 2;
     if (!lengthSquared) return Math.hypot(point.x - a.x, point.y - a.y);
     let ratio = ((point.x - a.x) * (b.x - a.x) + (point.y - a.y) * (b.y - a.y)) / lengthSquared;
@@ -148,7 +158,7 @@
     );
   }
 
-  function nearestPolylineSegmentIndex(point, points) {
+  function nearestPolylineSegmentIndex(point: DiagramPoint, points: readonly DiagramPoint[]) {
     let bestIndex = 0, bestDistance = Infinity;
     for (let index = 1; index < points.length; index++) {
       const distance = distToSegment(point, points[index - 1], points[index]);
@@ -160,7 +170,7 @@
     return bestIndex;
   }
 
-  function distanceAlongPolyline(point, points) {
+  function distanceAlongPolyline(point: DiagramPoint, points: readonly DiagramPoint[]) {
     let walked = 0, bestDistance = Infinity, bestPosition = 0;
     for (let index = 1; index < points.length; index++) {
       const a = points[index - 1], b = points[index];
@@ -185,19 +195,19 @@
     return bestPosition;
   }
 
-  function pointNearPolyline(point, points, threshold) {
+  function pointNearPolyline(point: DiagramPoint, points: readonly DiagramPoint[], threshold: number) {
     for (let index = 1; index < points.length; index++) {
       if (distToSegment(point, points[index - 1], points[index]) < threshold) return true;
     }
     return false;
   }
 
-  function polylinePath(points) {
+  function polylinePath(points: readonly DiagramPoint[]) {
     return points.map((point, index) =>
       `${index ? 'L' : 'M'} ${point.x} ${point.y}`).join(' ');
   }
 
-  function headGeom(tip, angle, length, width) {
+  function headGeom(tip: DiagramPoint, angle: number, length: number, width: number) {
     const cos = Math.cos(angle), sin = Math.sin(angle);
     const bx = tip.x - cos * length, by = tip.y - sin * length;
     const px = -sin, py = cos;
@@ -209,7 +219,7 @@
     };
   }
 
-  function curvedBranchGeometry(p1, p2) {
+  function curvedBranchGeometry(p1: DiagramPoint, p2: DiagramPoint): DiagramQuadraticCurve {
     const dx = p2.x - p1.x, dy = p2.y - p1.y;
     const length = Math.hypot(dx, dy) || 1;
     const bend = Math.min(24, length * 0.18);
@@ -223,7 +233,7 @@
     };
   }
 
-  function bezierPoint(curve, t) {
+  function bezierPoint(curve: DiagramQuadraticCurve, t: number) {
     const u = 1 - t;
     return {
       x: u * u * curve.p1.x + 2 * t * u * curve.c.x + t * t * curve.p2.x,
@@ -231,7 +241,7 @@
     };
   }
 
-  function selfTransitionGeometry(relation, host) {
+  function selfTransitionGeometry(relation: EndpointAnchors & { from?: string; to?: string }, host?: DiagramBounds | null) {
     if (!host || relation.kind !== 'transition' || relation.from !== relation.to) return null;
     const p1 = relation.srcAnchor
       ? anchorPoint(host, relation.srcAnchor)
@@ -251,7 +261,7 @@
     };
   }
 
-  function cubicPoint(curve, t) {
+  function cubicPoint(curve: DiagramCubicCurve, t: number) {
     const u = 1 - t;
     return {
       x: u ** 3 * curve.p1.x

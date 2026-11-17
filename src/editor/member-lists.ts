@@ -1,9 +1,8 @@
-// @ts-nocheck
 'use strict';
 
 /* Member Lists — normalizes editable member arrays and maps measured
    compartments to the rows consumed by Quick Edit and hit testing. */
-(function initMemberListsModule(root, factory) {
+(function initMemberListsModule<Api>(root: typeof globalThis & { UMLMemberLists?: Api }, factory: () => Api) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLMemberLists = api;
@@ -19,20 +18,35 @@
     slot: 'slots',
   });
 
+  type MemberKind = keyof typeof MEMBER_FIELDS;
+  type MemberField = typeof MEMBER_FIELDS[MemberKind];
+  type MemberArrays = Partial<Record<MemberField, unknown[]>>;
+  interface MemberMetrics {
+    headH: number;
+    aH: number;
+    slotH: number;
+    oH: number;
+    rH: number;
+    showAttrs?: boolean;
+    showOps?: boolean;
+    showReceptions?: boolean;
+  }
+  type MeasuredElement = MemberArrays & { kind: string; _m?: MemberMetrics | null };
+
   function create() {
-    function ensureMemberArray(element, field) {
+    function ensureMemberArray(element: MemberArrays, field: MemberField) {
       if (!Array.isArray(element[field])) element[field] = [];
       return element[field];
     }
 
-    const describe = (element, kind, top, height) => ({
+    const describe = (element: MeasuredElement, kind: MemberKind, top: number, height: number) => ({
       kind,
       arr: ensureMemberArray(element, MEMBER_FIELDS[kind]),
       top,
       h: height,
     });
 
-    function memberLists(element) {
+    function memberLists(element: MeasuredElement) {
       const metrics = element._m;
       if (!metrics) return [];
       if (element.kind === 'entity') {
@@ -59,7 +73,7 @@
       return lists;
     }
 
-    function memberListByKind(element, kind) {
+    function memberListByKind(element: MeasuredElement, kind: MemberKind) {
       return memberLists(element).find(list => list.kind === kind) || null;
     }
 

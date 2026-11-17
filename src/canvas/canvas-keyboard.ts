@@ -1,5 +1,4 @@
-// @ts-nocheck
-(function initCanvasKeyboardModule(root, factory) {
+(function initCanvasKeyboardModule<Api>(root: typeof globalThis & { UMLCanvasKeyboard?: Api }, factory: () => Api) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLCanvasKeyboard = api;
@@ -8,12 +7,31 @@
 
   const REQUIRED_FUNCTIONS = Object.freeze([
     'byId', 'dg', 'diagramKindLabel', 'flashStatus', 'render', 'renderProps', 'setSelection',
-  ]);
-  const REQUIRED_VALUES = Object.freeze(['state', 'wrap']);
+  ] as const);
+  const REQUIRED_VALUES = Object.freeze(['state', 'wrap'] as const);
   const REVEAL_MARGIN = 24;
   const EDITING_SELECTOR = 'input, textarea, select, [contenteditable="true"]';
 
-  function create(deps = {}) {
+  interface SelectableView { id: string; kind: string; name?: string }
+  type ElementView = SelectableView & DiagramBounds;
+  type RelationView = SelectableView & { from: string; to: string };
+  type NavigationItem =
+    | { kind: 'element'; view: ElementView }
+    | { kind: 'relation'; view: RelationView };
+
+  interface KeyboardDependencies {
+    byId(id: string): ElementView | null | undefined;
+    dg(): { type: string; elements?: ElementView[]; relations?: RelationView[] } | null;
+    diagramKindLabel(kind: string, type?: string): string;
+    flashStatus(message: string): void;
+    render(): void;
+    renderProps(): void;
+    setSelection(ids: string[]): void;
+    state: { selectedId?: string | null; selection?: string[]; zoom: number };
+    wrap: HTMLElement;
+  }
+
+  function create(deps: Partial<KeyboardDependencies> = {}) {
     REQUIRED_FUNCTIONS.forEach(name => {
       if (typeof deps[name] !== 'function') throw new TypeError(`UMLCanvasKeyboard requires ${name}()`);
     });
@@ -23,17 +41,17 @@
 
     const {
       byId, dg, diagramKindLabel, flashStatus, render, renderProps, setSelection, state, wrap,
-    } = deps;
+    } = deps as KeyboardDependencies;
     let attached = false;
 
     /* everything the user can select, in drawing order: elements first, then the
        relations between them */
-    function navigableItems() {
+    function navigableItems(): NavigationItem[] {
       const diagram = dg();
       if (!diagram) return [];
       return [
-        ...(diagram.elements || []).map(view => ({ view, kind: 'element' })),
-        ...(diagram.relations || []).map(view => ({ view, kind: 'relation' })),
+        ...(diagram.elements || []).map(view => ({ view, kind: 'element' as const })),
+        ...(diagram.relations || []).map(view => ({ view, kind: 'relation' as const })),
       ];
     }
 
@@ -43,14 +61,14 @@
       return selection.length ? selection[selection.length - 1] : null;
     }
 
-    function boxOf(view) {
-      return [view?.x, view?.y, view?.w, view?.h].every(Number.isFinite)
+    function boxOf(view?: DiagramBounds | null) {
+      return view && [view.x, view.y, view.w, view.h].every(Number.isFinite)
         ? { x: view.x, y: view.y, w: view.w, h: view.h }
         : null;
     }
 
     /* a relation has no box of its own — use the span of the two views it joins */
-    function bounds(item) {
+    function bounds(item: NavigationItem) {
       if (item.kind === 'element') return boxOf(item.view);
       const from = boxOf(byId(item.view.from));
       const to = boxOf(byId(item.view.to));
@@ -66,7 +84,7 @@
     }
 
     /* scroll the least amount that brings the view inside the visible area */
-    function reveal(item) {
+    function reveal(item: NavigationItem) {
       const box = bounds(item);
       if (!box || !Number.isFinite(wrap.clientWidth) || !Number.isFinite(wrap.clientHeight)) return false;
       const zoom = Number.isFinite(state.zoom) && state.zoom > 0 ? state.zoom : 1;
@@ -85,13 +103,13 @@
       return true;
     }
 
-    function announce(item, index, total) {
+    function announce(item: NavigationItem, index: number, total: number) {
       const label = diagramKindLabel(item.view.kind, dg()?.type);
       const name = String(item.view.name || '').trim();
       return `${label}${name ? ` "${name}"` : ''} · ${index + 1}/${total} 선택 · Tab 다음 · Shift+Tab 이전 · Esc 해제`;
     }
 
-    function selectAt(items, index) {
+    function selectAt(items: NavigationItem[], index: number) {
       const item = items[index];
       if (!item) return false;
       setSelection([item.view.id]);
@@ -111,7 +129,7 @@
 
     /* Tab walks the diagram and, past either end, drops the selection and lets the
        browser move on — so the canvas is never a keyboard trap */
-    function step(forward) {
+    function step(forward: boolean) {
       const items = navigableItems();
       if (!items.length) return false;
       const index = items.findIndex(item => item.view.id === currentId());
@@ -125,9 +143,10 @@
       return selectAt(items, next);
     }
 
-    function handleKeydown(event) {
+    function handleKeydown(event: KeyboardEvent) {
       if (event.key !== 'Tab' || event.altKey || event.ctrlKey || event.metaKey) return;
-      if (event.target?.matches?.(EDITING_SELECTOR)) return;
+      const target = event.target as (EventTarget & Partial<Pick<Element, 'matches'>>) | null;
+      if (target?.matches?.(EDITING_SELECTOR)) return;
       if (step(!event.shiftKey)) event.preventDefault();
     }
 

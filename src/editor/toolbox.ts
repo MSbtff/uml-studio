@@ -1,17 +1,16 @@
-// @ts-nocheck
-(function initToolboxModule(root, factory) {
+(function initToolboxModule<Api>(root: typeof globalThis & { UMLToolbox?: Api }, factory: () => Api) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLToolbox = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function createToolboxModule() {
   'use strict';
 
-  const REQUIRED_FUNCTIONS = Object.freeze(['clearLinking', 'dg', 'diagramKindLabel', 'renderCanvas']);
-  const REQUIRED_VALUES = Object.freeze(['document', 'state', 'toolbox', 'DIAGRAM_TOOLS']);
+  const REQUIRED_FUNCTIONS = Object.freeze(['clearLinking', 'dg', 'diagramKindLabel', 'renderCanvas'] as const);
+  const REQUIRED_VALUES = Object.freeze(['document', 'state', 'toolbox', 'DIAGRAM_TOOLS'] as const);
 
-  function toolIcon(id) {
+  function toolIcon(id: string) {
     const s = 'class="ic-stroke" stroke="#4a4e57" stroke-width="1.3" fill="none"';
-    const icons = {
+    const icons: Partial<Record<string, string>> = {
       object: `<rect x="3" y="3" width="14" height="14" ${s} fill="#f8f0fb"/><line x1="3" y1="8" x2="17" y2="8" ${s}/><line x1="5" y1="5.5" x2="15" y2="5.5" ${s}/>` ,
       artifactinstance: `<path d="M5 3 L13 3 L16 6 L16 17 L5 17 Z" ${s} fill="#f5f1fb"/><path d="M13 3 L13 6 L16 6" ${s}/><line x1="7" y1="12" x2="14" y2="12" ${s}/>` ,
       componentinstance: `<rect x="5" y="3" width="12" height="14" ${s} fill="#f5f1fb"/><rect x="2.5" y="6" width="6" height="3" ${s}/><rect x="2.5" y="11" width="6" height="3" ${s}/>` ,
@@ -140,7 +139,18 @@
     return `<svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" focusable="false">${icons[id] || ''}</svg>`;
   }
 
-  function create(deps = {}) {
+  interface ToolboxDependencies {
+    clearLinking(): void;
+    dg(): { type: string };
+    diagramKindLabel(kind: string): string;
+    renderCanvas(): void;
+    document: Document;
+    state: { tool: string };
+    toolbox: HTMLElement;
+    DIAGRAM_TOOLS: Record<string, { elements: string[]; relations: string[]; hiddenElements?: string[] }>;
+  }
+
+  function create(deps: Partial<ToolboxDependencies> = {}) {
     REQUIRED_FUNCTIONS.forEach(name => {
       if (typeof deps[name] !== 'function') throw new Error(`UMLToolbox requires ${name}()`);
     });
@@ -148,7 +158,7 @@
       if (deps[name] == null) throw new Error(`UMLToolbox requires ${name}`);
     });
 
-    const { clearLinking, dg, diagramKindLabel, renderCanvas, document, state, toolbox, DIAGRAM_TOOLS } = deps;
+    const { clearLinking, dg, diagramKindLabel, renderCanvas, document, state, toolbox, DIAGRAM_TOOLS } = deps as ToolboxDependencies;
 
     function render() {
       toolbox.innerHTML = '';
@@ -176,7 +186,7 @@
             clearLinking();
             state.tool = id;
             [...toolbox.children].filter(node => node.classList?.contains('tb-tool')).forEach(node => {
-              const active = node.dataset.toolId === id;
+              const active = (node as HTMLElement).dataset.toolId === id;
               node.classList.toggle('active', active);
               node.setAttribute('aria-pressed', String(active));
             });

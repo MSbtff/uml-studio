@@ -1,11 +1,10 @@
-// @ts-nocheck
 'use strict';
 
 /* Relation rules — the per-diagram legality checks that decide whether a link
    the user is drawing may exist.  Every rule is pure: it takes the relation
    kind and the two endpoint views and returns a Korean message, or '' when the
    link is allowed. */
-(function initRelationRulesModule(root, factory) {
+(function initRelationRulesModule<Api>(root: typeof globalThis & { UMLRelationRules?: Api }, factory: () => Api) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLRelationRules = api;
@@ -15,7 +14,7 @@
     'bindingTypeCompatibility',
     'dg',
     'isViewAncestor',
-  ]);
+  ] as const);
   const REQUIRED_VALUES = Object.freeze([
     'state',
     'ACTIVITY_ACTION_KINDS',
@@ -31,12 +30,27 @@
     'PARAMETRIC_CONNECTABLE_KINDS',
     'REQUIREMENT_MODEL_ELEMENT_KINDS',
     'REQUIREMENT_RELATION_KINDS',
-  ]);
-  const KIND_SETS = Object.freeze(REQUIRED_VALUES.filter(name => name.endsWith('_KINDS')));
+  ] as const);
+  const KIND_SETS = Object.freeze(REQUIRED_VALUES.filter((name): name is KindSetName => name.endsWith('_KINDS')));
 
-  function create(dependencies) {
-    const deps = dependencies || {};
-    const missing = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
+  type KindSetName = Extract<typeof REQUIRED_VALUES[number], `${string}_KINDS`>;
+  type Endpoint = Pick<DiagramElementBounds, 'id' | 'kind' | 'parentId'> & {
+    referenceKind?: string;
+    classifierModelId?: string;
+  };
+  type CandidateEndpoint = Endpoint | null | undefined;
+  type RelationRulesDependencies = Record<KindSetName, ReadonlySet<string>> & {
+    activityAncestor(view: Endpoint, kind: string): Endpoint | null | undefined;
+    bindingTypeCompatibility(fromId: string | undefined, toId: string | undefined, models: Record<string, unknown>): { status: string; message: string };
+    dg(): { type: string; relations: DiagramLink[] };
+    isViewAncestor(view: Endpoint, candidate: Endpoint): boolean;
+    state: { models: Record<string, unknown> };
+    KIND_META: Record<string, { label: string }>;
+  };
+
+  function create(dependencies?: RelationRulesDependencies) {
+    const deps: Partial<RelationRulesDependencies> = dependencies || {};
+    const missing: string[] = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
     REQUIRED_VALUES.forEach(name => {
       if (deps[name] == null) missing.push(name);
     });
@@ -67,9 +81,9 @@
       PARAMETRIC_CONNECTABLE_KINDS,
       REQUIREMENT_MODEL_ELEMENT_KINDS,
       REQUIREMENT_RELATION_KINDS,
-    } = deps;
+    } = deps as RelationRulesDependencies;
 
-    function transitionDirectionError(from, to) {
+    function transitionDirectionError(from: CandidateEndpoint, to: CandidateEndpoint) {
       if (!from || !to) return '';
       if (['statefinal', 'exitpoint', 'terminate'].includes(from.kind)) {
         return `${KIND_META[from.kind].label}에서는 나가는 Transition을 만들 수 없습니다`;
@@ -84,7 +98,7 @@
       return '';
     }
 
-    function compositeRelationError(kind, from, to) {
+    function compositeRelationError(kind: string, from: CandidateEndpoint, to: CandidateEndpoint) {
       if (kind === 'csconnector' && (!from || !to
         || !COMPOSITE_CONNECTABLE_KINDS.has(from.kind) || !COMPOSITE_CONNECTABLE_KINDS.has(to.kind))) {
         return 'Composite Structure Connector는 Part 또는 Port 사이에만 연결할 수 있습니다';
@@ -95,7 +109,7 @@
       return '';
     }
 
-    function activityRelationError(kind, from, to) {
+    function activityRelationError(kind: string, from: CandidateEndpoint, to: CandidateEndpoint) {
       if (!['controlflow', 'objectflow', 'exceptionhandler', 'activityinterrupt'].includes(kind)) return '';
       if (!from || !to || !ACTIVITY_VERTEX_KINDS.has(from.kind) || !ACTIVITY_VERTEX_KINDS.has(to.kind)) {
         return `${KIND_META[kind].label}는 Activity Node 사이에만 연결할 수 있습니다`;
@@ -107,7 +121,7 @@
         return 'Object Node와 Pin에는 Object Flow를 사용하세요';
       }
       if (kind === 'objectflow') {
-        const allowed = view => ACTIVITY_OBJECT_KINDS.has(view.kind)
+        const allowed = (view: Endpoint) => ACTIVITY_OBJECT_KINDS.has(view.kind)
           || ACTIVITY_ACTION_KINDS.has(view.kind) || view.kind === 'structuredactivity';
         if (!allowed(from) || !allowed(to)) return 'Object Flow는 Action, Object Node, Pin 또는 Expansion Node 사이에 연결하세요';
         if (from.kind === 'inputpin' || from.kind === 'expansioninput') {
@@ -118,7 +132,7 @@
         }
       }
       if (kind === 'exceptionhandler') {
-        const actionLike = view => ACTIVITY_ACTION_KINDS.has(view.kind) || view.kind === 'structuredactivity';
+        const actionLike = (view: Endpoint) => ACTIVITY_ACTION_KINDS.has(view.kind) || view.kind === 'structuredactivity';
         if (!actionLike(from) || !actionLike(to)) return 'Exception Handler는 Action 또는 Structured Activity Node 사이에 연결하세요';
       }
       if (kind === 'activityinterrupt') {
@@ -131,7 +145,7 @@
       return '';
     }
 
-    function packageRelationError(kind, from, to) {
+    function packageRelationError(kind: string, from: CandidateEndpoint, to: CandidateEndpoint) {
       if (kind === 'containment') {
         if (!from || !to || !PACKAGE_CONTAINER_KINDS.has(from.kind) || !PACKAGE_CONTAINER_KINDS.has(to.kind)) {
           return 'Containment는 Package, Model 또는 Subsystem에서 컨테이너 방향으로 연결하세요';
@@ -147,7 +161,7 @@
       return '';
     }
 
-    function profileRelationError(kind, from, to, ignoredRelationId = '') {
+    function profileRelationError(kind: string, from: CandidateEndpoint, to: CandidateEndpoint, ignoredRelationId = '') {
       if (dg().type !== 'profile') return '';
       if (kind === 'extension') {
         if (!from || !to || from.kind !== 'stereotype' || to.kind !== 'metaclass') {
@@ -164,15 +178,16 @@
           return 'Profile Diagram의 Generalization은 Stereotype 사이에만 연결하세요';
         }
         if (from.id === to.id) return 'Stereotype은 자기 자신을 일반화할 수 없습니다';
-        const graph = new Map();
+        const graph = new Map<string, string[]>();
         dg().relations.filter(relation =>
           relation.id !== ignoredRelationId && relation.kind === 'generalization').forEach(relation => {
-          if (!graph.has(relation.from)) graph.set(relation.from, []);
-          graph.get(relation.from).push(relation.to);
+          const targets = graph.get(relation.from);
+          if (targets) targets.push(relation.to);
+          else graph.set(relation.from, [relation.to]);
         });
         const pending = [to.id], seen = new Set();
         while (pending.length) {
-          const current = pending.pop();
+          const current = pending.pop()!;
           if (current === from.id) return 'Stereotype Generalization이 순환할 수 없습니다';
           if (seen.has(current)) continue;
           seen.add(current);
@@ -182,7 +197,7 @@
       return '';
     }
 
-    function informationFlowRelationError(kind, from, to) {
+    function informationFlowRelationError(kind: string, from: CandidateEndpoint, to: CandidateEndpoint) {
       if (kind !== 'informationflow') return '';
       if (!from || !to || !INFORMATION_FLOW_ENDPOINT_KINDS.has(from.kind) || !INFORMATION_FLOW_ENDPOINT_KINDS.has(to.kind)) {
         return 'Information Flow는 Class, Component, Actor, Node 같은 정보 송수신 주체 사이에 연결하세요';
@@ -191,7 +206,7 @@
       return '';
     }
 
-    function requirementRelationError(kind, from, to) {
+    function requirementRelationError(kind: string, from: CandidateEndpoint, to: CandidateEndpoint) {
       if (!REQUIREMENT_RELATION_KINDS.has(kind)) return '';
       if (!from || !to || !REQUIREMENT_MODEL_ELEMENT_KINDS.has(from.kind)
         || !REQUIREMENT_MODEL_ELEMENT_KINDS.has(to.kind)) {
@@ -208,7 +223,7 @@
       return '';
     }
 
-    function bddRelationError(kind, from, to, ignoredRelationId = '') {
+    function bddRelationError(kind: string, from: CandidateEndpoint, to: CandidateEndpoint, ignoredRelationId = '') {
       if (dg().type !== 'bdd' || !BDD_RELATION_KINDS.has(kind)) return '';
       if (!from || !to) return 'BDD 관계의 연결 대상을 찾을 수 없습니다';
       if (kind === 'notelink') {
@@ -231,21 +246,22 @@
           return `${KIND_META[kind].label}은 Block Classifier 사이에 연결하세요`;
         }
       } else {
-        const structural = view => BDD_CLASSIFIER_KINDS.has(view.kind) || view.kind === 'object';
+        const structural = (view: Endpoint) => BDD_CLASSIFIER_KINDS.has(view.kind) || view.kind === 'object';
         if (!structural(from) || !structural(to)) {
           return `${KIND_META[kind].label}은 Block Classifier 또는 Object 사이에 연결하세요`;
         }
       }
       if (kind === 'generalization' || kind === 'composition') {
-        const graph = new Map();
+        const graph = new Map<string, string[]>();
         dg().relations.filter(relation =>
           relation.id !== ignoredRelationId && relation.kind === kind).forEach(relation => {
-          if (!graph.has(relation.from)) graph.set(relation.from, []);
-          graph.get(relation.from).push(relation.to);
+          const targets = graph.get(relation.from);
+          if (targets) targets.push(relation.to);
+          else graph.set(relation.from, [relation.to]);
         });
         const pending = [to.id], seen = new Set();
         while (pending.length) {
-          const current = pending.pop();
+          const current = pending.pop()!;
           if (current === from.id) {
             return kind === 'generalization'
               ? 'BDD Generalization이 순환할 수 없습니다'
@@ -259,7 +275,7 @@
       return '';
     }
 
-    function ibdRelationError(kind, from, to, ignoredRelationId = '') {
+    function ibdRelationError(kind: string, from: CandidateEndpoint, to: CandidateEndpoint, ignoredRelationId = '') {
       if (dg().type !== 'ibd') return '';
       if (!from || !to) return 'IBD 관계의 연결 대상을 찾을 수 없습니다';
       if (kind === 'notelink') {
@@ -281,7 +297,7 @@
       return '';
     }
 
-    function parametricRelationError(kind, from, to, ignoredRelationId = '') {
+    function parametricRelationError(kind: string, from: CandidateEndpoint, to: CandidateEndpoint, ignoredRelationId = '') {
       if (dg().type !== 'parametric') return '';
       if (!from || !to) return 'Parametric 관계의 연결 대상을 찾을 수 없습니다';
       if (kind === 'notelink') {
@@ -325,7 +341,7 @@
       parametricRelationError,
     ]);
 
-    function relationError(kind, from, to, ignoredRelationId = '') {
+    function relationError(kind: string, from: CandidateEndpoint, to: CandidateEndpoint, ignoredRelationId = '') {
       for (const rule of DIAGRAM_RULES) {
         const message = rule(kind, from, to, ignoredRelationId);
         if (message) return message;

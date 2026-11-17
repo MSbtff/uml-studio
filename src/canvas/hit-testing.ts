@@ -1,11 +1,10 @@
-// @ts-nocheck
 'use strict';
 
 /* Hit testing — maps canvas coordinates back to diagram views, relations,
    labels, lifelines, communication connectors, and editable member rows.
    Geometry is injected so this module stays independent from rendering and
    from the application's mutable bootstrap state. */
-(function initHitTestingModule(root, factory) {
+(function initHitTestingModule<Api>(root: typeof globalThis & { UMLHitTesting?: Api }, factory: () => Api) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLHitTesting = api;
@@ -34,13 +33,13 @@
     'relationSupportsEndQuickEdit',
     'stateSelfTransitionGeom',
     'tw',
-  ]);
+  ] as const);
   const REQUIRED_VALUES = Object.freeze([
     'ACTIVITY_CONTAINER_KINDS',
     'PACKAGE_CONTAINER_KINDS',
     'FONT12',
     'LINE_H',
-  ]);
+  ] as const);
   const HIT_TOLERANCES = Object.freeze({
     containerBorder: 8,
     fragmentTitleWidth: 80,
@@ -59,13 +58,60 @@
     labelBelow: 4,
   });
 
-  function create(dependencies) {
-    const deps = dependencies || {};
-    const missing = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
+  interface HitElement extends DiagramElementBounds {
+    _depth?: number;
+    _m?: { contentTop?: number; RH?: number };
+  }
+  interface HitRelation extends DiagramLink {
+    y?: number;
+    sourceLabel?: string;
+    targetLabel?: string;
+  }
+  type LabelField = 'name' | 'sourceLabel' | 'targetLabel' | 'sourceEndName' | 'targetEndName';
+  type CommunicationGeometry =
+    | { self: true; startX: number; y: number; width: number; height: number }
+    | (DiagramEndpoints & { self?: false; normal: DiagramPoint });
+  type MessageGeometry =
+    | { self: true; startX: number; endX: number }
+    | (DiagramEndpoints & { self?: false });
+  type LabeledCurve = DiagramCubicCurve & { label: DiagramPoint };
+  interface HitTestingDependencies {
+    bezierPoint(curve: DiagramQuadraticCurve, t: number): DiagramPoint;
+    bindingRoute(relation: HitRelation): { points: DiagramPoint[] } | null;
+    branchGeom(relation: HitRelation): DiagramQuadraticCurve | null;
+    communicationMessagePoints(relation: HitRelation): CommunicationGeometry | null;
+    communicationSelfConnectorGeom(relation: HitRelation): LabeledCurve | null;
+    cubicPoint(curve: DiagramCubicCurve, t: number): DiagramPoint;
+    dg(): { type: string; elements: HitElement[]; relations: HitRelation[] };
+    distToSegment(point: DiagramPoint, a: DiagramPoint, b: DiagramPoint): number;
+    getSequenceBottom(): number;
+    isCommMsg(kind: string): boolean;
+    isMsg(kind: string): boolean;
+    lblOff(relation: HitRelation, field: LabelField): { dx: number; dy: number };
+    memberLists(element: HitElement): { kind: string; top: number; h: number; arr: unknown[] }[];
+    msgDisplayLabel(relation: HitRelation): string;
+    msgPoints(relation: HitRelation): MessageGeometry | null;
+    pointNearPolyline(point: DiagramPoint, points: DiagramPoint[], threshold: number): boolean;
+    polylineMidpoint(points: DiagramPoint[]): DiagramPoint;
+    relEndpoints(relation: HitRelation): DiagramEndpoints | null;
+    relLabel(relation: HitRelation): string;
+    relationEndRoleLabel(relation: HitRelation, end: 'source' | 'target'): string;
+    relationSupportsEndQuickEdit(relation: HitRelation): boolean;
+    stateSelfTransitionGeom(relation: HitRelation): LabeledCurve | null;
+    tw(text: string, font: string): number;
+    ACTIVITY_CONTAINER_KINDS: ReadonlySet<string>;
+    PACKAGE_CONTAINER_KINDS: ReadonlySet<string>;
+    FONT12: string;
+    LINE_H: number;
+  }
+
+  function create(dependencies?: HitTestingDependencies) {
+    const deps: Partial<HitTestingDependencies> = dependencies || {};
+    const missing: string[] = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
     REQUIRED_VALUES.forEach(name => {
       if (deps[name] == null) missing.push(name);
     });
-    ['ACTIVITY_CONTAINER_KINDS', 'PACKAGE_CONTAINER_KINDS'].forEach(name => {
+    (['ACTIVITY_CONTAINER_KINDS', 'PACKAGE_CONTAINER_KINDS'] as const).forEach(name => {
       if (deps[name] != null && typeof deps[name].has !== 'function') missing.push(`${name}.has`);
     });
     if (missing.length) {
@@ -100,14 +146,14 @@
       PACKAGE_CONTAINER_KINDS,
       FONT12,
       LINE_H,
-    } = deps;
+    } = deps as HitTestingDependencies;
 
-    function inRect(element, point) {
+    function inRect(element: DiagramBounds, point: DiagramPoint) {
       return point.x >= element.x && point.x <= element.x + element.w
         && point.y >= element.y && point.y <= element.y + element.h;
     }
 
-    function nearFragmentEdge(element, point) {
+    function nearFragmentEdge(element: DiagramBounds, point: DiagramPoint) {
       if (!inRect(element, point)) return false;
       const border = HIT_TOLERANCES.containerBorder;
       if (point.x < element.x + border || point.x > element.x + element.w - border
@@ -116,7 +162,7 @@
         && point.y < element.y + HIT_TOLERANCES.fragmentTitleHeight;
     }
 
-    function curveHit(point, curve, pointAt, segments, radius) {
+    function curveHit<Curve extends DiagramEndpoints>(point: DiagramPoint, curve: Curve, pointAt: (curve: Curve, t: number) => DiagramPoint, segments: number, radius: number) {
       let previous = curve.p1;
       for (let step = 1; step <= segments; step++) {
         const current = pointAt(curve, step / segments);
@@ -126,7 +172,7 @@
       return false;
     }
 
-    function elementAt(point) {
+    function elementAt(point: DiagramPoint) {
       const diagram = dg();
       const elements = diagram.elements;
       if (diagram.type === 'sequence') {
@@ -192,7 +238,7 @@
       return null;
     }
 
-    function lifelineAt(point) {
+    function lifelineAt(point: DiagramPoint) {
       const elements = dg().elements;
       for (let index = elements.length - 1; index >= 0; index--) {
         const element = elements[index];
@@ -205,7 +251,7 @@
       return null;
     }
 
-    function relationAt(point) {
+    function relationAt(point: DiagramPoint) {
       const relations = dg().relations;
       for (let index = relations.length - 1; index >= 0; index--) {
         const relation = relations[index];
@@ -221,7 +267,7 @@
         }
         if (isMsg(relation.kind)) {
           const points = msgPoints(relation);
-          if (!points) continue;
+          if (!points || relation.y === undefined) continue;
           if (points.self) {
             const startX = Math.min(points.startX, points.endX) - 4;
             if (point.x >= startX && point.x <= startX + 56 + Math.abs(points.endX - points.startX)
@@ -260,7 +306,7 @@
       return null;
     }
 
-    function communicationConnectorAt(point) {
+    function communicationConnectorAt(point: DiagramPoint) {
       const connectors = dg().relations.filter(relation => relation.kind === 'commconnector');
       for (let index = connectors.length - 1; index >= 0; index--) {
         const relation = connectors[index];
@@ -276,9 +322,9 @@
     }
 
     /* Returns { r, field, bx, by, bw }; field identifies the editable label. */
-    function relationLabelAt(point) {
+    function relationLabelAt(point: DiagramPoint) {
       const relations = dg().relations;
-      const labelHit = (relation, field, text, x, baseY, anchor) => {
+      const labelHit = (relation: HitRelation, field: LabelField, text: string, x: number, baseY: number, anchor: 'start' | 'middle') => {
         if (!text) return null;
         const offset = lblOff(relation, field);
         x += offset.dx;
@@ -312,7 +358,7 @@
           }
         } else if (isMsg(relation.kind)) {
           const points = msgPoints(relation);
-          if (!points) continue;
+          if (!points || relation.y === undefined) continue;
           hit = points.self
             ? labelHit(relation, 'name', msgDisplayLabel(relation), points.startX + 8, relation.y - 5, 'start')
             : labelHit(relation, 'name', msgDisplayLabel(relation),
@@ -325,8 +371,8 @@
         } else {
           const communicationCurve = communicationSelfConnectorGeom(relation);
           const stateCurve = communicationCurve ? null : stateSelfTransitionGeom(relation);
-          if (communicationCurve || stateCurve) {
-            const curve = communicationCurve || stateCurve;
+          const curve = communicationCurve || stateCurve;
+          if (curve) {
             hit = labelHit(relation, 'name', relLabel(relation), curve.label.x, curve.label.y, 'middle');
           } else if (relation.kind === 'bindingconnector') {
             const route = bindingRoute(relation);
@@ -372,7 +418,7 @@
       return null;
     }
 
-    function memberRowAt(element, point) {
+    function memberRowAt(element: HitElement, point: DiagramPoint) {
       if (!['class', 'interface', 'enumeration', 'stereotype', 'informationitem', 'entity', 'object'].includes(element.kind)) return null;
       const rowHeight = element.kind === 'entity' ? ((element._m && element._m.RH) || 17) : LINE_H;
       for (const list of memberLists(element)) {

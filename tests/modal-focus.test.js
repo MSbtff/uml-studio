@@ -120,7 +120,7 @@ assert.throws(() => create(), /requires appRoot/);
 assert.throws(() => create({ appRoot: {}, document: {} }), /document\.addEventListener/);
 
 {
-  const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'editor', 'modal-focus.ts'), 'utf8');
+  const source = fs.readFileSync(path.join(__dirname, '..', 'dist', 'browser', 'editor', 'modal-focus.js'), 'utf8');
   const context = {};
   context.globalThis = context;
   vm.runInNewContext(source, context);

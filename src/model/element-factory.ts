@@ -1,10 +1,9 @@
-// @ts-nocheck
 'use strict';
 
 /* Element Factory — owns generated view names and the initial persisted shape
    of every element placed on a diagram. Project-wide IDs, counters and the
    active diagram remain host state and are injected. */
-(function initElementFactoryModule(root, factory) {
+(function initElementFactoryModule<Api>(root: typeof globalThis & { UMLElementFactory?: Api }, factory: () => Api) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLElementFactory = api;
@@ -13,15 +12,15 @@
     'dg',
     'sequenceLifelineTop',
     'uid',
-  ]);
+  ] as const);
   const REQUIRED_VALUES = Object.freeze([
     'ACTIVITY_PIN_KINDS',
     'BDD_CLASSIFIER_KINDS',
     'FILL_DEFAULT',
     'TIMING_ROW_HEIGHT',
     'counters',
-  ]);
-  const NAME_PREFIXES = Object.freeze({
+  ] as const);
+  const NAME_PREFIXES: Readonly<Partial<Record<string, string>>> = Object.freeze({
     class: 'Class', interface: 'Interface', enumeration: 'Enumeration',
     package: 'Package', model: 'Model', subsystem: 'Subsystem',
     metaclass: 'MetaClass', stereotype: 'Stereotype',
@@ -56,13 +55,28 @@
     stateinvariant: 'state', continuation: 'Continuation', frame: 'Sequence',
   });
 
-  function create(dependencies) {
-    const deps = dependencies || {};
-    const missing = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
+  interface ActiveDiagram {
+    type: string;
+    elements?: readonly { kind: string; y: number }[];
+  }
+  interface ElementFactoryDependencies {
+    dg(): ActiveDiagram;
+    sequenceLifelineTop(diagram: ActiveDiagram): number;
+    uid(): string;
+    ACTIVITY_PIN_KINDS: ReadonlySet<string>;
+    BDD_CLASSIFIER_KINDS: ReadonlySet<string>;
+    FILL_DEFAULT: string;
+    TIMING_ROW_HEIGHT: number;
+    counters: Record<string, number>;
+  }
+
+  function create(dependencies?: ElementFactoryDependencies) {
+    const deps: Partial<ElementFactoryDependencies> = dependencies || {};
+    const missing: string[] = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
     REQUIRED_VALUES.forEach(name => {
       if (deps[name] == null) missing.push(name);
     });
-    ['ACTIVITY_PIN_KINDS', 'BDD_CLASSIFIER_KINDS'].forEach(name => {
+    (['ACTIVITY_PIN_KINDS', 'BDD_CLASSIFIER_KINDS'] as const).forEach(name => {
       if (deps[name] != null && typeof deps[name].has !== 'function') missing.push(`${name}.has`);
     });
     if (deps.counters != null && (typeof deps.counters !== 'object' || Array.isArray(deps.counters))) {
@@ -84,14 +98,14 @@
       FILL_DEFAULT,
       TIMING_ROW_HEIGHT,
       counters,
-    } = deps;
+    } = deps as ElementFactoryDependencies;
 
-    function nextName(kind) {
+    function nextName(kind: string) {
       counters[kind] = (counters[kind] || 0) + 1;
       return (NAME_PREFIXES[kind] || 'Element') + counters[kind];
     }
 
-    function createElement(kind, x, y) {
+    function createElement(kind: string, x: number, y: number) {
       /* an actor in a sequence diagram is a lifeline drawn as a stick figure */
       if (kind === 'seqactor') {
         return {
@@ -99,7 +113,7 @@
           w: 0, h: 0, name: nextName('seqactor'), fill: FILL_DEFAULT,
         };
       }
-      const base = {
+      const base: DiagramBounds & { id: string; kind: string; name: string; fill: string; classifierModelId?: string; columns?: string[] } = {
         id: uid(), kind, x, y, w: 0, h: 0,
         name: nextName(kind), fill: FILL_DEFAULT,
       };

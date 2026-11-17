@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use strict';
 
 /*
@@ -9,11 +8,20 @@
  * schema to individual UML model fields while still providing transactional,
  * large-project autosave support.
  */
-(function initPersistence(root, factory) {
+interface PersistenceEnvironment {
+  indexedDB?: IDBFactory;
+  navigator?: Pick<Navigator, 'storage'>;
+  fetch?: typeof fetch;
+}
+
+(function initPersistence<Api>(
+  root: typeof globalThis & { UMLPersistence?: Api },
+  factory: (environment: PersistenceEnvironment) => Api,
+) {
   const api = factory(root || {});
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.UMLPersistence = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createPersistence(environment) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function createPersistence(environment: PersistenceEnvironment) {
   const DB_NAME = 'uml-studio-v7';
   const DB_VERSION = 2;
   const STORE_NAME = 'recovery';
@@ -22,23 +30,51 @@
   const REVISION_LIMIT = 10;
   const AUTOSAVE_KEY = 'autosave';
   const PREVIOUS_KEY = 'previous';
-  let dbPromise = null;
-  let saveChain = Promise.resolve();
-  let serverAvailable = null;
+  interface SaveMetadata {
+    name?: string;
+    savedAt?: number | string | null;
+    createdAt?: number | string | null;
+    projectVersion?: number | string | null;
+    expectedRevision?: number | string | null;
+  }
+  interface StoredJson {
+    id: string;
+    json: string;
+    projectVersion: number | null;
+    byteLength: number;
+  }
+  interface AutosaveRecord extends StoredJson { savedAt: number }
+  interface ProjectRecord extends StoredJson {
+    name: string;
+    createdAt: number;
+    updatedAt: number;
+    revision: number;
+  }
+  interface RevisionRecord extends AutosaveRecord {
+    projectId: string;
+    revision: number;
+  }
+  type RevisionNumber = number | string;
+  type ProjectMetadata = Omit<ProjectRecord, 'json'>;
+  type RevisionMetadata = Omit<RevisionRecord, 'json'>;
+
+  let dbPromise: Promise<IDBDatabase> | null = null;
+  let saveChain: Promise<unknown> = Promise.resolve();
+  let serverAvailable: boolean | null = null;
 
   function indexedDBApi() {
     return environment.indexedDB || null;
   }
 
-  function requestValue(request) {
-    return new Promise((resolve, reject) => {
+  function requestValue<Value>(request: IDBRequest<Value>) {
+    return new Promise<Value>((resolve, reject) => {
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error || new Error('IndexedDB 요청에 실패했습니다.'));
     });
   }
 
-  function transactionDone(transaction) {
-    return new Promise((resolve, reject) => {
+  function transactionDone(transaction: IDBTransaction) {
+    return new Promise<void>((resolve, reject) => {
       transaction.oncomplete = () => resolve();
       transaction.onabort = () => reject(transaction.error || new Error('IndexedDB 트랜잭션이 중단되었습니다.'));
       transaction.onerror = () => reject(transaction.error || new Error('IndexedDB 트랜잭션에 실패했습니다.'));
@@ -49,7 +85,7 @@
     if (dbPromise) return dbPromise;
     const api = indexedDBApi();
     if (!api) return Promise.reject(new Error('이 브라우저는 IndexedDB를 지원하지 않습니다.'));
-    dbPromise = new Promise((resolve, reject) => {
+    dbPromise = new Promise<IDBDatabase>((resolve, reject) => {
       const request = api.open(DB_NAME, DB_VERSION);
       request.onupgradeneeded = () => {
         const db = request.result;
@@ -81,12 +117,12 @@
     return dbPromise;
   }
 
-  async function writeAutosave(json, metadata) {
+  async function writeAutosave(json: string, metadata: SaveMetadata) {
     if (typeof json !== 'string' || !json.trim()) throw new Error('저장할 프로젝트 JSON이 없습니다.');
     const db = await openDatabase();
     const transaction = db.transaction(STORE_NAME, 'readwrite');
     const store = transaction.objectStore(STORE_NAME);
-    const previous = await requestValue(store.get(AUTOSAVE_KEY));
+    const previous = await requestValue<AutosaveRecord | undefined>(store.get(AUTOSAVE_KEY));
     if (previous?.json && previous.json !== json) {
       store.put({ ...previous, id: PREVIOUS_KEY });
     }
@@ -102,15 +138,16 @@
     return { savedAt };
   }
 
-  function saveAutosave(json, metadata = {}) {
-    saveChain = saveChain.catch(() => undefined).then(() => writeAutosave(json, metadata));
-    return saveChain;
+  function saveAutosave(json: string, metadata: SaveMetadata = {}) {
+    const saved = saveChain.catch(() => undefined).then(() => writeAutosave(json, metadata));
+    saveChain = saved;
+    return saved;
   }
 
   async function loadRecord(id = AUTOSAVE_KEY) {
     const db = await openDatabase();
     const transaction = db.transaction(STORE_NAME, 'readonly');
-    const record = await requestValue(transaction.objectStore(STORE_NAME).get(id));
+    const record = await requestValue<AutosaveRecord | undefined>(transaction.objectStore(STORE_NAME).get(id));
     await transactionDone(transaction);
     return record || null;
   }
@@ -123,28 +160,27 @@
     await transactionDone(transaction);
   }
 
-  function projectMetadata(record) {
-    if (!record) return null;
+  function projectMetadata<RecordType extends StoredJson>(record: RecordType): Omit<RecordType, 'json'> {
     const { json, ...metadata } = record;
     return metadata;
   }
 
-  function conflictError(expected, actual) {
-    const error = new Error(`프로젝트가 다른 탭에서 변경되었습니다. (예상 ${expected}, 현재 ${actual})`);
-    error.code = 'revision_conflict';
-    error.expectedRevision = expected;
-    error.actualRevision = actual;
-    return error;
+  function conflictError(expected: unknown, actual: unknown) {
+    return Object.assign(new Error(`프로젝트가 다른 탭에서 변경되었습니다. (예상 ${expected}, 현재 ${actual})`), {
+      code: 'revision_conflict',
+      expectedRevision: expected,
+      actualRevision: actual,
+    });
   }
 
-  async function writeProject(projectId, json, metadata) {
+  async function writeProject(projectId: string, json: string, metadata: SaveMetadata) {
     if (typeof projectId !== 'string' || !projectId.trim()) throw new Error('프로젝트 ID가 없습니다.');
     if (typeof json !== 'string' || !json.trim()) throw new Error('저장할 프로젝트 JSON이 없습니다.');
     const db = await openDatabase();
     const transaction = db.transaction([PROJECT_STORE, REVISION_STORE], 'readwrite');
     const projects = transaction.objectStore(PROJECT_STORE);
     const revisions = transaction.objectStore(REVISION_STORE);
-    const current = await requestValue(projects.get(projectId));
+    const current = await requestValue<ProjectRecord | undefined>(projects.get(projectId));
     const expected = metadata?.expectedRevision;
     if (current && expected !== undefined && expected !== null
       && Number(expected) !== Number(current.revision) && current.json !== json) {
@@ -179,23 +215,24 @@
       projectVersion: record.projectVersion,
       byteLength,
     });
-    const allRevisions = await requestValue(revisions.index('projectId').getAll(projectId));
+    const allRevisions = await requestValue<RevisionRecord[]>(revisions.index('projectId').getAll(projectId));
     allRevisions.sort((a, b) => Number(b.revision) - Number(a.revision));
     allRevisions.slice(REVISION_LIMIT).forEach(item => revisions.delete(item.id));
     await transactionDone(transaction);
     return projectMetadata(record);
   }
 
-  function saveProject(projectId, json, metadata = {}) {
-    saveChain = saveChain.catch(() => undefined).then(() => writeProject(projectId, json, metadata));
-    return saveChain;
+  function saveProject(projectId: string, json: string, metadata: SaveMetadata = {}) {
+    const saved = saveChain.catch(() => undefined).then(() => writeProject(projectId, json, metadata));
+    saveChain = saved;
+    return saved;
   }
 
-  async function loadProject(projectId) {
+  async function loadProject(projectId: string) {
     if (!projectId) return null;
     const db = await openDatabase();
     const transaction = db.transaction(PROJECT_STORE, 'readonly');
-    const record = await requestValue(transaction.objectStore(PROJECT_STORE).get(projectId));
+    const record = await requestValue<ProjectRecord | undefined>(transaction.objectStore(PROJECT_STORE).get(projectId));
     await transactionDone(transaction);
     return record || null;
   }
@@ -203,32 +240,32 @@
   async function listProjects() {
     const db = await openDatabase();
     const transaction = db.transaction(PROJECT_STORE, 'readonly');
-    const records = await requestValue(transaction.objectStore(PROJECT_STORE).getAll());
+    const records = await requestValue<ProjectRecord[]>(transaction.objectStore(PROJECT_STORE).getAll());
     await transactionDone(transaction);
     return records.map(projectMetadata).sort((a, b) => Number(b.updatedAt) - Number(a.updatedAt));
   }
 
-  async function listProjectRevisions(projectId) {
+  async function listProjectRevisions(projectId: string) {
     const db = await openDatabase();
     const transaction = db.transaction(REVISION_STORE, 'readonly');
-    const records = await requestValue(transaction.objectStore(REVISION_STORE).index('projectId').getAll(projectId));
+    const records = await requestValue<RevisionRecord[]>(transaction.objectStore(REVISION_STORE).index('projectId').getAll(projectId));
     await transactionDone(transaction);
     return records.map(projectMetadata).sort((a, b) => Number(b.revision) - Number(a.revision));
   }
 
-  async function loadProjectRevision(projectId, revision) {
+  async function loadProjectRevision(projectId: string, revision: RevisionNumber) {
     const db = await openDatabase();
     const transaction = db.transaction(REVISION_STORE, 'readonly');
-    const record = await requestValue(transaction.objectStore(REVISION_STORE).get(`${projectId}:${Number(revision)}`));
+    const record = await requestValue<RevisionRecord | undefined>(transaction.objectStore(REVISION_STORE).get(`${projectId}:${Number(revision)}`));
     await transactionDone(transaction);
     return record || null;
   }
 
-  async function renameProject(projectId, name) {
+  async function renameProject(projectId: string, name: string) {
     const db = await openDatabase();
     const transaction = db.transaction(PROJECT_STORE, 'readwrite');
     const store = transaction.objectStore(PROJECT_STORE);
-    const record = await requestValue(store.get(projectId));
+    const record = await requestValue<ProjectRecord | undefined>(store.get(projectId));
     if (!record) {
       transaction.abort();
       throw new Error('프로젝트를 찾을 수 없습니다.');
@@ -239,13 +276,13 @@
     return projectMetadata(record);
   }
 
-  async function deleteProject(projectId) {
+  async function deleteProject(projectId: string) {
     const db = await openDatabase();
     const transaction = db.transaction([PROJECT_STORE, REVISION_STORE], 'readwrite');
     const projects = transaction.objectStore(PROJECT_STORE);
     const revisions = transaction.objectStore(REVISION_STORE);
     projects.delete(projectId);
-    const records = await requestValue(revisions.index('projectId').getAll(projectId));
+    const records = await requestValue<RevisionRecord[]>(revisions.index('projectId').getAll(projectId));
     records.forEach(record => revisions.delete(record.id));
     await transactionDone(transaction);
     return true;
@@ -274,7 +311,7 @@
         serverAvailable = false;
         return null;
       }
-      const record = await response.json();
+      const record = await response.json() as AutosaveRecord | null;
       serverAvailable = true;
       return record?.json ? record : null;
     } catch (_) {
@@ -283,7 +320,7 @@
     }
   }
 
-  async function saveServerAutosave(json, metadata = {}) {
+  async function saveServerAutosave(json: string, metadata: SaveMetadata = {}): Promise<{ ok: boolean; savedAt: number; backend: 'sqlite' }> {
     if (serverAvailable === false || typeof environment.fetch !== 'function') {
       throw new Error('SQLite 자동저장 서버를 사용할 수 없습니다.');
     }
@@ -305,7 +342,7 @@
     return response.json();
   }
 
-  async function serverJson(path, options = {}) {
+  async function serverJson<Result>(path: string, options: RequestInit = {}): Promise<Result | null> {
     if (serverAvailable === false || typeof environment.fetch !== 'function') return null;
     try {
       const response = await environment.fetch(path, {
@@ -319,7 +356,7 @@
         return null;
       }
       if (response.status === 409 && isJson) {
-        const detail = await response.json();
+        const detail = await response.json() as { expectedRevision?: unknown; actualRevision?: unknown };
         throw conflictError(detail.expectedRevision, detail.actualRevision);
       }
       if (!response.ok || !isJson) {
@@ -329,24 +366,24 @@
       serverAvailable = true;
       return response.status === 204 ? null : response.json();
     } catch (error) {
-      if (error?.code === 'revision_conflict') throw error;
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'revision_conflict') throw error;
       serverAvailable = false;
       return null;
     }
   }
 
-  const projectPath = projectId => `/api/projects/${encodeURIComponent(projectId)}`;
+  const projectPath = (projectId: string) => `/api/projects/${encodeURIComponent(projectId)}`;
 
   function listServerProjects() {
-    return serverJson('/api/projects').then(result => Array.isArray(result?.projects) ? result.projects : []);
+    return serverJson<{ projects?: ProjectMetadata[] }>('/api/projects').then(result => Array.isArray(result?.projects) ? result.projects : []);
   }
 
-  function loadServerProject(projectId) {
-    return serverJson(projectPath(projectId));
+  function loadServerProject(projectId: string) {
+    return serverJson<ProjectRecord>(projectPath(projectId));
   }
 
-  function saveServerProject(projectId, json, metadata = {}) {
-    return serverJson(projectPath(projectId), {
+  function saveServerProject(projectId: string, json: string, metadata: SaveMetadata = {}) {
+    return serverJson<ProjectMetadata>(projectPath(projectId), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -362,25 +399,25 @@
     });
   }
 
-  function listServerProjectRevisions(projectId) {
-    return serverJson(`${projectPath(projectId)}/revisions`)
+  function listServerProjectRevisions(projectId: string) {
+    return serverJson<{ revisions?: RevisionMetadata[] }>(`${projectPath(projectId)}/revisions`)
       .then(result => Array.isArray(result?.revisions) ? result.revisions : []);
   }
 
-  function loadServerProjectRevision(projectId, revision) {
-    return serverJson(`${projectPath(projectId)}/revisions/${Number(revision)}`);
+  function loadServerProjectRevision(projectId: string, revision: RevisionNumber) {
+    return serverJson<RevisionRecord>(`${projectPath(projectId)}/revisions/${Number(revision)}`);
   }
 
-  function renameServerProject(projectId, name) {
-    return serverJson(projectPath(projectId), {
+  function renameServerProject(projectId: string, name: string) {
+    return serverJson<ProjectMetadata>(projectPath(projectId), {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name }),
     });
   }
 
-  function deleteServerProject(projectId) {
-    return serverJson(projectPath(projectId), { method: 'DELETE' });
+  function deleteServerProject(projectId: string) {
+    return serverJson<{ ok: boolean; id: string }>(projectPath(projectId), { method: 'DELETE' });
   }
 
   return {

@@ -1,10 +1,9 @@
-// @ts-nocheck
 'use strict';
 
 /* ERD table constraints and indexes shared by editing, DDL import/export,
    persistence validation, and tests. Column names remain the stable join key
    so older projects that only contain the compact `columns` array still load. */
-(function initErdSchema(root, factory) {
+(function initErdSchema<Api>(root: typeof globalThis & { UMLErdSchema?: Api }, factory: () => Api) {
   const api = factory();
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.UMLErdSchema = api;
@@ -22,10 +21,41 @@
   ]);
   const ERD_RELATION_KINDS = new Set(['erd-11', 'erd-1n', 'erd-nm']);
 
-  const sameName = (left, right) => String(left || '').trim().toLocaleLowerCase()
+  interface EntitySchemaOwner {
+    erdColumnDetails?: unknown;
+    erdChecks?: unknown;
+    erdIndexes?: unknown;
+  }
+  interface RelationSchema {
+    kind?: string;
+    name?: string;
+    fromModelId?: string;
+    toModelId?: string;
+    sourceColumnName?: string;
+    targetColumnName?: string;
+    foreignKeyEnd?: string;
+    foreignKeyOnDelete?: unknown;
+    foreignKeyOnUpdate?: unknown;
+  }
+  interface ForeignKeyImpact {
+    fields: ('sourceColumnName' | 'targetColumnName')[];
+    relationModelId: string;
+    relationName: string;
+  }
+  type SchemaModels = Record<string, RelationSchema>;
+  interface CopiedColumnSchema {
+    sourceColumn?: string;
+    details?: ErdColumnDetails;
+    checks?: ErdSchemaCheck[];
+  }
+
+  const isRecord = (value: unknown): value is Record<string, unknown> =>
+    !!value && typeof value === 'object' && !Array.isArray(value);
+
+  const sameName = (left: unknown, right: unknown) => String(left || '').trim().toLocaleLowerCase()
     === String(right || '').trim().toLocaleLowerCase();
 
-  function schemaName(value, description, allowEmpty = true) {
+  function schemaName(value: unknown, description: string, allowEmpty = true) {
     if (value !== undefined && value !== null && typeof value !== 'string') {
       throw new Error(`${description} 이름은 문자열이어야 합니다.`);
     }
@@ -37,7 +67,7 @@
     return name;
   }
 
-  function safeSqlFragment(value, description = 'SQL 표현식', allowEmpty = false) {
+  function safeSqlFragment(value: unknown, description = 'SQL 표현식', allowEmpty = false) {
     if (value !== undefined && value !== null && typeof value !== 'string') {
       throw new Error(`${description}은(는) 문자열이어야 합니다.`);
     }
@@ -91,7 +121,7 @@
     return source;
   }
 
-  function normalizeReferentialAction(value, description = 'FK 참조 동작') {
+  function normalizeReferentialAction(value: unknown, description = 'FK 참조 동작') {
     if (value === undefined) return '';
     if (typeof value !== 'string') throw new Error(`${description}은(는) 문자열이어야 합니다.`);
     const action = value.trim().replace(/\s+/g, ' ').toUpperCase();
@@ -102,24 +132,24 @@
     return action;
   }
 
-  function validateReferentialActions(relation) {
+  function validateReferentialActions(relation?: RelationSchema | null) {
     return {
       onDelete: normalizeReferentialAction(relation?.foreignKeyOnDelete, 'FK ON DELETE'),
       onUpdate: normalizeReferentialAction(relation?.foreignKeyOnUpdate, 'FK ON UPDATE'),
     };
   }
 
-  function normalizeColumnDetails(value) {
+  function normalizeColumnDetails(value: unknown): Record<string, ErdColumnDetails> {
     if (value === undefined || value === null) return {};
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    if (!isRecord(value)) {
       throw new Error('ERD 컬럼 상세 정보가 객체가 아닙니다.');
     }
-    const result = {};
+    const result: Record<string, ErdColumnDetails> = {};
     const entries = Object.entries(value);
     if (entries.length > MAX_SCHEMA_ITEMS) throw new Error(`ERD 컬럼 상세 정보는 ${MAX_SCHEMA_ITEMS}개 이하여야 합니다.`);
     entries.forEach(([rawName, rawDetails]) => {
       const name = schemaName(rawName, 'ERD 컬럼', false);
-      if (!rawDetails || typeof rawDetails !== 'object' || Array.isArray(rawDetails)) {
+      if (!isRecord(rawDetails)) {
         throw new Error(`'${name}' 컬럼 상세 정보가 올바르지 않습니다.`);
       }
       const defaultValue = safeSqlFragment(rawDetails.defaultValue, `'${name}' DEFAULT`, true);
@@ -129,15 +159,15 @@
     return result;
   }
 
-  function normalizeErdChecks(value, columnNames = []) {
+  function normalizeErdChecks(value: unknown, columnNames: readonly string[] = []): ErdSchemaCheck[] {
     if (value === undefined || value === null) return [];
     if (!Array.isArray(value) || value.length > MAX_SCHEMA_ITEMS) {
       throw new Error(`ERD CHECK 목록은 배열이며 ${MAX_SCHEMA_ITEMS}개 이하여야 합니다.`);
     }
     const columns = Array.isArray(columnNames) ? columnNames : [];
     const names = new Set();
-    return value.map((raw, index) => {
-      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return value.map((raw: unknown, index) => {
+      if (!isRecord(raw)) {
         throw new Error(`ERD CHECK ${index + 1} 정보가 올바르지 않습니다.`);
       }
       const name = schemaName(raw.name, `ERD CHECK ${index + 1}`, true);
@@ -153,15 +183,15 @@
     });
   }
 
-  function normalizeErdIndexes(value, columnNames = []) {
+  function normalizeErdIndexes(value: unknown, columnNames: readonly string[] = []): ErdSchemaIndex[] {
     if (value === undefined || value === null) return [];
     if (!Array.isArray(value) || value.length > MAX_SCHEMA_ITEMS) {
       throw new Error(`ERD 인덱스 목록은 배열이며 ${MAX_SCHEMA_ITEMS}개 이하여야 합니다.`);
     }
     const available = Array.isArray(columnNames) ? columnNames : [];
     const names = new Set();
-    return value.map((raw, index) => {
-      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return value.map((raw: unknown, index) => {
+      if (!isRecord(raw)) {
         throw new Error(`ERD 인덱스 ${index + 1} 정보가 올바르지 않습니다.`);
       }
       if (raw.kind !== undefined && raw.kind !== 'unique' && raw.kind !== 'index') {
@@ -176,9 +206,9 @@
       if (!columns.length || columns.length > MAX_INDEX_COLUMNS) {
         throw new Error(`ERD ${name || index + 1} 인덱스 컬럼은 1~${MAX_INDEX_COLUMNS}개여야 합니다.`);
       }
-      const normalizedColumns = columns.map((entry, columnIndex) => {
+      const normalizedColumns = columns.map((entry: unknown, columnIndex): ErdSchemaIndex['columns'][number] => {
         const source = typeof entry === 'string' ? { name: entry } : entry;
-        if (!source || typeof source !== 'object' || Array.isArray(source)) {
+        if (!isRecord(source)) {
           throw new Error(`ERD 인덱스 '${name || index + 1}'의 ${columnIndex + 1}번째 컬럼이 올바르지 않습니다.`);
         }
         const columnName = schemaName(source.name, `ERD 인덱스 '${name || index + 1}' 컬럼`, false);
@@ -189,7 +219,7 @@
           throw new Error(`ERD 인덱스 '${name || index + 1}'의 정렬 방향이 문자열이 아닙니다.`);
         }
         const order = String(source.order || '').trim().toUpperCase();
-        if (order && order !== 'ASC' && order !== 'DESC') {
+        if (order !== '' && order !== 'ASC' && order !== 'DESC') {
           throw new Error(`ERD 인덱스 '${name || index + 1}'의 정렬 방향이 올바르지 않습니다: ${order}`);
         }
         return { name: columnName, order };
@@ -203,19 +233,19 @@
     });
   }
 
-  function columnDetailsFor(entity, columnName) {
+  function columnDetailsFor(entity: EntitySchemaOwner | null | undefined, columnName: string) {
     const details = normalizeColumnDetails(entity?.erdColumnDetails);
     const key = Object.keys(details).find(name => sameName(name, columnName));
     return key ? { ...details[key] } : { defaultValue: '', uniqueName: '' };
   }
 
-  function replaceColumnDetails(entity, details) {
+  function replaceColumnDetails(entity: EntitySchemaOwner, details: unknown) {
     const normalized = normalizeColumnDetails(details);
     if (Object.keys(normalized).length) entity.erdColumnDetails = normalized;
     else delete entity.erdColumnDetails;
   }
 
-  function setColumnDetails(entity, columnName, details) {
+  function setColumnDetails(entity: EntitySchemaOwner, columnName: string, details: unknown) {
     const current = normalizeColumnDetails(entity?.erdColumnDetails);
     Object.keys(current).filter(name => sameName(name, columnName)).forEach(name => delete current[name]);
     const normalized = normalizeColumnDetails({ [columnName]: details });
@@ -223,7 +253,7 @@
     replaceColumnDetails(entity, current);
   }
 
-  function rewriteIdentifier(expression, oldName, newName) {
+  function rewriteIdentifier(expression: unknown, oldName: string, newName: string) {
     const source = String(expression || '');
     let result = '';
     let index = 0;
@@ -273,7 +303,7 @@
     return result;
   }
 
-  function renameColumnSchema(entity, oldName, newName) {
+  function renameColumnSchema(entity: EntitySchemaOwner | null | undefined, oldName: string, newName: string) {
     if (!entity || !oldName || !newName || String(oldName).trim() === String(newName).trim()) return false;
     const details = normalizeColumnDetails(entity.erdColumnDetails);
     const oldKey = Object.keys(details).find(name => sameName(name, oldName));
@@ -284,30 +314,32 @@
       replaceColumnDetails(entity, details);
     }
     const checks = normalizeErdChecks(entity.erdChecks);
-    entity.erdChecks = checks.map(check => ({
+    const renamedChecks = checks.map(check => ({
       ...check,
       column: sameName(check.column, oldName) ? newName : check.column,
       expression: rewriteIdentifier(check.expression, oldName, newName),
     }));
-    if (!entity.erdChecks.length) delete entity.erdChecks;
+    entity.erdChecks = renamedChecks;
+    if (!renamedChecks.length) delete entity.erdChecks;
     const indexes = normalizeErdIndexes(entity.erdIndexes);
-    entity.erdIndexes = indexes.map(index => ({
+    const renamedIndexes = indexes.map(index => ({
       ...index,
       columns: index.columns.map(column => ({
         ...column, name: sameName(column.name, oldName) ? newName : column.name,
       })),
       where: index.where ? rewriteIdentifier(index.where, oldName, newName) : '',
     }));
-    if (!entity.erdIndexes.length) delete entity.erdIndexes;
+    entity.erdIndexes = renamedIndexes;
+    if (!renamedIndexes.length) delete entity.erdIndexes;
     return true;
   }
 
-  function foreignKeyColumnImpacts(models, entityModelId, columnName) {
+  function foreignKeyColumnImpacts(models: SchemaModels, entityModelId: string, columnName: string): ForeignKeyImpact[] {
     if (!models || typeof models !== 'object' || !entityModelId || !columnName) return [];
-    const impacts = [];
+    const impacts: ForeignKeyImpact[] = [];
     Object.entries(models).forEach(([relationModelId, relation]) => {
-      if (!relation || typeof relation !== 'object' || !ERD_RELATION_KINDS.has(relation.kind)) return;
-      const fields = [];
+      if (!relation || typeof relation !== 'object' || typeof relation.kind !== 'string' || !ERD_RELATION_KINDS.has(relation.kind)) return;
+      const fields: ForeignKeyImpact['fields'] = [];
       if (relation.fromModelId === entityModelId && sameName(relation.sourceColumnName, columnName)) {
         fields.push('sourceColumnName');
       }
@@ -323,7 +355,7 @@
     return impacts;
   }
 
-  function renameForeignKeyColumnReferences(models, entityModelId, oldName, newName) {
+  function renameForeignKeyColumnReferences(models: SchemaModels, entityModelId: string, oldName: string, newName: string) {
     const source = String(oldName || '').trim();
     const target = String(newName || '').trim();
     if (!source || !target || source === target) return { references: 0, relations: 0 };
@@ -339,7 +371,7 @@
     return { references, relations: impacts.length };
   }
 
-  function disconnectForeignKeyColumnReferences(models, entityModelId, columnName) {
+  function disconnectForeignKeyColumnReferences(models: SchemaModels, entityModelId: string, columnName: string) {
     const impacts = foreignKeyColumnImpacts(models, entityModelId, columnName);
     impacts.forEach(impact => {
       const relation = models[impact.relationModelId];
@@ -352,7 +384,7 @@
     return { impacts, relations: impacts.length };
   }
 
-  function deleteColumnSchema(entity, columnName) {
+  function deleteColumnSchema(entity: EntitySchemaOwner | null | undefined, columnName: string) {
     if (!entity || !columnName) return { checks: 0, indexes: 0, details: 0 };
     const details = normalizeColumnDetails(entity.erdColumnDetails);
     const detailKeys = Object.keys(details).filter(name => sameName(name, columnName));
@@ -373,7 +405,7 @@
     };
   }
 
-  function copyColumnSchema(entity, columnName) {
+  function copyColumnSchema(entity: EntitySchemaOwner | null | undefined, columnName: string) {
     return {
       sourceColumn: columnName,
       details: columnDetailsFor(entity, columnName),
@@ -383,7 +415,7 @@
     };
   }
 
-  function applyCopiedColumnSchema(entity, columnName, copied) {
+  function applyCopiedColumnSchema(entity: EntitySchemaOwner | null | undefined, columnName: string, copied?: CopiedColumnSchema | null) {
     if (!entity || !columnName || !copied) return;
     setColumnDetails(entity, columnName, { ...(copied.details || {}), uniqueName: '' });
     const existing = normalizeErdChecks(entity.erdChecks);
@@ -398,7 +430,7 @@
     if (additions.length) entity.erdChecks = [...existing, ...additions];
   }
 
-  function validateEntitySchema(entity, columnNames) {
+  function validateEntitySchema(entity?: EntitySchemaOwner | null, columnNames?: readonly string[]) {
     const available = Array.isArray(columnNames) ? columnNames : [];
     const details = normalizeColumnDetails(entity?.erdColumnDetails);
     Object.keys(details).forEach(name => {

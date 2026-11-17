@@ -118,7 +118,7 @@ function makeHarness(overrides = {}) {
 }
 
 {
-  const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'editor', 'status-bar.ts'), 'utf8');
+  const source = fs.readFileSync(path.join(__dirname, '..', 'dist', 'browser', 'editor', 'status-bar.js'), 'utf8');
   const context = {};
   context.globalThis = context;
   vm.runInNewContext(source, context);

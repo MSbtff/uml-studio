@@ -1,12 +1,11 @@
-// @ts-nocheck
-(function initModalFocusModule(root, factory) {
+(function initModalFocusModule<Api>(root: typeof globalThis & { UMLModalFocus?: Api }, factory: () => Api) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLModalFocus = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function createModalFocusModule() {
   'use strict';
 
-  const REQUIRED_VALUES = Object.freeze(['appRoot', 'document']);
+  const REQUIRED_VALUES = Object.freeze(['appRoot', 'document'] as const);
   const FOCUSABLE_SELECTOR = [
     'a[href]',
     'button:not(:disabled)',
@@ -16,16 +15,45 @@
     '[tabindex]:not([tabindex="-1"])',
   ].join(', ');
 
-  function create(deps = {}) {
+  interface FocusableElement extends HTMLElement {
+    disabled?: boolean;
+  }
+  type FocusTarget = FocusableElement | (() => FocusableElement | null) | null;
+  interface CloseOptions { remove?: boolean; restoreFocus?: boolean }
+  type CloseHandler = (reason: string, handle: ModalHandle) => void;
+  interface ModalHandle {
+    close(options?: CloseOptions): boolean;
+    focusInitial(preferred?: FocusTarget): boolean;
+    requestClose(reason?: string): boolean;
+    setRequestCloseHandler(handler?: CloseHandler | null): ModalHandle;
+  }
+  interface ModalOptions {
+    overlay?: HTMLElement;
+    dialog?: HTMLElement;
+    initialFocus?: FocusTarget;
+    opener?: Element | null;
+    onRequestClose?: CloseHandler | null;
+  }
+  interface ModalEntry {
+    overlay: HTMLElement;
+    dialog: HTMLElement;
+    initialFocus: FocusTarget;
+    opener: (Element & { focus?: () => void }) | null;
+    requestCloseHandler: CloseHandler | null;
+    handle: ModalHandle;
+  }
+  interface ModalFocusDependencies { appRoot: HTMLElement; document: Document }
+
+  function create(deps: Partial<ModalFocusDependencies> = {}) {
     REQUIRED_VALUES.forEach(name => {
       if (deps[name] == null) throw new TypeError(`UMLModalFocus requires ${name}`);
     });
-    const { appRoot, document } = deps;
+    const { appRoot, document } = deps as ModalFocusDependencies;
     if (typeof document.addEventListener !== 'function') {
       throw new TypeError('UMLModalFocus requires document.addEventListener()');
     }
 
-    const entries = [];
+    const entries: ModalEntry[] = [];
     let attached = false;
     let previousAppInert = false;
     let titleSequence = 0;
@@ -34,19 +62,19 @@
       return entries[entries.length - 1] || null;
     }
 
-    function isUsable(node) {
-      return Boolean(node)
+    function isUsable(node?: FocusableElement | null): node is FocusableElement {
+      return !!node
         && !node.disabled
         && !node.hidden
         && node.getAttribute?.('aria-hidden') !== 'true'
         && node.tabIndex !== -1;
     }
 
-    function focusableElements(dialog) {
-      return [...dialog.querySelectorAll(FOCUSABLE_SELECTOR)].filter(isUsable);
+    function focusableElements(dialog: HTMLElement) {
+      return [...dialog.querySelectorAll<FocusableElement>(FOCUSABLE_SELECTOR)].filter(isUsable);
     }
 
-    function focusInside(entry, preferred) {
+    function focusInside(entry: ModalEntry | null, preferred?: FocusTarget) {
       if (!entry || entry !== topEntry()) return false;
       const requested = typeof preferred === 'function' ? preferred() : preferred;
       const focusable = focusableElements(entry.dialog);
@@ -59,7 +87,7 @@
       return true;
     }
 
-    function ensureAccessibleDialog(dialog) {
+    function ensureAccessibleDialog(dialog: HTMLElement) {
       dialog.setAttribute('role', 'dialog');
       dialog.setAttribute('aria-modal', 'true');
       if (dialog.getAttribute('aria-labelledby') || dialog.getAttribute('aria-label')) return;
@@ -104,7 +132,7 @@
       document.removeEventListener('focusin', handleFocusIn, true);
     }
 
-    function closeEntry(entry, options = {}) {
+    function closeEntry(entry: ModalEntry, options: CloseOptions = {}) {
       const index = entries.indexOf(entry);
       if (index < 0) return false;
       const wasTop = index === entries.length - 1;
@@ -127,7 +155,7 @@
       return true;
     }
 
-    function requestClose(entry, reason = 'programmatic') {
+    function requestClose(entry: ModalEntry, reason = 'programmatic') {
       if (!entries.includes(entry)) return false;
       if (typeof entry.requestCloseHandler === 'function') {
         entry.requestCloseHandler(reason, entry.handle);
@@ -136,7 +164,7 @@
       return closeEntry(entry);
     }
 
-    function handleKeydown(event) {
+    function handleKeydown(event: KeyboardEvent) {
       const entry = topEntry();
       if (!entry) return;
       if (event.key === 'Escape') {
@@ -163,33 +191,26 @@
       }
     }
 
-    function handleFocusIn(event) {
+    function handleFocusIn(event: FocusEvent) {
       const entry = topEntry();
-      if (entry && !entry.dialog.contains(event.target)) focusInside(entry, entry.initialFocus);
+      if (entry && !entry.dialog.contains(event.target as Node | null)) focusInside(entry, entry.initialFocus);
     }
 
-    function activate(options = {}) {
+    function activate(options: ModalOptions = {}) {
       const { overlay, dialog } = options;
       if (!overlay || !dialog) throw new TypeError('UMLModalFocus.activate requires overlay and dialog');
       const existing = entries.find(entry => entry.overlay === overlay);
       if (existing) return existing.handle;
       if (!entries.length) previousAppInert = Boolean(appRoot.inert);
       ensureAccessibleDialog(dialog);
-      const entry = {
-        dialog,
-        initialFocus: options.initialFocus || null,
-        opener: options.opener || document.activeElement || null,
-        overlay,
-        requestCloseHandler: options.onRequestClose || null,
-      };
       const handle = Object.freeze({
-        close: closeOptions => closeEntry(entry, closeOptions),
-        focusInitial: preferred => {
+        close: (closeOptions?: CloseOptions) => closeEntry(entry, closeOptions),
+        focusInitial: (preferred?: FocusTarget) => {
           if (preferred) entry.initialFocus = preferred;
           return focusInside(entry, entry.initialFocus);
         },
-        requestClose: reason => requestClose(entry, reason),
-        setRequestCloseHandler: handler => {
+        requestClose: (reason?: string) => requestClose(entry, reason),
+        setRequestCloseHandler: (handler?: CloseHandler | null): ModalHandle => {
           if (handler != null && typeof handler !== 'function') {
             throw new TypeError('Modal close handler must be a function');
           }
@@ -197,7 +218,14 @@
           return handle;
         },
       });
-      entry.handle = handle;
+      const entry: ModalEntry = {
+        dialog,
+        initialFocus: options.initialFocus || null,
+        opener: options.opener || document.activeElement || null,
+        overlay,
+        requestCloseHandler: options.onRequestClose || null,
+        handle,
+      };
       entries.push(entry);
       syncBackground();
       syncModalStack();
@@ -206,19 +234,19 @@
       return handle;
     }
 
-    function closeOverlay(overlay, options) {
+    function closeOverlay(overlay?: HTMLElement | null, options?: CloseOptions) {
       const entry = entries.find(candidate => candidate.overlay === overlay);
       if (entry) return closeEntry(entry, options);
       if (overlay?.isConnected !== false) overlay?.remove?.();
       return false;
     }
 
-    function closeTop(options) {
+    function closeTop(options?: CloseOptions) {
       const entry = topEntry();
       return entry ? closeEntry(entry, options) : false;
     }
 
-    function isActive(overlay) {
+    function isActive(overlay: HTMLElement) {
       return entries.some(entry => entry.overlay === overlay);
     }
 

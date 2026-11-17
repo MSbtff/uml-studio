@@ -1,9 +1,8 @@
-// @ts-nocheck
 'use strict';
 
 /* Relation Creation — validates and commits new relation views while the host
    keeps ownership of diagram state, legality rules and pointer interaction. */
-(function initRelationCreationModule(root, factory) {
+(function initRelationCreationModule<Api>(root: typeof globalThis & { UMLRelationCreation?: Api }, factory: () => Api) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLRelationCreation = api;
@@ -27,13 +26,13 @@
     'syncRelationModel',
     'transitionDirectionError',
     'uid',
-  ]);
+  ] as const);
   const REQUIRED_VALUES = Object.freeze([
     'ER_RELATION_KINDS',
     'INSTANCE_KINDS',
     'STATE_VERTEX_KINDS',
     'state',
-  ]);
+  ] as const);
   const ENDPOINT_MESSAGES = Object.freeze({
     transition: 'Transition은 상태 머신의 State 또는 Pseudostate 사이에만 연결할 수 있습니다',
     link: 'Link는 Object 또는 Artifact/Component/Node Instance 사이에만 연결할 수 있습니다',
@@ -41,13 +40,59 @@
     timingmessage: 'Timing Message는 Time Segment 사이에만 연결할 수 있습니다',
   });
 
-  function create(dependencies) {
-    const deps = dependencies || {};
-    const missing = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
+  interface CreatedRelation extends DiagramLink {
+    name: string;
+    sourceLabel?: string;
+    targetLabel?: string;
+    foreignKeyEnd?: string;
+    sourceColumnName?: string;
+    targetColumnName?: string;
+    foreignKeyOnDelete?: string;
+    foreignKeyOnUpdate?: string;
+    trigger?: string;
+    guard?: string;
+    effect?: string;
+    messageSort?: string;
+    isRequired?: boolean;
+    conveyedModelIds?: string[];
+    itemFlowModelIds?: string[];
+    connectorId?: string;
+    seqNo?: string;
+    y?: number;
+  }
+  interface RelationDiagram { type: string; elements?: DiagramElementBounds[]; relations: CreatedRelation[] }
+  interface RelationCreationDependencies {
+    adoptView(view: CreatedRelation): CreatedRelation;
+    byId(id: string): DiagramElementBounds | null | undefined;
+    clearLinking(): void;
+    dg(): RelationDiagram;
+    erdDefaultCardinality(kind: string, end: 'source' | 'target'): string;
+    flashStatus(message: string): void;
+    getLinking(): { fromId: string; y: number } | null;
+    isMsg(kind: string): boolean;
+    nextName(kind: string): string;
+    relationError(kind: string, from: ReturnType<RelationCreationDependencies['byId']>, to: DiagramElementBounds): string | null;
+    renderAll(): void;
+    sequenceMessageMinY(diagram: RelationDiagram): number;
+    setSelection(ids: string[]): void;
+    snap(value: number): number;
+    snapshot(): void;
+    syncRelationModel(relation: CreatedRelation): void;
+    transitionDirectionError(from: ReturnType<RelationCreationDependencies['byId']>, to: DiagramElementBounds): string | null;
+    uid(): string;
+    ER_RELATION_KINDS: ReadonlySet<string>;
+    INSTANCE_KINDS: ReadonlySet<string>;
+    STATE_VERTEX_KINDS: ReadonlySet<string>;
+    state: { tool: string };
+  }
+
+  function create(dependencies?: RelationCreationDependencies) {
+    const deps: Partial<RelationCreationDependencies> = dependencies || {};
+    const missing: string[] = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
     REQUIRED_VALUES.forEach(name => {
       if (deps[name] == null) missing.push(name);
     });
-    ['ER_RELATION_KINDS', 'INSTANCE_KINDS', 'STATE_VERTEX_KINDS'].forEach(name => {
+    (['ER_RELATION_KINDS', 'INSTANCE_KINDS', 'STATE_VERTEX_KINDS'] as const).forEach(name => {
       if (deps[name] != null && typeof deps[name].has !== 'function') missing.push(`${name}.has`);
     });
     if (deps.state != null && typeof deps.state !== 'object') missing.push('state.object');
@@ -78,7 +123,7 @@
       INSTANCE_KINDS,
       STATE_VERTEX_KINDS,
       state,
-    } = deps;
+    } = deps as RelationCreationDependencies;
 
     function finishLink() {
       clearLinking();
@@ -86,12 +131,12 @@
       renderAll();
     }
 
-    function rejectLink(message) {
+    function rejectLink(message: string) {
       flashStatus(message);
       finishLink();
     }
 
-    function createCommunicationMessage(connector, kind) {
+    function createCommunicationMessage(connector: DiagramLink, kind: string) {
       const from = kind === 'comm-reverse' ? connector.to : connector.from;
       const to = kind === 'comm-reverse' ? connector.from : connector.to;
       snapshot();
@@ -106,7 +151,7 @@
       renderAll();
     }
 
-    function completeLink(target, point) {
+    function completeLink(target: DiagramElementBounds, point?: DiagramPoint | null) {
       const kind = state.tool;
       const linking = getLinking();
       if (!linking) return;
@@ -143,6 +188,7 @@
         rejectLink(legalityError);
         return;
       }
+      if (!from) { finishLink(); return; }
       if (kind === 'containment') {
         const existing = dg().relations.find(relation =>
           relation.kind === 'containment' && relation.from === from.id);
@@ -158,7 +204,7 @@
           return;
         }
       }
-      const raw = {
+      const raw: CreatedRelation = {
         id: uid(), kind, from: linking.fromId, to: target.id,
         name: '', sourceLabel: '', targetLabel: '',
       };

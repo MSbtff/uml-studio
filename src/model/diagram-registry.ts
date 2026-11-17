@@ -1,8 +1,7 @@
-// @ts-nocheck
 'use strict';
 
 /* Diagram metadata and palette registry shared by the editor and tests. */
-(function initDiagramRegistry(root, factory) {
+(function initDiagramRegistry<Api>(root: typeof globalThis & { UMLDiagramRegistry?: Api }, factory: () => Api) {
   const api = factory();
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.UMLDiagramRegistry = api;
@@ -32,7 +31,7 @@
     timing:     { label: 'Timing Diagram', code: 'TM', color: '#ad6b3d' },
   };
 
-  const DIAGRAM_TOOLS = {
+  const DIAGRAM_TOOLS: Record<string, { elements: string[]; reuseElements?: string[]; hiddenElements?: string[]; relations: string[] }> = {
     class: {
       elements: ['class', 'interface', 'enumeration', 'package', 'note'],
       relations: ['association', 'directed', 'generalization', 'realization', 'dependency', 'aggregation', 'composition', 'notelink'],
@@ -149,12 +148,12 @@
     },
   };
 
-  function diagramAllowsElementKind(type, kind) {
+  function diagramAllowsElementKind(type: string, kind: string) {
     const tools = DIAGRAM_TOOLS[type];
     return !!tools && (tools.elements.includes(kind) || (tools.reuseElements || []).includes(kind));
   }
 
-  function diagramAllowsRelationKind(type, kind) {
+  function diagramAllowsRelationKind(type: string, kind: string) {
     const tools = DIAGRAM_TOOLS[type];
     return !!tools && tools.relations.includes(kind);
   }

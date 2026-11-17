@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use strict';
 
 /* Element placement — the "active tool is an element kind, so put one where the
@@ -6,7 +5,7 @@
    view, attaches it to whatever container it landed in, selects it and drops
    back to the select tool; none of it touches the drag or linking state, which
    is why it can live outside the interaction state machine. */
-(function initElementPlacement(root, factory) {
+(function initElementPlacement<Api>(root: typeof globalThis & { UMLElementPlacement?: Api }, factory: () => Api) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLElementPlacement = api;
@@ -40,7 +39,7 @@
     'timingLifelineAtPoint',
     'timingStateAtPoint',
     'uid',
-  ]);
+  ] as const);
   const REQUIRED_VALUES = Object.freeze([
     'state',
     'ACTIVITY_PIN_KINDS',
@@ -49,11 +48,69 @@
     'KIND_META',
     'PACKAGE_CONTAINER_KINDS',
     'STATE_VERTEX_KINDS',
-  ]);
+  ] as const);
 
-  function create(dependencies) {
-    const deps = dependencies || {};
-    const missing = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
+  interface PlaceableElement extends DiagramElementBounds {
+    name?: string;
+    lifeId?: string;
+    interactionDiagramId?: string;
+    constrainedViewId?: string;
+    anchorRatio?: number;
+    borderAnchor?: DiagramAnchor;
+    fill?: string;
+    stateOrder?: number;
+    regionOrder?: number;
+  }
+  interface PlacementDiagram {
+    id: string;
+    type: string;
+    name: string;
+    elements: PlaceableElement[];
+    relations: DiagramLink[];
+  }
+  type ElementAtPoint = (point: DiagramPoint) => PlaceableElement | null | undefined;
+  type AttachElement = (element: PlaceableElement) => void;
+  interface PlacementDependencies {
+    activityAttachmentOwnerAtPoint(kind: string, point: DiagramPoint): ReturnType<ElementAtPoint>;
+    adoptView(view: PlaceableElement): PlaceableElement;
+    attachPartToCompositeContainer: AttachElement;
+    attachToActivityContainer: AttachElement;
+    attachToContainingRegion: AttachElement;
+    attachToInternalBlockContainer: AttachElement;
+    attachToParametricContainer: AttachElement;
+    borderAnchorFrac(host: DiagramElementBounds, point: DiagramPoint): DiagramAnchor;
+    childViews(parentId: string): PlaceableElement[];
+    compositeAtPoint: ElementAtPoint;
+    compositeContainerAtPoint: ElementAtPoint;
+    compositePortOwnerAtPoint: ElementAtPoint;
+    createElement(kind: string, x: number, y: number): PlaceableElement;
+    dg(): PlacementDiagram;
+    flashStatus(message: string): void;
+    ibdContainerAtPoint: ElementAtPoint;
+    lifelineAt: ElementAtPoint;
+    normalizeSize: AttachElement;
+    packageContainerAtPoint(point: DiagramPoint, excludedIds: Set<string>): ReturnType<ElementAtPoint>;
+    parametricContainerAtPoint: ElementAtPoint;
+    relationAt(point: DiagramPoint): DiagramLink | null | undefined;
+    renderAll(): void;
+    setSelection(ids: string[]): void;
+    snap(value: number): number;
+    snapshot(): void;
+    timingLifelineAtPoint: ElementAtPoint;
+    timingStateAtPoint: ElementAtPoint;
+    uid(): string;
+    state: { diagrams: PlacementDiagram[]; activeId: string; tool: string };
+    ACTIVITY_PIN_KINDS: ReadonlySet<string>;
+    FILL_DEFAULT: string;
+    IBD_TYPED_KINDS: ReadonlySet<string>;
+    KIND_META: Record<string, { label: string }>;
+    PACKAGE_CONTAINER_KINDS: ReadonlySet<string>;
+    STATE_VERTEX_KINDS: ReadonlySet<string>;
+  }
+
+  function create(dependencies?: PlacementDependencies) {
+    const deps: Partial<PlacementDependencies> = dependencies || {};
+    const missing: string[] = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
     REQUIRED_VALUES.forEach(name => {
       if (deps[name] == null) missing.push(name);
     });
@@ -97,10 +154,10 @@
       KIND_META,
       PACKAGE_CONTAINER_KINDS,
       STATE_VERTEX_KINDS,
-    } = deps;
+    } = deps as PlacementDependencies;
 
     /* the caller has already decided the tool places an element */
-    function placeElementForTool(p, tool, hitEl) {
+    function placeElementForTool(p: DiagramPoint, tool: string, hitEl?: PlaceableElement | null) {
       if (tool === 'interactioninline') {
         snapshot();
         const current = dg();
@@ -288,9 +345,8 @@
       }
       if (tool === 'timeconstraint') {
         const hitTimingRelation = relationAt(p);
-        const target = hitEl && hitEl.kind === 'timesegment'
-          ? hitEl
-          : (hitTimingRelation && hitTimingRelation.kind === 'timingmessage' ? hitTimingRelation : null);
+        const segment = hitEl?.kind === 'timesegment' ? hitEl : null;
+        const target = segment || (hitTimingRelation?.kind === 'timingmessage' ? hitTimingRelation : null);
         if (!target) {
           flashStatus('Time Constraint는 Time Segment 또는 Message 위를 클릭해 추가하세요');
           return;
@@ -298,8 +354,8 @@
         snapshot();
         const constraintView = adoptView(createElement('timeconstraint', snap(p.x - 56), snap(p.y - 40)));
         constraintView.constrainedViewId = target.id;
-        constraintView.anchorRatio = target.kind === 'timesegment'
-          ? Math.max(0, Math.min(1, (p.x - target.x) / Math.max(1, target.w)))
+        constraintView.anchorRatio = segment
+          ? Math.max(0, Math.min(1, (p.x - segment.x) / Math.max(1, segment.w)))
           : 0.5;
         dg().elements.push(constraintView);
         setSelection([constraintView.id]);
