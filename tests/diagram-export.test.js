@@ -1,7 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { REQUIRED_FUNCTIONS, REQUIRED_VALUES, create } = require('../diagram-export.js');
+const { REQUIRED_FUNCTIONS, REQUIRED_VALUES, create } = require('../dist/browser/io/diagram-export.js');
 
 /* ── Minimal DOM / browser doubles ─────────────────────────── */
 function fakeNode(tag = 'div') {

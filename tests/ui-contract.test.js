@@ -6,57 +6,57 @@ const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+const app = fs.readFileSync(path.join(root, 'src/app.ts'), 'utf8');
 const css = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
-const persistence = fs.readFileSync(path.join(root, 'persistence.js'), 'utf8');
-const canvasGeometry = fs.readFileSync(path.join(root, 'canvas-geometry.js'), 'utf8');
-const elementRenderer = fs.readFileSync(path.join(root, 'element-renderer.js'), 'utf8');
-const relationRenderer = fs.readFileSync(path.join(root, 'relation-renderer.js'), 'utf8');
-const propertyPanel = fs.readFileSync(path.join(root, 'property-panel.js'), 'utf8');
-const erdPropertySections = fs.readFileSync(path.join(root, 'erd-property-sections.js'), 'utf8');
-const modelExplorer = fs.readFileSync(path.join(root, 'model-explorer.js'), 'utf8');
-const diagramTabs = fs.readFileSync(path.join(root, 'diagram-tabs.js'), 'utf8');
-const toolbox = fs.readFileSync(path.join(root, 'toolbox.js'), 'utf8');
-const viewportController = fs.readFileSync(path.join(root, 'viewport-controller.js'), 'utf8');
-const commandRouter = fs.readFileSync(path.join(root, 'command-router.js'), 'utf8');
-const quickEdit = fs.readFileSync(path.join(root, 'quick-edit.js'), 'utf8');
-const erdColumnEditor = fs.readFileSync(path.join(root, 'erd-column-editor.js'), 'utf8');
-const relationEndEditor = fs.readFileSync(path.join(root, 'relation-end-editor.js'), 'utf8');
-const canvasInteraction = fs.readFileSync(path.join(root, 'canvas-interaction.js'), 'utf8');
-const elementPlacement = fs.readFileSync(path.join(root, 'element-placement.js'), 'utf8');
-const canvasKeyboard = fs.readFileSync(path.join(root, 'canvas-keyboard.js'), 'utf8');
-const runtimeErrors = fs.readFileSync(path.join(root, 'runtime-errors.js'), 'utf8');
-const presentationRegistry = fs.readFileSync(path.join(root, 'presentation-registry.js'), 'utf8');
-const diagramRegistry = fs.readFileSync(path.join(root, 'diagram-registry.js'), 'utf8');
-const relationEnd = fs.readFileSync(path.join(root, 'relation-end.js'), 'utf8');
-const sampleDiagrams = fs.readFileSync(path.join(root, 'sample-diagrams.js'), 'utf8');
-const exporters = fs.readFileSync(path.join(root, 'exporters.js'), 'utf8');
-const ddlImporter = fs.readFileSync(path.join(root, 'ddl-importer.js'), 'utf8');
-const erdSchema = fs.readFileSync(path.join(root, 'erd-schema.js'), 'utf8');
-const erdCardinality = fs.readFileSync(path.join(root, 'erd-cardinality.js'), 'utf8');
-const validation = fs.readFileSync(path.join(root, 'validation.js'), 'utf8');
-const erdNameTools = fs.readFileSync(path.join(root, 'erd-name-tools.js'), 'utf8');
-const importExport = fs.readFileSync(path.join(root, 'project-import.js'), 'utf8');
-const diagramExport = fs.readFileSync(path.join(root, 'diagram-export.js'), 'utf8');
-const importPreview = fs.readFileSync(path.join(root, 'import-preview.js'), 'utf8');
-const projectStore = fs.readFileSync(path.join(root, 'project-store.js'), 'utf8');
-const elementFactory = fs.readFileSync(path.join(root, 'element-factory.js'), 'utf8');
-const elementMeasure = fs.readFileSync(path.join(root, 'element-measure.js'), 'utf8');
-const memberListsModule = fs.readFileSync(path.join(root, 'member-lists.js'), 'utf8');
-const statusBar = fs.readFileSync(path.join(root, 'status-bar.js'), 'utf8');
-const modalFocus = fs.readFileSync(path.join(root, 'modal-focus.js'), 'utf8');
-const containmentLayout = fs.readFileSync(path.join(root, 'containment-layout.js'), 'utf8');
-const relationRules = fs.readFileSync(path.join(root, 'relation-rules.js'), 'utf8');
-const relationCreation = fs.readFileSync(path.join(root, 'relation-creation.js'), 'utf8');
-const validationPanel = fs.readFileSync(path.join(root, 'validation-panel.js'), 'utf8');
-const interactionLayout = fs.readFileSync(path.join(root, 'interaction-layout.js'), 'utf8');
-const selectionEditing = fs.readFileSync(path.join(root, 'selection-editing.js'), 'utf8');
-const hitTesting = fs.readFileSync(path.join(root, 'hit-testing.js'), 'utf8');
-const canvasRenderer = fs.readFileSync(path.join(root, 'canvas-renderer.js'), 'utf8');
-const historyController = fs.readFileSync(path.join(root, 'history-controller.js'), 'utf8');
-const projectDocument = fs.readFileSync(path.join(root, 'project-document.js'), 'utf8');
-const modelRepository = fs.readFileSync(path.join(root, 'model-repository.js'), 'utf8');
-const parametricBinding = fs.readFileSync(path.join(root, 'parametric-binding.js'), 'utf8');
+const persistence = fs.readFileSync(path.join(root, 'src/io/persistence.ts'), 'utf8');
+const canvasGeometry = fs.readFileSync(path.join(root, 'src/canvas/canvas-geometry.ts'), 'utf8');
+const elementRenderer = fs.readFileSync(path.join(root, 'src/canvas/element-renderer.ts'), 'utf8');
+const relationRenderer = fs.readFileSync(path.join(root, 'src/canvas/relation-renderer.ts'), 'utf8');
+const propertyPanel = fs.readFileSync(path.join(root, 'src/editor/property-panel.ts'), 'utf8');
+const erdPropertySections = fs.readFileSync(path.join(root, 'src/editor/erd-property-sections.ts'), 'utf8');
+const modelExplorer = fs.readFileSync(path.join(root, 'src/editor/model-explorer.ts'), 'utf8');
+const diagramTabs = fs.readFileSync(path.join(root, 'src/editor/diagram-tabs.ts'), 'utf8');
+const toolbox = fs.readFileSync(path.join(root, 'src/editor/toolbox.ts'), 'utf8');
+const viewportController = fs.readFileSync(path.join(root, 'src/canvas/viewport-controller.ts'), 'utf8');
+const commandRouter = fs.readFileSync(path.join(root, 'src/editor/command-router.ts'), 'utf8');
+const quickEdit = fs.readFileSync(path.join(root, 'src/editor/quick-edit.ts'), 'utf8');
+const erdColumnEditor = fs.readFileSync(path.join(root, 'src/editor/erd-column-editor.ts'), 'utf8');
+const relationEndEditor = fs.readFileSync(path.join(root, 'src/editor/relation-end-editor.ts'), 'utf8');
+const canvasInteraction = fs.readFileSync(path.join(root, 'src/canvas/canvas-interaction.ts'), 'utf8');
+const elementPlacement = fs.readFileSync(path.join(root, 'src/canvas/element-placement.ts'), 'utf8');
+const canvasKeyboard = fs.readFileSync(path.join(root, 'src/canvas/canvas-keyboard.ts'), 'utf8');
+const runtimeErrors = fs.readFileSync(path.join(root, 'src/editor/runtime-errors.ts'), 'utf8');
+const presentationRegistry = fs.readFileSync(path.join(root, 'src/model/presentation-registry.ts'), 'utf8');
+const diagramRegistry = fs.readFileSync(path.join(root, 'src/model/diagram-registry.ts'), 'utf8');
+const relationEnd = fs.readFileSync(path.join(root, 'src/model/relation-end.ts'), 'utf8');
+const sampleDiagrams = fs.readFileSync(path.join(root, 'src/model/sample-diagrams.ts'), 'utf8');
+const exporters = fs.readFileSync(path.join(root, 'src/io/exporters.ts'), 'utf8');
+const ddlImporter = fs.readFileSync(path.join(root, 'src/io/ddl-importer.ts'), 'utf8');
+const erdSchema = fs.readFileSync(path.join(root, 'src/model/erd-schema.ts'), 'utf8');
+const erdCardinality = fs.readFileSync(path.join(root, 'src/model/erd-cardinality.ts'), 'utf8');
+const validation = fs.readFileSync(path.join(root, 'src/model/validation.ts'), 'utf8');
+const erdNameTools = fs.readFileSync(path.join(root, 'src/editor/erd-name-tools.ts'), 'utf8');
+const importExport = fs.readFileSync(path.join(root, 'src/io/project-import.ts'), 'utf8');
+const diagramExport = fs.readFileSync(path.join(root, 'src/io/diagram-export.ts'), 'utf8');
+const importPreview = fs.readFileSync(path.join(root, 'src/io/import-preview.ts'), 'utf8');
+const projectStore = fs.readFileSync(path.join(root, 'src/io/project-store.ts'), 'utf8');
+const elementFactory = fs.readFileSync(path.join(root, 'src/model/element-factory.ts'), 'utf8');
+const elementMeasure = fs.readFileSync(path.join(root, 'src/canvas/element-measure.ts'), 'utf8');
+const memberListsModule = fs.readFileSync(path.join(root, 'src/editor/member-lists.ts'), 'utf8');
+const statusBar = fs.readFileSync(path.join(root, 'src/editor/status-bar.ts'), 'utf8');
+const modalFocus = fs.readFileSync(path.join(root, 'src/editor/modal-focus.ts'), 'utf8');
+const containmentLayout = fs.readFileSync(path.join(root, 'src/canvas/containment-layout.ts'), 'utf8');
+const relationRules = fs.readFileSync(path.join(root, 'src/model/relation-rules.ts'), 'utf8');
+const relationCreation = fs.readFileSync(path.join(root, 'src/editor/relation-creation.ts'), 'utf8');
+const validationPanel = fs.readFileSync(path.join(root, 'src/editor/validation-panel.ts'), 'utf8');
+const interactionLayout = fs.readFileSync(path.join(root, 'src/canvas/interaction-layout.ts'), 'utf8');
+const selectionEditing = fs.readFileSync(path.join(root, 'src/editor/selection-editing.ts'), 'utf8');
+const hitTesting = fs.readFileSync(path.join(root, 'src/canvas/hit-testing.ts'), 'utf8');
+const canvasRenderer = fs.readFileSync(path.join(root, 'src/canvas/canvas-renderer.ts'), 'utf8');
+const historyController = fs.readFileSync(path.join(root, 'src/editor/history-controller.ts'), 'utf8');
+const projectDocument = fs.readFileSync(path.join(root, 'src/io/project-document.ts'), 'utf8');
+const modelRepository = fs.readFileSync(path.join(root, 'src/editor/model-repository.ts'), 'utf8');
+const parametricBinding = fs.readFileSync(path.join(root, 'src/model/parametric-binding.ts'), 'utf8');
 const server = fs.readFileSync(path.join(root, 'server.py'), 'utf8');
 
 const REQUIRED_TOOLBAR_KEYS = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
@@ -1352,7 +1352,7 @@ assert.match(propertyPanel, /"erdPropertySections",/,
 assert.match(app, /register\(\{ erdPropertySections: UMLErdPropertySections \}\);/,
   'ERD 섹션은 컨트롤러가 아니라 팩토리를 배선합니다');
 assert.match(html,
-  /<script src="erd-property-sections\.js\?v=\d+"><\/script>\s*\n<script src="property-panel\.js\?v=\d+"><\/script>/,
+  /<script src="dist\/browser\/editor\/erd-property-sections\.js\?v=\d+"><\/script>\s*\n<script src="dist\/browser\/editor\/property-panel\.js\?v=\d+"><\/script>/,
   'ERD 섹션 모듈은 속성 패널보다 먼저 로드해야 합니다');
 ['erdColumnsProperty', 'erdDisplayModeProperty', 'erdForeignKeyProperty', 'erdSchemaProperty'].forEach(name => {
   assert.doesNotMatch(propertyPanel, new RegExp(`function ${name}\\(`),
@@ -1497,26 +1497,26 @@ assert.match(app, /const \{ download \} = diagramExport;/,
    REQUIRED 목록에 선언되어 있어야 한다 — 빠지면 브라우저에서만 터진다. */
 [
   {
-    parent: require(path.join(root, 'property-panel.js')),
-    child: require(path.join(root, 'erd-property-sections.js')),
+    parent: require(path.join(root, 'src/editor/property-panel.ts')),
+    child: require(path.join(root, 'src/editor/erd-property-sections.ts')),
     parentName: 'property-panel',
     supplied: ['propRow', 'sectionHeading', 'renderProps'],
   },
   {
-    parent: require(path.join(root, 'quick-edit.js')),
-    child: require(path.join(root, 'erd-column-editor.js')),
+    parent: require(path.join(root, 'src/editor/quick-edit.ts')),
+    child: require(path.join(root, 'src/editor/erd-column-editor.ts')),
     parentName: 'quick-edit',
     supplied: ['closeOtherQuickEditors', 'nextFieldSequence', 'selectQuickEditTarget'],
   },
   {
-    parent: require(path.join(root, 'quick-edit.js')),
-    child: require(path.join(root, 'relation-end-editor.js')),
+    parent: require(path.join(root, 'src/editor/quick-edit.ts')),
+    child: require(path.join(root, 'src/editor/relation-end-editor.ts')),
     parentName: 'quick-edit',
     supplied: ['closeOtherQuickEditors', 'nextFieldSequence', 'selectQuickEditTarget'],
   },
   {
-    parent: require(path.join(root, 'project-import.js')),
-    child: require(path.join(root, 'import-preview.js')),
+    parent: require(path.join(root, 'src/io/project-import.ts')),
+    child: require(path.join(root, 'src/io/import-preview.ts')),
     parentName: 'project-import',
     supplied: ['DRAWIO_IMPORT_POLICIES'],
   },

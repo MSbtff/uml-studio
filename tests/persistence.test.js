@@ -4,8 +4,8 @@ const assert = require('node:assert/strict');
 const { createFakeIndexedDB } = require('./support/fake-indexeddb.js');
 
 globalThis.indexedDB = createFakeIndexedDB();
-delete require.cache[require.resolve('../persistence.js')];
-const persistence = require('../persistence.js');
+delete require.cache[require.resolve('../dist/browser/io/persistence.js')];
+const persistence = require('../dist/browser/io/persistence.js');
 
 const projectJson = (id, revision) => JSON.stringify({
   version: 30,
@@ -100,8 +100,8 @@ function freshPersistence(fetchImpl, navigatorImpl) {
   /* Node의 globalThis.navigator는 getter 전용이라 재정의해야 한다 */
   if (navigatorImpl === undefined) delete globalThis.navigator;
   else Object.defineProperty(globalThis, 'navigator', { value: navigatorImpl, configurable: true });
-  delete require.cache[require.resolve('../persistence.js')];
-  return require('../persistence.js');
+  delete require.cache[require.resolve('../dist/browser/io/persistence.js')];
+  return require('../dist/browser/io/persistence.js');
 }
 
 async function serverBridgeTests() {

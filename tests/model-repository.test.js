@@ -1,7 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { sequenceLifelineTop } = require('../sequence-layout.js');
+const { sequenceLifelineTop } = require('../dist/browser/canvas/sequence-layout.js');
 const {
   REQUIRED_FUNCTIONS,
   REQUIRED_VALUES,
@@ -9,7 +9,7 @@ const {
   VIEW_PRESETS,
   MODAL_ID,
   create,
-} = require('../model-repository.js');
+} = require('../dist/browser/editor/model-repository.js');
 
 /* ── minimal DOM double ────────────────────────────────────── */
 

@@ -1,8 +1,8 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { fragmentOperandLayout } = require('../sequence-layout.js');
-const { create, elementFamily, FAMILY_KINDS } = require('../element-renderer.js');
+const { fragmentOperandLayout } = require('../dist/browser/canvas/sequence-layout.js');
+const { create, elementFamily, FAMILY_KINDS } = require('../dist/browser/canvas/element-renderer.js');
 
 function node(tag = 'root', attrs = {}) {
   return {

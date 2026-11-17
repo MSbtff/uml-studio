@@ -1,7 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { REQUIRED_FUNCTIONS, REQUIRED_VALUES, create } = require('../canvas-keyboard.js');
+const { REQUIRED_FUNCTIONS, REQUIRED_VALUES, create } = require('../dist/browser/canvas/canvas-keyboard.js');
 
 function fakeWrap() {
   const listeners = new Map();

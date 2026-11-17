@@ -9,13 +9,13 @@ const {
   parseDdl,
   sourceLocation,
   tokenize,
-} = require('../ddl-importer.js');
-const { exportErdDdl } = require('../exporters.js');
+} = require('../dist/browser/io/ddl-importer.js');
+const { exportErdDdl } = require('../dist/browser/io/exporters.js');
 
 assert.equal(MAX_SOURCE_BYTES, 10 * 1024 * 1024);
 assert.equal(MAX_TABLES, 500);
 assert.equal(MAX_TOKENS, 200000);
-assert.ok(Object.isFrozen(require('../ddl-importer.js')));
+assert.ok(Object.isFrozen(require('../dist/browser/io/ddl-importer.js')));
 assert.deepEqual(sourceLocation('one\ntwo', 5), { line: 2, column: 2 });
 
 {

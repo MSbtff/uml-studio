@@ -1,7 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { create, REQUIRED_FUNCTIONS, REQUIRED_VALUES } = require('../element-placement.js');
+const { create, REQUIRED_FUNCTIONS, REQUIRED_VALUES } = require('../dist/browser/canvas/element-placement.js');
 
 const GRID = 8;
 let idSeq = 0;

@@ -5,8 +5,8 @@ const {
   REQUIRED_FUNCTIONS,
   REQUIRED_VALUES,
   create,
-} = require('../model-explorer.js');
-const { parseColumn } = require('../erd-column.js');
+} = require('../dist/browser/editor/model-explorer.js');
+const { parseColumn } = require('../dist/browser/model/erd-column.js');
 
 let focused = null;
 

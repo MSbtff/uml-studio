@@ -5,7 +5,7 @@ const {
   REQUIRED_FUNCTIONS,
   REQUIRED_VALUES,
   create,
-} = require('../validation-panel.js');
+} = require('../dist/browser/editor/validation-panel.js');
 
 function fakeNode(tagName = 'div') {
   const listeners = new Map();

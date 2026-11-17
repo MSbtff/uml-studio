@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "None",
+    "moduleDetection": "legacy",
+    "rootDir": "src",
+    "outDir": "dist/browser",
+    "strict": true,
+    "sourceMap": true,
+    "noEmitOnError": true,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts"]
+}

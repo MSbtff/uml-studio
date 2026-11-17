@@ -11,7 +11,7 @@ const {
   segmentIntersectionPoint,
   collectPolylineCrossings,
   polylineJumpPath,
-} = require('../orthogonal-router.js');
+} = require('../dist/browser/canvas/orthogonal-router.js');
 
 const horizontalOptions = {
   start: { x: 20, y: 100 },

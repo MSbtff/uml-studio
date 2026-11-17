@@ -7,7 +7,7 @@ const {
   REQUIRED_VALUES,
   SAMPLE_METHODS,
   create,
-} = require('../project-document.js');
+} = require('../dist/browser/io/project-document.js');
 
 const SAMPLE_TYPES = Object.freeze({
   sampleActivity: 'activity',

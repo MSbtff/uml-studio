@@ -7,8 +7,8 @@ const {
   DRAWIO_IMPORT_POLICIES,
   MAX_IMPORT_BYTES,
   create,
-} = require('../project-import.js');
-const importPreview = require('../import-preview.js');
+} = require('../dist/browser/io/project-import.js');
+const importPreview = require('../dist/browser/io/import-preview.js');
 
 /* ── Minimal DOM / browser doubles ─────────────────────────── */
 function fakeNode(tag = 'div') {

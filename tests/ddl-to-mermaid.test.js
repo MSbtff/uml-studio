@@ -21,6 +21,20 @@ test('the packed library converts SQL from a standalone project', (t) => {
   writeFileSync(join(work, 'package.json'), '{"private":true}');
   npm('install', `./${packed.filename}`, '--offline', '--ignore-scripts', '--no-audit', '--no-fund');
 
+  const types = join(work, 'consumer.mts');
+  writeFileSync(types, `
+    import { ddlToMermaid, type DdlConversion, type ImportedErd } from 'uml-studio-ddl-to-mermaid';
+    const output: DdlConversion = ddlToMermaid('CREATE TABLE books (id BIGINT);');
+    const erd: ImportedErd = output.erd;
+    const name: string = erd.diagrams[0].name;
+    // @ts-expect-error The package accepts SQL strings.
+    ddlToMermaid(1);
+  `);
+  const compiler = resolve(__dirname, '../node_modules/typescript/bin/tsc');
+  execFileSync(process.execPath, [
+    compiler, '--strict', '--noEmit', '--module', 'NodeNext', '--target', 'ES2022', types,
+  ], { cwd: work });
+
   const example = 'node_modules/uml-studio-ddl-to-mermaid/examples/convert.mjs';
   const output = execFileSync(process.execPath, [example], { cwd: work, encoding: 'utf8' });
   assert.match(output, /^%% Database Schema\nerDiagram\n/);

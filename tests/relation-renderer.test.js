@@ -1,18 +1,18 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { create, relationMessageStyle, ERD_ENDS, ERD_LINE } = require('../relation-renderer.js');
-const { headGeom, polylinePath, bezierPoint } = require('../canvas-geometry.js');
-const { REL_STYLE } = require('../presentation-registry.js');
+const { create, relationMessageStyle, ERD_ENDS, ERD_LINE } = require('../dist/browser/canvas/relation-renderer.js');
+const { headGeom, polylinePath, bezierPoint } = require('../dist/browser/canvas/canvas-geometry.js');
+const { REL_STYLE } = require('../dist/browser/model/presentation-registry.js');
 const {
   ER_RELATION_KINDS,
   relationSupportsEndQuickEdit,
   relationEndAggregation,
   relationEndNavigability,
   relationEndRoleLabel,
-} = require('../relation-end.js');
-const { parseErdCardinality } = require('../erd-cardinality.js');
-const { polylineJumpPath, polylineMidpoint } = require('../orthogonal-router.js');
+} = require('../dist/browser/model/relation-end.js');
+const { parseErdCardinality } = require('../dist/browser/model/erd-cardinality.js');
+const { polylineJumpPath, polylineMidpoint } = require('../dist/browser/canvas/orthogonal-router.js');
 
 function node(tag = 'root', attrs = {}) {
   return {

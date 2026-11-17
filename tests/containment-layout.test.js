@@ -6,10 +6,10 @@ const {
   REQUIRED_VALUES,
   KIND_SETS,
   create,
-} = require('../containment-layout.js');
+} = require('../dist/browser/canvas/containment-layout.js');
 const {
   snap, center, pointInside, anchorPoint, relationEndpoints,
-} = require('../canvas-geometry.js');
+} = require('../dist/browser/canvas/canvas-geometry.js');
 
 /* app.js가 쓰는 것과 같은 종류 집합 */
 const COMPOSITE_CONTAINER_KINDS = new Set(['class', 'collaboration']);

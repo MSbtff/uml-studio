@@ -6,7 +6,7 @@ const {
   REQUIRED_VALUES,
   create,
   toolIcon,
-} = require('../toolbox.js');
+} = require('../dist/browser/editor/toolbox.js');
 
 function fakeNode(tagName = 'div') {
   const listeners = new Map();

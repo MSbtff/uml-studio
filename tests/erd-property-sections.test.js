@@ -1,9 +1,9 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { create, REQUIRED_FUNCTIONS, REQUIRED_VALUES } = require('../erd-property-sections.js');
-const { parseColumn } = require('../erd-column.js');
-const { normalizeErdChecks, normalizeErdIndexes, safeSqlFragment } = require('../erd-schema.js');
+const { create, REQUIRED_FUNCTIONS, REQUIRED_VALUES } = require('../dist/browser/editor/erd-property-sections.js');
+const { parseColumn } = require('../dist/browser/model/erd-column.js');
+const { normalizeErdChecks, normalizeErdIndexes, safeSqlFragment } = require('../dist/browser/model/erd-schema.js');
 
 const CONTROL_TAGS = ['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON'];
 

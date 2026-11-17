@@ -6,7 +6,7 @@ const {
   REQUIRED_FUNCTIONS,
   REQUIRED_VALUES,
   create,
-} = require('../history-controller.js');
+} = require('../dist/browser/editor/history-controller.js');
 
 function harness(initialState = 'state-a') {
   let currentState = initialState;

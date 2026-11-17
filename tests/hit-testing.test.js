@@ -1,13 +1,13 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const geometry = require('../canvas-geometry.js');
+const geometry = require('../dist/browser/canvas/canvas-geometry.js');
 const {
   REQUIRED_FUNCTIONS,
   REQUIRED_VALUES,
   HIT_TOLERANCES,
   create,
-} = require('../hit-testing.js');
+} = require('../dist/browser/canvas/hit-testing.js');
 
 function harness(overrides = {}) {
   let sequenceBottom = overrides.sequenceBottom ?? 520;

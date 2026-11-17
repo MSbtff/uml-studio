@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const {
   parseColumn, formatColumn, validateColumn, copiedColumnValue, reorderColumns,
-} = require('../erd-column.js');
+} = require('../dist/browser/model/erd-column.js');
 
 {
   const column = parseColumn('fk,uq,PK nn user_id <작성자번호>: BIGINT');

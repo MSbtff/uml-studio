@@ -1,13 +1,13 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { fragmentOperandLayout } = require('../sequence-layout.js');
+const { fragmentOperandLayout } = require('../dist/browser/canvas/sequence-layout.js');
 const {
   REQUIRED_FUNCTIONS,
   REQUIRED_VALUES,
   RENDER_STYLE,
   create,
-} = require('../canvas-renderer.js');
+} = require('../dist/browser/canvas/canvas-renderer.js');
 
 /* ── minimal SVG/DOM doubles ───────────────────────────────── */
 

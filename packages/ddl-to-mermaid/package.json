@@ -4,16 +4,20 @@
   "license": "MIT",
   "description": "Convert CREATE TABLE SQL into an ERD model and Mermaid source",
   "type": "commonjs",
-  "main": "./index.cjs",
-  "exports": "./index.cjs",
+  "main": "./dist/index.cjs",
+  "exports": {
+    "types": "./dist/index.d.cts",
+    "default": "./dist/index.cjs"
+  },
   "files": [
-    "index.cjs",
-    "dist/ddl-importer.js",
-    "dist/erd-cardinality.js",
-    "dist/erd-column.js",
-    "dist/erd-schema.js",
-    "dist/exporters.js",
-    "dist/model-core.js",
+    "dist/index.cjs",
+    "dist/index.d.cts",
+    "dist/shared/io/ddl-importer.js",
+    "dist/shared/io/exporters.js",
+    "dist/shared/model/erd-cardinality.js",
+    "dist/shared/model/erd-column.js",
+    "dist/shared/model/erd-schema.js",
+    "dist/shared/model/model-core.js",
     "examples"
   ],
   "engines": {
@@ -21,5 +25,6 @@
   },
   "scripts": {
     "prepack": "node build.mjs"
-  }
+  },
+  "types": "./dist/index.d.cts"
 }

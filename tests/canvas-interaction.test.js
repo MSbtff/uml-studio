@@ -7,7 +7,7 @@ const {
   canvasPoint,
   marqueeElementIds,
   create,
-} = require('../canvas-interaction.js');
+} = require('../dist/browser/canvas/canvas-interaction.js');
 
 function fakeEventTarget(rect = { left: 0, top: 0 }) {
   const listeners = new Map();

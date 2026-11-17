@@ -9,9 +9,9 @@ const {
   MODEL_REFERENCE_FIELDS,
   PASTE_OFFSET,
   create,
-} = require('../selection-editing.js');
-const { GRID, snap } = require('../canvas-geometry.js');
-const { sequenceLifelineTop } = require('../sequence-layout.js');
+} = require('../dist/browser/editor/selection-editing.js');
+const { GRID, snap } = require('../dist/browser/canvas/canvas-geometry.js');
+const { sequenceLifelineTop } = require('../dist/browser/canvas/sequence-layout.js');
 
 /* app.js의 뷰/모델 저장소를 축소한 하네스 */
 function harness(overrides = {}) {

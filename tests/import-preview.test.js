@@ -1,8 +1,8 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { create, REQUIRED_FUNCTIONS, REQUIRED_VALUES } = require('../import-preview.js');
-const drawioImporter = require('../drawio-importer.js');
+const { create, REQUIRED_FUNCTIONS, REQUIRED_VALUES } = require('../dist/browser/io/import-preview.js');
+const drawioImporter = require('../dist/browser/io/drawio-importer.js');
 
 let focused = null;
 

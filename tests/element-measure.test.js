@@ -6,10 +6,10 @@ const {
   REQUIRED_VALUES,
   VISIBILITY_SYMBOLS,
   create,
-} = require('../element-measure.js');
-const { parseColumn } = require('../erd-column.js');
-const { parseIconScript } = require('../icon-script.js');
-const { snapUp } = require('../canvas-geometry.js');
+} = require('../dist/browser/canvas/element-measure.js');
+const { parseColumn } = require('../dist/browser/model/erd-column.js');
+const { parseIconScript } = require('../dist/browser/model/icon-script.js');
+const { snapUp } = require('../dist/browser/canvas/canvas-geometry.js');
 
 const FONT_FAMILY = 'Helvetica, Arial, "Apple SD Gothic Neo", sans-serif';
 const FONT12 = `12px ${FONT_FAMILY}`;

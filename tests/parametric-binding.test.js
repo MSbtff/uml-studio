@@ -1,14 +1,14 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const geometry = require('../canvas-geometry.js');
-const router = require('../orthogonal-router.js');
+const geometry = require('../dist/browser/canvas/canvas-geometry.js');
+const router = require('../dist/browser/canvas/orthogonal-router.js');
 const {
   REQUIRED_FUNCTIONS,
   REQUIRED_VALUES,
   ROUTING,
   create,
-} = require('../parametric-binding.js');
+} = require('../dist/browser/model/parametric-binding.js');
 
 const element = (id, kind, extra = {}) => ({ id, kind, x: 0, y: 0, w: 100, h: 60, ...extra });
 const connector = (id, extra = {}) => ({ id, kind: 'bindingconnector', from: 'a', to: 'b', ...extra });

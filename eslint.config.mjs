@@ -96,7 +96,7 @@ export default [
   js.configs.recommended,
   {
     name: 'project/legacy-browser-modules',
-    files: ['*.js'],
+    files: ['dist/browser/**/*.js'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'script',
@@ -124,7 +124,7 @@ export default [
   },
   {
     name: 'project/node',
-    files: ['**/*.mjs', 'packages/ddl-to-mermaid/*.cjs'],
+    files: ['**/*.mjs'],
     languageOptions: {
       ecmaVersion: 'latest',
       globals: {

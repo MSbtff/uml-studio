@@ -4,11 +4,11 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const zlib = require('node:zlib');
-const { exportDrawio } = require('../exporters.js');
+const { exportDrawio } = require('../dist/browser/io/exporters.js');
 const {
   importDrawio, parseXml, analyzeImport, filterImportConflicts, paginateImportConflicts,
-} = require('../drawio-importer.js');
-const { validateProjectData } = require('../model-core.js');
+} = require('../dist/browser/io/drawio-importer.js');
+const { validateProjectData } = require('../dist/browser/model/model-core.js');
 
 const element = (id, kind, name, extra) => ({
   id, modelId: `m_${id}`, kind, name, x: 0, y: 0, w: 180, h: 80, ...(extra || {}),

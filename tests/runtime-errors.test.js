@@ -7,7 +7,7 @@ const {
   REPEAT_WINDOW_MS,
   describe,
   create,
-} = require('../runtime-errors.js');
+} = require('../dist/browser/editor/runtime-errors.js');
 
 function fakeEventTarget() {
   const listeners = new Map();

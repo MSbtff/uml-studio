@@ -5,7 +5,7 @@ const {
   validateProject,
   bindingTypeCompatibility,
   defaultValueUnitCompatibility,
-} = require('../validation.js');
+} = require('../dist/browser/model/validation.js');
 
 const model = (id, kind, name, extra) => ({ id, kind, name, ...(extra || {}) });
 const view = (id, modelId, extra) => ({ id, modelId, x: 0, y: 0, w: 80, h: 40, ...(extra || {}) });

@@ -1,7 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const schema = require('../erd-schema.js');
+const schema = require('../dist/browser/model/erd-schema.js');
 
 assert.ok(Object.isFrozen(schema));
 assert.ok(Object.isFrozen(schema.ERD_REFERENTIAL_ACTIONS));

@@ -1,7 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { parseIconScript, validColor, MAX_COMMANDS } = require('../icon-script.js');
+const { parseIconScript, validColor, MAX_COMMANDS } = require('../dist/browser/model/icon-script.js');
 
 {
   const parsed = parseIconScript([

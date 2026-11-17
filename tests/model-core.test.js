@@ -6,7 +6,7 @@ const {
   hydrateProject,
   validateProjectData,
   stringifyProject,
-} = require('../model-core.js');
+} = require('../dist/browser/model/model-core.js');
 
 const options = {
   diagramTypes: ['class'],

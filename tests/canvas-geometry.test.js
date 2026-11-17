@@ -23,7 +23,7 @@ const {
   bezierPoint,
   selfTransitionGeometry,
   cubicPoint,
-} = require('../canvas-geometry.js');
+} = require('../dist/browser/canvas/canvas-geometry.js');
 
 const closeTo = (actual, expected, tolerance = 1e-9) => {
   assert.ok(Math.abs(actual - expected) <= tolerance, `${actual} ≉ ${expected}`);
@@ -150,5 +150,5 @@ assert.deepEqual(cubicPoint(selfCurve, 0), selfCurve.p1);
 assert.deepEqual(cubicPoint(selfCurve, 1), selfCurve.p2);
 closePoint(cubicPoint(selfCurve, 0.5), { x: 150, y: 171.5 });
 
-assert.ok(Object.isFrozen(require('../canvas-geometry.js')));
+assert.ok(Object.isFrozen(require('../dist/browser/canvas/canvas-geometry.js')));
 console.log('canvas geometry tests: ok');

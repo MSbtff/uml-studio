@@ -1,8 +1,8 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { create, REQUIRED_FUNCTIONS, REQUIRED_VALUES } = require('../relation-end-editor.js');
-const { parse: parseQuickEditExpression } = require('../expression-parser.js');
+const { create, REQUIRED_FUNCTIONS, REQUIRED_VALUES } = require('../dist/browser/editor/relation-end-editor.js');
+const { parse: parseQuickEditExpression } = require('../dist/browser/model/expression-parser.js');
 const {
   relationEndAggregation,
   relationEndNavigability,
@@ -12,12 +12,12 @@ const {
   ASSOCIATION_QUALIFIER_KINDS,
   ER_RELATION_KINDS,
   VISIBILITY_VALUE,
-} = require('../relation-end.js');
+} = require('../dist/browser/model/relation-end.js');
 const {
   ERD_CARDINALITY_OPTIONS,
   erdDefaultCardinality,
   normalizeErdCardinality,
-} = require('../erd-cardinality.js');
+} = require('../dist/browser/model/erd-cardinality.js');
 
 /* app.js가 배선하는 한 줄짜리 헬퍼 */
 const erdRelationCardinality = (relation, end) => normalizeErdCardinality(

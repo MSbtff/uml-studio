@@ -19,3 +19,4 @@ test-results/
 /packages/ddl-to-mermaid/dist/
 /packages/ddl-to-mermaid/LICENSE
 /uml-studio-ddl-to-mermaid-*.tgz
+/dist/

@@ -7,7 +7,7 @@ const {
   REQUIRED_FUNCTIONS,
   REQUIRED_VALUES,
   create,
-} = require('../member-lists.js');
+} = require('../dist/browser/editor/member-lists.js');
 
 assert.ok(Object.isFrozen(REQUIRED_FUNCTIONS));
 assert.ok(Object.isFrozen(REQUIRED_VALUES));

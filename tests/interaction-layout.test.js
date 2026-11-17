@@ -1,13 +1,13 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { activeAt, assignTemporalDepths, DEFAULT_SEQUENCE_TOP, sequenceLifelineTop } = require('../sequence-layout.js');
+const { activeAt, assignTemporalDepths, DEFAULT_SEQUENCE_TOP, sequenceLifelineTop } = require('../dist/browser/canvas/sequence-layout.js');
 const {
   DEFAULT_SEQUENCE_BOTTOM,
   REQUIRED_FUNCTIONS,
   REQUIRED_VALUES,
   create,
-} = require('../interaction-layout.js');
+} = require('../dist/browser/canvas/interaction-layout.js');
 
 function harness(overrides = {}) {
   const diagram = overrides.diagram || {

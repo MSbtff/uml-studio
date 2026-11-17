@@ -5,15 +5,15 @@ const {
   REQUIRED_FUNCTIONS,
   REQUIRED_VALUES,
   create,
-} = require('../quick-edit.js');
+} = require('../dist/browser/editor/quick-edit.js');
 const {
   copiedColumnValue,
   parseColumn,
   reorderColumns,
   validateColumn,
-} = require('../erd-column.js');
-const erdColumnEditor = require('../erd-column-editor.js');
-const relationEndEditor = require('../relation-end-editor.js');
+} = require('../dist/browser/model/erd-column.js');
+const erdColumnEditor = require('../dist/browser/editor/erd-column-editor.js');
+const relationEndEditor = require('../dist/browser/editor/relation-end-editor.js');
 const {
   applyCopiedColumnSchema,
   columnDetailsFor,
@@ -25,7 +25,7 @@ const {
   renameForeignKeyColumnReferences,
   safeSqlFragment,
   setColumnDetails,
-} = require('../erd-schema.js');
+} = require('../dist/browser/model/erd-schema.js');
 
 assert.ok(Object.isFrozen(REQUIRED_FUNCTIONS));
 assert.ok(Object.isFrozen(REQUIRED_VALUES));
@@ -84,7 +84,7 @@ assert.equal(quickEdit.openSelectedQuickEdit(), false);
 assert.equal(quickEdit.openSelectedMemberQuickEdit(), false);
 
 /* ERD 컬럼 명령은 erd-column-editor 모듈이 소유하고 QuickEdit는 그대로 다시 내보낸다 */
-const erdColumnEditorModule = require('../erd-column-editor.js');
+const erdColumnEditorModule = require('../dist/browser/editor/erd-column-editor.js');
 [
   'copyErdColumn', 'deleteErdColumn', 'getErdColumnClipboard', 'moveErdColumn',
   'moveErdColumnTo', 'openErdColumnEditor', 'pasteErdColumn', 'replaceErdColumns',

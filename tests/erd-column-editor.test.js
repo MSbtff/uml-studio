@@ -1,13 +1,13 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { create, REQUIRED_FUNCTIONS, REQUIRED_VALUES } = require('../erd-column-editor.js');
+const { create, REQUIRED_FUNCTIONS, REQUIRED_VALUES } = require('../dist/browser/editor/erd-column-editor.js');
 const {
   copiedColumnValue,
   parseColumn,
   reorderColumns,
   validateColumn,
-} = require('../erd-column.js');
+} = require('../dist/browser/model/erd-column.js');
 const {
   applyCopiedColumnSchema,
   columnDetailsFor,
@@ -19,7 +19,7 @@ const {
   renameForeignKeyColumnReferences,
   safeSqlFragment,
   setColumnDetails,
-} = require('../erd-schema.js');
+} = require('../dist/browser/model/erd-schema.js');
 
 let focused = null;
 

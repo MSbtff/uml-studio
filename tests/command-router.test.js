@@ -5,7 +5,7 @@ const {
   REQUIRED_FUNCTIONS,
   REQUIRED_VALUES,
   create,
-} = require('../command-router.js');
+} = require('../dist/browser/editor/command-router.js');
 
 function fakeTarget(extra = {}) {
   const listeners = new Map();

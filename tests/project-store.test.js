@@ -10,7 +10,7 @@ const {
   PROJECT_VERSION,
   AUTOSAVE_HEARTBEAT_MS,
   create,
-} = require('../project-store.js');
+} = require('../dist/browser/io/project-store.js');
 
 /* ── DOM / storage doubles ─────────────────────────────────── */
 function fakeNode(tag = 'div') {

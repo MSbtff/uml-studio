@@ -1,7 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const parser = require('../expression-parser.js');
+const parser = require('../dist/browser/model/expression-parser.js');
 
 {
   const result = parser.parseAttribute('<<id>> - owner : User [0 .. *] = none');

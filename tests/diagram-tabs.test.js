@@ -1,7 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { REQUIRED_FUNCTIONS, REQUIRED_VALUES, create } = require('../diagram-tabs.js');
+const { REQUIRED_FUNCTIONS, REQUIRED_VALUES, create } = require('../dist/browser/editor/diagram-tabs.js');
 
 function fakeNode(tagName = 'div') {
   const listeners = new Map();

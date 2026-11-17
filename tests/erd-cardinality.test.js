@@ -7,7 +7,7 @@ const {
   normalizeErdCardinality,
   erdMermaidMarker,
   erdDrawioArrow,
-} = require('../erd-cardinality.js');
+} = require('../dist/browser/model/erd-cardinality.js');
 
 assert.equal(erdDefaultCardinality('erd-1n', 'source'), '1');
 assert.equal(erdDefaultCardinality('erd-1n', 'target'), '1..N');

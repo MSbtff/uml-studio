@@ -5,7 +5,7 @@ const {
   REQUIRED_FUNCTIONS,
   REQUIRED_VALUES,
   create,
-} = require('../sample-diagrams.js');
+} = require('../dist/browser/model/sample-diagrams.js');
 
 const BDD_CLASSIFIER_KINDS = new Set(['block', 'valuetype', 'interfaceblock', 'constraintblock']);
 const FILL_DEFAULT = '#fffbd8';

@@ -5,7 +5,7 @@ const {
   REQUIRED_FUNCTIONS,
   REQUIRED_VALUES,
   create,
-} = require('../viewport-controller.js');
+} = require('../dist/browser/canvas/viewport-controller.js');
 
 function fakeTarget(extra = {}) {
   const listeners = new Map();

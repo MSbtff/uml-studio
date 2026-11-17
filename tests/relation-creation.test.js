@@ -1,13 +1,13 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { sequenceMessageMinY } = require('../sequence-layout.js');
+const { sequenceMessageMinY } = require('../dist/browser/canvas/sequence-layout.js');
 const {
   ENDPOINT_MESSAGES,
   REQUIRED_FUNCTIONS,
   REQUIRED_VALUES,
   create,
-} = require('../relation-creation.js');
+} = require('../dist/browser/editor/relation-creation.js');
 
 function harness(options = {}) {
   let linking = options.linking === undefined ? { fromId: 'from', x: 20, y: 90 } : options.linking;

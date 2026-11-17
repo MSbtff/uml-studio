@@ -1,7 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { assignTemporalDepths, activeAt } = require('../sequence-layout.js');
+const { assignTemporalDepths, activeAt } = require('../dist/browser/canvas/sequence-layout.js');
 
 {
   const bars = assignTemporalDepths([

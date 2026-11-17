@@ -6,11 +6,11 @@ const {
   KIND_META,
   REL_STYLE,
   presentationRegistryProblems,
-} = require('../presentation-registry.js');
+} = require('../dist/browser/model/presentation-registry.js');
 const {
   registeredElementKinds,
   registeredRelationKinds,
-} = require('../diagram-registry.js');
+} = require('../dist/browser/model/diagram-registry.js');
 
 assert.deepEqual(DASH_PATTERNS, {
   relation: '6 4',

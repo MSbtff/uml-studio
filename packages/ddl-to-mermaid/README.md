@@ -6,9 +6,10 @@ Node.js 24 이상에서 실행되며 런타임 의존성이 없습니다.
 
 ## 설치와 예제 실행
 
-저장소 루트에서 패키지를 만듭니다.
+저장소 루트에서 의존성을 설치하고 패키지를 만듭니다.
 
 ```sh
+npm ci
 npm pack ./packages/ddl-to-mermaid
 ```
 
@@ -52,6 +53,8 @@ console.log(mermaid);
 ```
 
 CommonJS에서는 `const { ddlToMermaid } = require('uml-studio-ddl-to-mermaid');`로 불러옵니다.
+TypeScript 프로젝트에서도 같은 import를 사용합니다. 패키지에 타입 선언이 포함되어 있으며
+`DdlOptions`, `DdlConversion`, `ImportedErd`를 타입으로 가져올 수 있습니다.
 
 - `ddlToMermaid(sql, options?)`는 동기 함수입니다. `sql`은 SQL 문자열이고, 선택 옵션 `diagramName`의 기본값은 `Imported DDL`입니다.
 - `mermaid`는 `.mmd` 파일이나 Markdown의 `mermaid` 코드 블록에 사용할 수 있는 문자열입니다.

@@ -8,7 +8,7 @@ const {
   diagramAllowsRelationKind,
   registeredElementKinds,
   registeredRelationKinds,
-} = require('../diagram-registry.js');
+} = require('../dist/browser/model/diagram-registry.js');
 
 assert.deepEqual(Object.keys(DIAGRAM_TOOLS).sort(), Object.keys(DIAGRAM_META).sort(),
   '모든 다이어그램은 메타데이터와 도구 구성을 함께 가져야 합니다');

@@ -15,7 +15,7 @@ const {
   relationEndExpression,
   relationEndRoleLabel,
   validRelationEndMultiplicity,
-} = require('../relation-end.js');
+} = require('../dist/browser/model/relation-end.js');
 
 assert.ok(RELATION_END_QUICK_EDIT_KINDS.has('association'));
 assert.ok(RELATION_END_QUICK_EDIT_KINDS.has('erd-1n'));

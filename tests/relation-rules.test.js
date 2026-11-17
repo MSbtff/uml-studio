@@ -6,8 +6,8 @@ const {
   REQUIRED_VALUES,
   KIND_SETS,
   create,
-} = require('../relation-rules.js');
-const { KIND_META } = require('../presentation-registry.js');
+} = require('../dist/browser/model/relation-rules.js');
+const { KIND_META } = require('../dist/browser/model/presentation-registry.js');
 
 /* app.js가 쓰는 것과 같은 종류 집합 */
 const COMPOSITE_CONNECTABLE_KINDS = new Set(['part', 'port']);

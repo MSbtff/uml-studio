@@ -6,9 +6,9 @@ const {
   REQUIRED_FUNCTIONS,
   REQUIRED_VALUES,
   create,
-} = require('../element-factory.js');
-const { registeredElementKinds } = require('../diagram-registry.js');
-const { sequenceLifelineTop } = require('../sequence-layout.js');
+} = require('../dist/browser/model/element-factory.js');
+const { registeredElementKinds } = require('../dist/browser/model/diagram-registry.js');
+const { sequenceLifelineTop } = require('../dist/browser/canvas/sequence-layout.js');
 
 const FILL_DEFAULT = '#fffbd8';
 const TIMING_ROW_HEIGHT = 44;

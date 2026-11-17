@@ -10,7 +10,7 @@ const {
   create,
   previewErdNameChanges,
   replaceLiteral,
-} = require('../erd-name-tools.js');
+} = require('../dist/browser/editor/erd-name-tools.js');
 
 function fixture() {
   const models = {

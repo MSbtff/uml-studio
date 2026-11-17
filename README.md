@@ -6,9 +6,14 @@ Mermaid로 변환하려면 [DDL → Mermaid npm 라이브러리](packages/ddl-to
 
 ## SQLite 자동저장으로 실행
 
+Node.js 24 이상과 Python 3.12 이상이 필요합니다. 처음에는 의존성을 설치한 뒤 편집기를 빌드하고 실행합니다.
+
 ```bash
-python3 server.py
+npm ci
+npm start
 ```
+
+`npm start`는 TypeScript를 빌드한 뒤 `python3 server.py`를 실행합니다. 빌드 후에는 Python 서버를 직접 실행할 수 있습니다.
 
 브라우저에서 `http://127.0.0.1:8000`을 엽니다. 프로젝트 변경 내용은 작업 폴더의
 `uml-studio.db`에 자동 저장되며 서버를 종료했다가 다시 실행해도 복원됩니다.
@@ -27,7 +32,8 @@ DB 경로를 별도로 지정할 수도 있습니다.
 python3 server.py --db /path/to/uml-studio.db
 ```
 
-일반 정적 서버나 `index.html` 직접 열기도 지원하지만, 이 경우에는 IndexedDB와
+`npm run build`를 실행한 뒤 일반 정적 서버를 사용하거나 `index.html`을 직접 열 수도 있습니다.
+이 경우에는 IndexedDB와
 브라우저 비상 복구본만 사용되므로 같은 주소(Origin)에서 실행해야 데이터가 복원됩니다.
 
 파일 메뉴의 `Save`는 DB 자동저장과 별개로 이동·백업 가능한 `project.json`을 내려받습니다.
@@ -119,6 +125,23 @@ DDL은 브라우저에서 토큰화·분석만 하며 데이터베이스에 실�
 - 요소 수백 개 규모에서는 충분하지만, 수천 개 규모는 아직 검증하지 않았습니다. 필요해지면
   전체 다시 그리기 대신 변경된 요소만 갱신하는 방식을 먼저 검토하세요.
 
+## 저장소 구조
+
+| 경로 | 역할 |
+| --- | --- |
+| `src/app.ts` | 편집기 초기화 및 모듈 연결 |
+| `src/model/` | UML·ERD 의미 모델, 구문 파서, 검증, 샘플 |
+| `src/canvas/` | SVG 렌더링, 포인터·키보드 입력, 레이아웃 |
+| `src/editor/` | 도구 모음, 속성 패널, 탭, 명령 및 Undo/Redo |
+| `src/io/` | DDL·Mermaid·draw.io 변환, 프로젝트 저장과 복구 |
+| `packages/ddl-to-mermaid/` | 변환 라이브러리의 진입점, 공개 타입, 실행 예제 |
+| `tests/` | 단위 테스트, SQLite 통합 테스트, 브라우저 E2E |
+
+`npm run build`는 브라우저가 실행하는 스크립트를 `dist/browser/`에 생성합니다.
+소스를 수정할 때는 `src/`를 편집하고 빌드를 다시 실행하세요. 생성된 파일은 Git에서 제외합니다.
+`npm run typecheck`는 라이브러리 공개 API와 타입을 정의한 편집기 모듈을 검사합니다.
+`@ts-nocheck`가 표시된 기존 모듈은 동작을 유지한 상태로 옮겼으며, 타입 계약을 추가하면서 검사를 활성화할 수 있습니다.
+
 ## 테스트
 
 Node.js 24 이상과 Python 3.12 이상을 사용합니다. 최초 한 번 JavaScript·Python 개발
@@ -158,9 +181,9 @@ npm run test:e2e:stability
 npm run check
 ```
 
-이 명령은 JavaScript ESLint, Python Ruff, 포맷 검사, JavaScript 모듈 커버리지,
+이 명령은 JavaScript ESLint, Python Ruff, 포맷 검사, TypeScript 타입 검사, 모듈 커버리지,
 SQLite HTTP 통합 테스트를 순서대로 실행합니다. 커버리지 하한은 실측치 바로 아래인
-line 85% · branch 80% · function 87%로 고정하여 커버리지가 떨어지면 CI가 실패합니다. 브라우저 전용 `app.js`는 Node 단위 테스트
+line 85% · branch 80% · function 87%로 고정하여 커버리지가 떨어지면 CI가 실패합니다. 브라우저 전용 `src/app.ts`는 Node 단위 테스트
 커버리지에 포함되지 않으므로 실제 사용자 흐름은 별도 Playwright E2E로 보완합니다.
 
 ```bash

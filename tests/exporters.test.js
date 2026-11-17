@@ -7,7 +7,7 @@ const {
   exportErdDdl,
   exportMermaid,
   exportDrawio,
-} = require('../exporters.js');
+} = require('../dist/browser/io/exporters.js');
 
 const element = (id, kind, name, extra) => ({
   id, modelId: `m_${id}`, kind, name, x: 0, y: 0, w: 160, h: 72, ...(extra || {}),

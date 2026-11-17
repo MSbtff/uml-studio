@@ -421,7 +421,7 @@ class StorageServerTestCase(unittest.TestCase):
                 reply.read()
                 return reply.status
 
-        paths = ["/index.html", "/app.js", "/styles.css", "/api/health"] * 20
+        paths = ["/index.html", "/dist/browser/app.js", "/styles.css", "/api/health"] * 20
         with ThreadPoolExecutor(max_workers=40) as pool:
             statuses = list(pool.map(fetch, paths))
         self.assertEqual(statuses, [HTTPStatus.OK] * len(paths))
