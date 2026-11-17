@@ -1,0 +1,25 @@
+{
+  "name": "uml-studio-ddl-to-mermaid",
+  "version": "0.1.0",
+  "license": "MIT",
+  "description": "Convert CREATE TABLE SQL into an ERD model and Mermaid source",
+  "type": "commonjs",
+  "main": "./index.cjs",
+  "exports": "./index.cjs",
+  "files": [
+    "index.cjs",
+    "dist/ddl-importer.js",
+    "dist/erd-cardinality.js",
+    "dist/erd-column.js",
+    "dist/erd-schema.js",
+    "dist/exporters.js",
+    "dist/model-core.js",
+    "examples"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "prepack": "node build.mjs"
+  }
+}

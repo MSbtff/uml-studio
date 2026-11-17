@@ -1,0 +1,9 @@
+node_modules/
+playwright-report/
+test-results/
+tests/.runtime/
+
+# 레거시 브라우저 UMD 모듈은 책임 단위 추출 시 점진적으로 포맷한다.
+*.js
+tests/*.test.js
+tests/support/*.js

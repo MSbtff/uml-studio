@@ -1,0 +1,36 @@
+{
+  "name": "uml-studio-v7",
+  "version": "7.0.0",
+  "license": "MIT",
+  "private": true,
+  "description": "Browser-based UML Studio with SQLite and IndexedDB recovery",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "check": "npm run lint && npm run format:check && npm run test:coverage && npm run test:server",
+    "lint": "npm run lint:js && npm run lint:py",
+    "lint:js": "eslint . --max-warnings=0",
+    "lint:py": "ruff check server.py tests",
+    "format": "npm run format:js && npm run format:py",
+    "format:check": "npm run format:js:check && npm run format:py:check",
+    "format:js": "prettier --write package.json package-lock.json playwright.config.mjs eslint.config.mjs prettier.config.mjs '.github/workflows/*.yml' 'tests/e2e/**/*.mjs'",
+    "format:js:check": "prettier --check package.json package-lock.json playwright.config.mjs eslint.config.mjs prettier.config.mjs '.github/workflows/*.yml' 'tests/e2e/**/*.mjs'",
+    "format:py": "ruff format server.py tests",
+    "format:py:check": "ruff format --check server.py tests",
+    "test": "npm run test:unit && npm run test:server && npm run test:e2e",
+    "test:unit": "node --test tests/*.test.js",
+    "test:coverage": "node --test --experimental-test-coverage --test-coverage-exclude='tests/**' --test-coverage-lines=85 --test-coverage-branches=80 --test-coverage-functions=87 tests/*.test.js",
+    "test:server": "PYTHONWARNINGS=error::ResourceWarning python3 -m unittest discover -s tests -p 'test_*.py' -v",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:stability": "playwright test --repeat-each=3"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.62.1",
+    "eslint": "10.8.1",
+    "globals": "17.11.0",
+    "prettier": "3.9.6"
+  }
+}

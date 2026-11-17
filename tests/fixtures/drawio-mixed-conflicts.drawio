@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="UML Studio" version="7.0">
+  <diagram id="mixed-import" name="Mixed Conflict Import" umlDiagramType="class">
+    <mxGraphModel dx="1000" dy="700" grid="1" gridSize="10" page="1" pageWidth="1169" pageHeight="827">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="shape" value="Shape" umlKind="class" umlModelId="fixture_shape" umlName="Shape" umlAttributes="[&quot;+ incomingShape: string&quot;]" umlOperations="[]" vertex="1" parent="1">
+          <mxGeometry x="60" y="80" width="220" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="style" value="Style" umlKind="class" umlModelId="fixture_style" umlName="Style" umlAttributes="[&quot;+ incomingStyle: string&quot;]" umlOperations="[&quot;+ apply(): void&quot;]" vertex="1" parent="1">
+          <mxGeometry x="360" y="80" width="220" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="service" value="ImportedService" umlKind="class" umlModelId="fixture_service" umlName="ImportedService" umlAttributes="[&quot;+ enabled: boolean&quot;]" umlOperations="[]" vertex="1" parent="1">
+          <mxGeometry x="660" y="80" width="220" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="shape-uses-style" value="style" umlKind="dependency" umlModelId="fixture_dependency_1" umlName="style" edge="1" parent="1" source="shape" target="style">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="style-uses-service" value="service" umlKind="dependency" umlModelId="fixture_dependency_2" umlName="service" edge="1" parent="1" source="style" target="service">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

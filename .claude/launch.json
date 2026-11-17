@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "uml-studio",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8765"],
+      "port": 8765
+    },
+    {
+      "name": "uml-studio-server",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["server.py", "--port", "8000"],
+      "port": 8000
+    },
+    {
+      "name": "uml-studio-server-8011",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["server.py", "--port", "8011"],
+      "port": 8011
+    }
+  ]
+}
