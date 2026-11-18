@@ -59,8 +59,17 @@ _An online store schema imported from SQL and exported as an ER diagram._
 
 Convert SQL DDL into an ERD model and Mermaid source from Node.js 24 or later. [View `uml-studio-ddl-to-mermaid@0.1.0` on npm](https://www.npmjs.com/package/uml-studio-ddl-to-mermaid/v/0.1.0).
 
+From your Node.js project directory, install the package and run the bundled example to generate `schema.mmd` from the included sample SQL.
+
 ```bash
 npm install uml-studio-ddl-to-mermaid@0.1.0
+node node_modules/uml-studio-ddl-to-mermaid/examples/convert.mjs > schema.mmd
+```
+
+Pass the path to your own SQL file to generate a Mermaid diagram for that schema.
+
+```bash
+node node_modules/uml-studio-ddl-to-mermaid/examples/convert.mjs ./schema.sql > schema.mmd
 ```
 
 See the [package README](packages/ddl-to-mermaid/README.md) for API usage and the [examples directory](packages/ddl-to-mermaid/examples) for a sample schema and conversion script.
