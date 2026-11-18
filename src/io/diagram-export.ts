@@ -4,11 +4,16 @@
    browser downloads (SVG, PNG, Mermaid, draw.io, ERD DDL) plus the DDL dialect
    dialog. It only reads the project, so it shares nothing with the import side
    beyond the `download` helper it owns. */
-(function initDiagramExport<Api>(root: typeof globalThis & { UMLDiagramExport?: Api }, factory: () => Api) {
+type DiagramExportApi = ReturnType<typeof createDiagramExportModule>;
+declare var UMLDiagramExport: DiagramExportApi;
+
+(function initDiagramExport(root: typeof globalThis & { UMLDiagramExport?: DiagramExportApi }, factory: () => DiagramExportApi) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLDiagramExport = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createDiagramExportModule() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createDiagramExportModule);
+
+function createDiagramExportModule() {
   const REQUIRED_FUNCTIONS = Object.freeze([
     'contentBBox',
     'dg',
@@ -286,4 +291,4 @@
   }
 
   return Object.freeze({ REQUIRED_FUNCTIONS, REQUIRED_VALUES, create });
-});
+}

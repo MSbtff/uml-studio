@@ -1,37 +1,71 @@
-// @ts-nocheck
 'use strict';
 
 /* Import preview dialogs — the draw.io and DDL confirmation sheets that show
    what a file will add before anything is written. They only read the parsed
    import and return the user's decision, so they touch no project state; the
    import module owns everything that happens after the decision. */
-(function initImportPreview(root, factory) {
+type ImportPreviewApi = ReturnType<typeof createImportPreviewModule>;
+declare var UMLImportPreview: ImportPreviewApi;
+
+(function initImportPreview(root: typeof globalThis & { UMLImportPreview?: ImportPreviewApi }, factory: () => ImportPreviewApi) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLImportPreview = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createImportPreviewModule() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createImportPreviewModule);
+
+function createImportPreviewModule() {
   const REQUIRED_FUNCTIONS = Object.freeze([
     'projectActionButton',
     'projectModal',
-  ]);
+  ] as const);
   const REQUIRED_VALUES = Object.freeze([
     'document',
     'drawioImporter',
     'DIAGRAM_META',
     'DRAWIO_IMPORT_POLICIES',
     'KIND_META',
-  ]);
+  ] as const);
 
-  function create(dependencies) {
-    const deps = dependencies || {};
-    const missing = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
+  interface PreviewOptions { filename?: string; append?: boolean }
+
+  interface ImportPreviewDependencies {
+    projectActionButton: (label: string, action: () => void) => HTMLButtonElement;
+    projectModal: (title: string, id: string) => {
+      dialog: HTMLElement;
+      header: HTMLElement;
+      modal: {
+        close: () => void;
+        setRequestCloseHandler: (handler: () => void) => void;
+        focusInitial: (element: HTMLElement) => void;
+      };
+    };
+    document: Document;
+    drawioImporter: {
+      filterImportConflicts: (conflicts: DrawioConflict[], policies: ReadonlyMap<string, DrawioPolicy>, query: string, filter: string) => DrawioConflict[];
+      paginateImportConflicts: (conflicts: DrawioConflict[], page: number, pageSize: number) => {
+        items: DrawioConflict[];
+        page: number;
+        pageCount: number;
+        total: number;
+        start: number;
+        end: number;
+      };
+    };
+    DIAGRAM_META: Partial<Record<string, { label: string }>>;
+    DRAWIO_IMPORT_POLICIES: readonly (readonly [DrawioPolicy, string])[];
+    KIND_META: Partial<Record<string, { label: string }>>;
+  }
+
+  function create(dependencies?: ImportPreviewDependencies) {
+    const deps: Partial<ImportPreviewDependencies> = dependencies || {};
+    const missing: string[] = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
     REQUIRED_VALUES.forEach(name => {
       if (deps[name] == null) missing.push(name);
     });
     if (deps.document && typeof deps.document.createElement !== 'function') {
       missing.push('document.createElement');
     }
-    ['filterImportConflicts', 'paginateImportConflicts'].forEach(name => {
+    (['filterImportConflicts', 'paginateImportConflicts'] as const).forEach(name => {
       if (deps.drawioImporter && typeof deps.drawioImporter[name] !== 'function') {
         missing.push(`drawioImporter.${name}`);
       }
@@ -48,9 +82,9 @@
       DIAGRAM_META,
       DRAWIO_IMPORT_POLICIES,
       KIND_META,
-    } = deps;
+    } = deps as ImportPreviewDependencies;
 
-    function appendDrawioPolicyOptions(select, recommended = false) {
+    function appendDrawioPolicyOptions(select: HTMLSelectElement, recommended = false) {
       DRAWIO_IMPORT_POLICIES.forEach(([value, text]) => {
         const option = document.createElement('option'); option.value = value;
         option.textContent = recommended && value === 'keepBoth' ? `${text} (권장)` : text;
@@ -58,15 +92,17 @@
       });
     }
 
-    function openDrawioImportPreview(imported, analysis, options = {}) {
+    function openDrawioImportPreview(_imported: object, analysis: DrawioImportAnalysis, options: PreviewOptions = {}) {
       const append = !!options.append;
       const { dialog, header, modal } = projectModal('draw.io Import Preview', 'drawio-import-preview-modal');
       dialog.classList.add('drawio-import-dialog');
       dialog.setAttribute('role', 'dialog');
       dialog.setAttribute('aria-modal', 'true');
       const title = header.querySelector('strong');
-      title.id = 'drawio-import-preview-title';
-      dialog.setAttribute('aria-labelledby', title.id);
+      if (title) {
+        title.id = 'drawio-import-preview-title';
+        dialog.setAttribute('aria-labelledby', title.id);
+      }
 
       const body = document.createElement('div'); body.className = 'drawio-import-preview';
       const intro = document.createElement('div'); intro.className = 'drawio-import-intro';
@@ -81,7 +117,7 @@
       ].forEach(([label, value]) => {
         const card = document.createElement('div'); card.className = 'drawio-import-stat';
         const count = document.createElement('strong'); count.textContent = String(value);
-        const caption = document.createElement('span'); caption.textContent = label;
+        const caption = document.createElement('span'); caption.textContent = String(label);
         card.append(count, caption); summary.appendChild(card);
       });
       body.appendChild(summary);
@@ -102,13 +138,13 @@
       });
       diagramSection.append(diagramTitle, diagramList); body.appendChild(diagramSection);
 
-      const perModelPolicies = new Map();
-      const conflictPolicySelects = new Map();
+      const perModelPolicies = new Map<string, DrawioPolicy>();
+      const conflictPolicySelects = new Map<string, HTMLSelectElement>();
       let syncPolicyControls = () => {};
-      let confirmImportButton = null;
+      let confirmImportButton: HTMLButtonElement | null = null;
       let conflictPage = 0;
-      let conflictSearchInput = null;
-      let conflictFilterSelect = null;
+      let conflictSearchInput: HTMLInputElement | null = null;
+      let conflictFilterSelect: HTMLSelectElement | null = null;
       let renderConflictRows = () => {};
       const filteredConflicts = () => drawioImporter.filterImportConflicts(
         analysis.conflicts,
@@ -126,26 +162,28 @@
         conflictSection.appendChild(conflictTitle);
         if (analysis.conflicts.length) {
           const controls = document.createElement('div'); controls.className = 'drawio-conflict-controls';
-          conflictSearchInput = document.createElement('input');
-          conflictSearchInput.id = 'drawio-conflict-search'; conflictSearchInput.type = 'search';
-          conflictSearchInput.maxLength = 200; conflictSearchInput.placeholder = '모델명·종류·변경 필드 검색';
-          conflictSearchInput.setAttribute('aria-label', 'draw.io 모델 충돌 검색');
-          conflictFilterSelect = document.createElement('select');
-          conflictFilterSelect.id = 'drawio-conflict-filter'; conflictFilterSelect.setAttribute('aria-label', 'draw.io 모델 충돌 필터');
+          const searchInput = document.createElement('input');
+          conflictSearchInput = searchInput;
+          searchInput.id = 'drawio-conflict-search'; searchInput.type = 'search';
+          searchInput.maxLength = 200; searchInput.placeholder = '모델명·종류·변경 필드 검색';
+          searchInput.setAttribute('aria-label', 'draw.io 모델 충돌 검색');
+          const filterSelect = document.createElement('select');
+          conflictFilterSelect = filterSelect;
+          filterSelect.id = 'drawio-conflict-filter'; filterSelect.setAttribute('aria-label', 'draw.io 모델 충돌 필터');
           [
             ['all', '전체 충돌'], ['compatible', '호환 가능'], ['changed', '변경 필드 있음'],
             ['exact', '원본 ID 일치'], ['semantic', '종류·이름 일치'], ['incompatible', '종류 불일치'],
             ['keepBoth', '새 모델 선택'], ['reuse', '기존 재사용 선택'], ['replace', '덮어쓰기 선택'],
           ].forEach(([value, text]) => {
             const option = document.createElement('option'); option.value = value; option.textContent = text;
-            conflictFilterSelect.appendChild(option);
+            filterSelect.appendChild(option);
           });
           const resetFilters = document.createElement('button'); resetFilters.type = 'button';
           resetFilters.className = 'drawio-conflict-reset'; resetFilters.textContent = '필터 초기화';
           resetFilters.title = '검색어와 충돌 필터 초기화';
           const resultMeta = document.createElement('span'); resultMeta.className = 'drawio-conflict-result-meta';
           resultMeta.setAttribute('aria-live', 'polite');
-          controls.append(conflictSearchInput, conflictFilterSelect, resetFilters, resultMeta); conflictSection.appendChild(controls);
+          controls.append(searchInput, filterSelect, resetFilters, resultMeta); conflictSection.appendChild(controls);
 
           const tableWrap = document.createElement('div'); tableWrap.className = 'drawio-conflict-wrap';
           const table = document.createElement('table'); table.className = 'drawio-conflict-table';
@@ -196,8 +234,9 @@
                 appendDrawioPolicyOptions(rowSelect); rowSelect.value = perModelPolicies.get(conflict.importedModelId) || 'keepBoth';
                 conflictPolicySelects.set(conflict.importedModelId, rowSelect);
                 rowSelect.addEventListener('change', () => {
-                  perModelPolicies.set(conflict.importedModelId, rowSelect.value);
-                  if (['keepBoth', 'reuse', 'replace'].includes(conflictFilterSelect.value)) renderConflictRows();
+                  const rowPolicy = DRAWIO_IMPORT_POLICIES.find(([value]) => value === rowSelect.value)?.[0];
+                  if (rowPolicy) perModelPolicies.set(conflict.importedModelId, rowPolicy);
+                  if (['keepBoth', 'reuse', 'replace'].includes(filterSelect.value)) renderConflictRows();
                   else syncPolicyControls();
                 });
                 policyCell.appendChild(rowSelect);
@@ -213,14 +252,14 @@
             pageText.textContent = `${page.page + 1} / ${page.pageCount}`;
             previous.disabled = page.page === 0; next.disabled = page.page >= page.pageCount - 1;
             pager.hidden = page.pageCount <= 1;
-            resetFilters.disabled = !conflictSearchInput.value && conflictFilterSelect.value === 'all';
+            resetFilters.disabled = !searchInput.value && filterSelect.value === 'all';
             syncPolicyControls();
           };
-          conflictSearchInput.addEventListener('input', () => { conflictPage = 0; renderConflictRows(); });
-          conflictFilterSelect.addEventListener('change', () => { conflictPage = 0; renderConflictRows(); });
+          searchInput.addEventListener('input', () => { conflictPage = 0; renderConflictRows(); });
+          filterSelect.addEventListener('change', () => { conflictPage = 0; renderConflictRows(); });
           resetFilters.addEventListener('click', () => {
-            conflictSearchInput.value = ''; conflictFilterSelect.value = 'all'; conflictPage = 0;
-            renderConflictRows(); conflictSearchInput.focus();
+            searchInput.value = ''; filterSelect.value = 'all'; conflictPage = 0;
+            renderConflictRows(); searchInput.focus();
           });
           previous.addEventListener('click', () => { conflictPage -= 1; renderConflictRows(); });
           next.addEventListener('click', () => { conflictPage += 1; renderConflictRows(); });
@@ -232,7 +271,7 @@
         body.appendChild(conflictSection);
       }
 
-      let policy = 'keepBoth';
+      let policy: DrawioPolicy = 'keepBoth';
       if (append && analysis.compatibleConflicts) {
         const policySection = document.createElement('section'); policySection.className = 'drawio-import-policy';
         const label = document.createElement('label'); label.htmlFor = 'drawio-conflict-policy'; label.textContent = '검색 결과 일괄 처리';
@@ -270,8 +309,8 @@
             : `각 충돌 행에서 처리 방식을 변경하거나, 현재 검색 결과의 호환 충돌 ${filteredCompatible.length}건에 같은 방식을 적용할 수 있습니다.`;
         };
         select.addEventListener('change', () => {
-          if (select.value === 'mixed') return;
-          const selectedPolicy = select.value;
+          const selectedPolicy = DRAWIO_IMPORT_POLICIES.find(([value]) => value === select.value)?.[0];
+          if (!selectedPolicy) return;
           filteredConflicts().filter(conflict => conflict.compatible).forEach(conflict => {
             perModelPolicies.set(conflict.importedModelId, selectedPolicy);
           });
@@ -289,9 +328,9 @@
 
       const footer = document.createElement('div'); footer.className = 'project-dialog-footer';
       dialog.append(body, footer);
-      return new Promise(resolve => {
+      return new Promise<DrawioPreviewDecision | null>(resolve => {
         let settled = false;
-        const finish = result => {
+        const finish = (result: DrawioPreviewDecision | null) => {
           if (settled) return;
           settled = true;
           modal.close(); resolve(result);
@@ -309,15 +348,17 @@
       });
     }
 
-    function openDdlImportPreview(imported, options = {}) {
+    function openDdlImportPreview(imported: DdlImportSummary, options: PreviewOptions = {}) {
       const meta = imported.importMeta || {};
       const { dialog, header, modal } = projectModal('DDL Import Preview', 'ddl-import-preview-modal');
       dialog.classList.add('ddl-import-dialog');
       dialog.setAttribute('role', 'dialog');
       dialog.setAttribute('aria-modal', 'true');
       const title = header.querySelector('strong');
-      title.id = 'ddl-import-preview-title';
-      dialog.setAttribute('aria-labelledby', title.id);
+      if (title) {
+        title.id = 'ddl-import-preview-title';
+        dialog.setAttribute('aria-labelledby', title.id);
+      }
 
       const body = document.createElement('div');
       body.className = 'ddl-import-preview';
@@ -335,7 +376,7 @@
       ].forEach(([label, value]) => {
         const card = document.createElement('div'); card.className = 'ddl-import-stat';
         const count = document.createElement('strong'); count.textContent = String(value);
-        const caption = document.createElement('span'); caption.textContent = label;
+        const caption = document.createElement('span'); caption.textContent = String(label);
         card.append(count, caption); summary.appendChild(card);
       });
       body.appendChild(summary);
@@ -346,7 +387,7 @@
       const tableList = document.createElement('div'); tableList.className = 'ddl-import-table-list';
       const diagram = imported.diagrams?.[0];
       (diagram?.elements || []).forEach(view => {
-        const model = imported.models?.[view.modelId];
+        const model = view.modelId ? imported.models?.[view.modelId] : undefined;
         const row = document.createElement('div'); row.className = 'ddl-import-table-row';
         const name = document.createElement('strong'); name.textContent = model?.name || '(이름 없음)';
         const detail = document.createElement('span'); detail.textContent = `컬럼 ${(model?.columns || []).length}`;
@@ -354,7 +395,7 @@
       });
       tableSection.append(tableTitle, tableList); body.appendChild(tableSection);
 
-      if ((meta.warnings || []).length) {
+      if (meta.warnings?.length) {
         const warningSection = document.createElement('section');
         warningSection.className = 'ddl-import-section ddl-import-warnings';
         const warningTitle = document.createElement('h3');
@@ -368,9 +409,9 @@
 
       const footer = document.createElement('div'); footer.className = 'project-dialog-footer';
       dialog.append(body, footer);
-      return new Promise(resolve => {
+      return new Promise<boolean>(resolve => {
         let settled = false;
-        const finish = result => {
+        const finish = (result: boolean) => {
           if (settled) return;
           settled = true;
           modal.close(); resolve(result);
@@ -390,4 +431,4 @@
   }
 
   return Object.freeze({ REQUIRED_FUNCTIONS, REQUIRED_VALUES, create });
-});
+}

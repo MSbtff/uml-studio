@@ -60,3 +60,33 @@ interface DiagramCubicCurve extends DiagramEndpoints {
   c1: DiagramPoint;
   c2: DiagramPoint;
 }
+
+interface BindingCrossing {
+  point: DiagramPoint;
+  segmentIndex: number;
+  routeIndex: number;
+}
+
+interface OrthogonalRoute {
+  points: DiagramPoint[];
+  obstacleHits: number;
+  crossings: number;
+  overlap: number;
+  bends: number;
+}
+
+interface BindingRoute extends OrthogonalRoute {
+  jumpCrossings: BindingCrossing[];
+  jumpCount: number;
+}
+
+interface BindingRouteOptions {
+  start: DiagramPoint;
+  end: DiagramPoint;
+  clearance?: number;
+  grid?: number;
+  startDirection?: DiagramPoint;
+  endDirection?: DiagramPoint;
+  obstacles?: DiagramBounds[];
+  existingRoutes?: DiagramPoint[][];
+}

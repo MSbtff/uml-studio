@@ -2,11 +2,16 @@
 
 /* Status Bar — owns tool guidance, project/save summaries, and temporary
    announcements without taking ownership of project or autosave state. */
-(function initStatusBarModule<Api>(root: typeof globalThis & { UMLStatusBar?: Api }, factory: () => Api) {
+type StatusBarApi = ReturnType<typeof createStatusBarModule>;
+declare var UMLStatusBar: StatusBarApi;
+
+(function initStatusBarModule(root: typeof globalThis & { UMLStatusBar?: StatusBarApi }, factory: () => StatusBarApi) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLStatusBar = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createStatusBarModule() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createStatusBarModule);
+
+function createStatusBarModule() {
   const REQUIRED_FUNCTIONS = Object.freeze([
     'clearTimeout',
     'dg',
@@ -205,4 +210,4 @@
     REQUIRED_VALUES,
     create,
   });
-});
+}

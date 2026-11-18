@@ -2,11 +2,16 @@
 
 /* Validation Panel — owns validation result state, rendering, navigation and
    panel event lifecycle while validation rules remain in validation.js. */
-(function initValidationPanelModule<Api>(root: typeof globalThis & { UMLValidationPanel?: Api }, factory: () => Api) {
+type ValidationPanelApi = ReturnType<typeof createValidationPanelModule>;
+declare var UMLValidationPanel: ValidationPanelApi;
+
+(function initValidationPanelModule(root: typeof globalThis & { UMLValidationPanel?: ValidationPanelApi }, factory: () => ValidationPanelApi) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLValidationPanel = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createValidationPanelModule() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createValidationPanelModule);
+
+function createValidationPanelModule() {
   const REQUIRED_FUNCTIONS = Object.freeze([
     'bindingRoute',
     'byId',
@@ -292,4 +297,4 @@
   }
 
   return Object.freeze({ REQUIRED_FUNCTIONS, REQUIRED_VALUES, create });
-});
+}

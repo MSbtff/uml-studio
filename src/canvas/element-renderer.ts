@@ -1,11 +1,51 @@
-// @ts-nocheck
 'use strict';
 
-(function initElementRenderer(root, factory) {
+interface ElementRendererDependencies {
+  el: SvgElementFactory;
+  text: SvgTextFactory;
+  measureText(value: string | undefined, font: string): number;
+  currentDiagram(): EditorDiagram;
+  isMessage(kind: string): boolean;
+  sequenceBottom(): number;
+  fragmentOperandLayout(element: DiagramElement): { boundaries: number[] };
+  packageElementTitle(element: DiagramElement): string;
+  compositePortDirection(element: DiagramElement): DiagramPoint;
+  byId(id?: string | null): DiagramElement | undefined | null;
+  childViews(id: string): DiagramElement[];
+  timingConstraintAnchor(id: string | undefined, diagram: EditorDiagram, ratio?: number): DiagramPoint | null;
+  referencedInteraction(element: DiagramElement): EditorDiagram | null;
+  referencedInteractionName(element: DiagramElement): string;
+  stroke?: string;
+  fillDefault?: string;
+  textColor?: string;
+  lineHeight?: number;
+  padding?: number;
+  font13Bold?: string;
+  dashRelation?: string;
+  dashLifeline?: string;
+  timingLabelWidth?: number;
+  erdHeader?: string;
+}
+
+interface ElementDrawingContext {
+  g: SVGGElement;
+  fill: string;
+  m: ElementMeasurement;
+  cx: number;
+  cy: number;
+}
+
+type ElementRendererApi = ReturnType<typeof createElementRendererModule>;
+declare var UMLElementRenderer: ElementRendererApi;
+type StereotypeIcon = ReturnType<IconScriptApi['parseIconScript']>;
+
+(function initElementRenderer(root: typeof globalThis, factory: () => ElementRendererApi) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLElementRenderer = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createElementRendererModule() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createElementRendererModule);
+
+function createElementRendererModule() {
   const FAMILY_KINDS = Object.freeze({
     structure: Object.freeze(["note","requirement","block","valuetype","interfaceblock","constraintblock","ibdframe","parametricframe","package","model","subsystem","actor","usecase","boundary","collaboration","collaborationuse","part","reference","value","constraintproperty","constraintparameter","port"]),
     activity: Object.freeze(["swimlanev","swimlaneh","interruptibleregion","structuredactivity","expansionregion","inputpin","outputpin","expansioninput","expansionoutput","action","sendsignal","acceptsignal","timeevent","initial","final","flowfinal","decision","merge","forkbar","joinbar","objectnode","activityparameter","centralbuffer","activitydatastore"]),
@@ -13,23 +53,23 @@
     interaction: Object.freeze(["timingstate","timesegment","timetick","timeconstraint","durationconstraint","lifeline","fragment","frame","interactionuse","interactioninline","stateinvariant","continuation","execution"]),
     runtime: Object.freeze(["object","componentinstance","artifactinstance","nodeinstance","component","interfaceball","artifact","node","entity","process","external","datastore","mindnode"]),
   });
-  const FAMILY_BY_KIND = Object.freeze(Object.fromEntries(
+  const FAMILY_BY_KIND: Readonly<Partial<Record<string, keyof typeof FAMILY_KINDS>>> = Object.freeze(Object.fromEntries(
     Object.entries(FAMILY_KINDS).flatMap(([family, kinds]) =>
-      kinds.map(kind => [kind, family])),
+      kinds.map(kind => [kind, family as keyof typeof FAMILY_KINDS])),
   ));
   const REQUIRED_FUNCTIONS = Object.freeze([
     'el', 'text', 'measureText', 'currentDiagram', 'isMessage',
     'sequenceBottom', 'fragmentOperandLayout', 'packageElementTitle', 'compositePortDirection',
     'byId', 'childViews', 'timingConstraintAnchor',
     'referencedInteraction', 'referencedInteractionName',
-  ]);
+  ] as const);
 
-  function elementFamily(kind) {
+  function elementFamily(kind: string) {
     return FAMILY_BY_KIND[kind] || 'classifier';
   }
 
-  function create(dependencies) {
-    const deps = dependencies || {};
+  function create(dependencies?: ElementRendererDependencies) {
+    const deps: Partial<ElementRendererDependencies> = dependencies || {};
     const missing = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
     if (missing.length) {
       throw new TypeError(`요소 렌더러 의존성이 없습니다: ${missing.join(', ')}`);
@@ -50,7 +90,7 @@
       timingConstraintAnchor,
       referencedInteraction,
       referencedInteractionName,
-    } = deps;
+    } = deps as ElementRendererDependencies;
     const STROKE = deps.stroke || '#3d3a2e';
     const FILL_DEFAULT = deps.fillDefault || '#fffbd8';
     const TEXT_COLOR = deps.textColor || '#24231f';
@@ -63,8 +103,8 @@
     const ERD_HEADER = deps.erdHeader || '#943126';
     const SHADOW = Object.freeze({ filter: 'url(#shadow)' });
 
-    function drawErdColumnBadges(g, x, baseline, flags) {
-      const badges = ['PK', 'FK'].filter(flag => flags.includes(flag));
+    function drawErdColumnBadges(g: SVGGElement, x: number, baseline: number, flags: string[]) {
+      const badges = (['PK', 'FK'] as const).filter(flag => flags.includes(flag));
       const palette = {
         PK: { fill: '#fff0bf', stroke: '#c58b13', text: '#704b00' },
         FK: { fill: '#dceeff', stroke: '#2f76b7', text: '#14558e' },
@@ -84,20 +124,20 @@
     }
     
 
-    function drawStereotypeIcon(parent, icon, x, y, width, height) {
+    function drawStereotypeIcon(parent: SVGElement, icon: StereotypeIcon | null | undefined, x: number, y: number, width: number, height: number) {
       if (!icon || !icon.valid || !icon.commands.length) return;
       const scale = Math.min(width / icon.width, height / icon.height);
       const ox = x + (width - icon.width * scale) / 2;
       const oy = y + (height - icon.height * scale) / 2;
       const group = el('g', { transform: `translate(${ox} ${oy}) scale(${scale})`, 'pointer-events': 'none' }, parent);
-      const shapeAttrs = (command, filled) => ({
+      const shapeAttrs = (command: StereotypeIcon['commands'][number], filled: boolean) => ({
         fill: filled ? command.style.fill : 'none',
         stroke: filled ? 'none' : command.style.line,
         'stroke-width': command.style.width,
         opacity: command.style.alpha,
         ...(command.style.pattern.length ? { 'stroke-dasharray': command.style.pattern.join(' ') } : {}),
       });
-      const box = values => ({
+      const box = (values: number[]) => ({
         x: Math.min(values[0], values[2]),
         y: Math.min(values[1], values[3]),
         width: Math.abs(values[2] - values[0]),
@@ -137,7 +177,7 @@
       });
     }
     
-    function drawInteractionPreview(parent, frame, diagram) {
+    function drawInteractionPreview(parent: SVGElement, frame: DiagramBounds, diagram: EditorDiagram | null) {
       const inner = {
         x: frame.x + 16,
         y: frame.y + 36,
@@ -160,7 +200,7 @@
         });
         return;
       }
-      const xById = new Map();
+      const xById = new Map<string, number>();
       const gap = inner.w / participants.length;
       participants.forEach((participant, index) => {
         const x = inner.x + gap * (index + 0.5);
@@ -184,6 +224,7 @@
       const messageGap = Math.max(16, Math.min(25, (inner.h - 36) / Math.max(1, messages.length)));
       messages.forEach((message, index) => {
         const x1 = xById.get(message.from), x2 = xById.get(message.to);
+        if (x1 === undefined || x2 === undefined) return;
         const y = inner.y + 42 + index * messageGap;
         const dash = message.kind === 'msg-reply' ? '4 3' : null;
         if (x1 === x2) {
@@ -217,10 +258,11 @@
       });
     }
 
-    function drawStructureElement(e, context) {
+    function drawStructureElement(e: DiagramElement, context: ElementDrawingContext) {
       const { g, fill, m, cx, cy } = context;
       switch (e.kind) {
     case 'note': {
+      if (!m.lines) return;
       const F = 12;
       el('path', {
         d: `M ${e.x} ${e.y} L ${e.x + e.w - F} ${e.y} L ${e.x + e.w} ${e.y + F} L ${e.x + e.w} ${e.y + e.h} L ${e.x} ${e.y + e.h} Z`,
@@ -234,6 +276,7 @@
       return;
     }
     case 'requirement': {
+      if (!m.textLines) return;
       el('rect', {
         x: e.x, y: e.y, width: e.w, height: e.h,
         fill: fill === FILL_DEFAULT ? '#edf4fa' : fill,
@@ -264,6 +307,7 @@
     case 'valuetype':
     case 'interfaceblock':
     case 'constraintblock': {
+      if (!m.compartments) return;
       el('rect', {
         x: e.x, y: e.y, width: e.w, height: e.h,
         fill: fill === FILL_DEFAULT ? '#edf4f7' : fill,
@@ -291,6 +335,7 @@
       return;
     }
     case 'ibdframe': {
+      if (m.tabW === undefined) return;
       el('rect', {
         x: e.x, y: e.y, width: e.w, height: e.h,
         fill: fill === FILL_DEFAULT ? '#f8fbfc' : fill,
@@ -305,6 +350,7 @@
       return;
     }
     case 'parametricframe': {
+      if (m.tabW === undefined) return;
       el('rect', {
         x: e.x, y: e.y, width: e.w, height: e.h,
         fill: fill === FILL_DEFAULT ? '#fbf9fd' : fill,
@@ -412,6 +458,7 @@
       return;
     }
     case 'constraintproperty': {
+      if (!m.equations) return;
       el('rect', {
         x: e.x, y: e.y, width: e.w, height: e.h,
         fill: fill === FILL_DEFAULT ? '#f3edf8' : fill,
@@ -455,7 +502,7 @@
       const direction = compositePortDirection(e);
       const perpendicular = { x: -direction.y, y: direction.x };
       const interfaceCount = Number(!!e.providedInterfaceModelId) + Number(!!e.requiredInterfaceModelId);
-      const drawInterface = (provided, offset) => {
+      const drawInterface = (provided: boolean, offset: number) => {
         const sx = cx + direction.x * (e.w / 2) + perpendicular.x * offset;
         const sy = cy + direction.y * (e.h / 2) + perpendicular.y * offset;
         const ex = sx + direction.x * 16, ey = sy + direction.y * 16;
@@ -486,7 +533,7 @@
       }
     }
 
-    function drawActivityElement(e, context) {
+    function drawActivityElement(e: DiagramElement, context: ElementDrawingContext) {
       const { g, fill, cx, cy } = context;
       switch (e.kind) {
     case 'swimlanev': {
@@ -620,10 +667,11 @@
       }
     }
 
-    function drawStateElement(e, context) {
+    function drawStateElement(e: DiagramElement, context: ElementDrawingContext) {
       const { g, fill, m, cx, cy } = context;
       switch (e.kind) {
     case 'state': {
+      if (!m.behaviors) return;
       el('rect', { x: e.x, y: e.y, width: e.w, height: e.h, rx: 12, fill, stroke: STROKE, 'stroke-width': 1, ...SHADOW }, g);
       text(g, e.name, cx, e.y + 19, { bold: true, size: 13, anchor: 'middle' });
       el('line', { x1: e.x, y1: e.y + m.headH, x2: e.x + e.w, y2: e.y + m.headH, stroke: STROKE, 'stroke-width': 1 }, g);
@@ -631,6 +679,7 @@
       return;
     }
     case 'compositestate': {
+      if (m.contentTop === undefined) return;
       el('rect', { x: e.x, y: e.y, width: e.w, height: e.h, rx: 12, fill, stroke: STROKE, 'stroke-width': 1.2, ...SHADOW }, g);
       text(g, e.name, cx, e.y + 19, { bold: true, size: 13, anchor: 'middle' });
       el('line', { x1: e.x, y1: e.y + m.headH, x2: e.x + e.w, y2: e.y + m.headH, stroke: STROKE, 'stroke-width': 1 }, g);
@@ -641,6 +690,7 @@
       return;
     }
     case 'submachinestate': {
+      if (m.ref === undefined) return;
       el('rect', { x: e.x, y: e.y, width: e.w, height: e.h, rx: 12, fill, stroke: STROKE, 'stroke-width': 1.2, ...SHADOW }, g);
       text(g, e.name, cx, e.y + 18, { bold: true, size: 13, anchor: 'middle' });
       text(g, `submachine: ${m.ref}`, cx, e.y + 36, { italic: true, size: 11, color: '#555b6b', anchor: 'middle' });
@@ -656,7 +706,7 @@
     }
     case 'region': {
       const owner = byId(e.parentId);
-      const siblings = owner ? childViews(owner.id).filter(x => x.kind === 'region').sort((a, b) => a.regionOrder - b.regionOrder) : [];
+      const siblings = owner ? childViews(owner.id).filter(x => x.kind === 'region').sort((a, b) => (a.regionOrder ?? 0) - (b.regionOrder ?? 0)) : [];
       const first = !siblings.length || siblings[0].id === e.id;
       if (!first) {
         el('line', {
@@ -664,7 +714,7 @@
           stroke: '#6d7280', 'stroke-width': 1, 'stroke-dasharray': '7 4',
         }, g);
       }
-      text(g, e.name || `Region ${e.regionOrder + 1}`, e.x + 9, e.y + 15, { italic: true, size: 11, color: '#666b78' });
+      text(g, e.name || `Region ${(e.regionOrder ?? 0) + 1}`, e.x + 9, e.y + 15, { italic: true, size: 11, color: '#666b78' });
       return;
     }
     case 'stateinitial':
@@ -716,7 +766,7 @@
       }
     }
 
-    function drawInteractionElement(e, context) {
+    function drawInteractionElement(e: DiagramElement, context: ElementDrawingContext) {
       const { g, fill, m, cx, cy } = context;
       switch (e.kind) {
     case 'timingstate': {
@@ -921,10 +971,11 @@
       }
     }
 
-    function drawRuntimeElement(e, context) {
+    function drawRuntimeElement(e: DiagramElement, context: ElementDrawingContext) {
       const { g, fill, m, cx, cy } = context;
       switch (e.kind) {
     case 'object': {
+      if (!m.slots) return;
       el('rect', { x: e.x, y: e.y, width: e.w, height: e.h, fill, stroke: STROKE, 'stroke-width': 1, ...SHADOW }, g);
       text(g, m.title, cx, e.y + 20, { bold: true, size: 13, anchor: 'middle', underline: true });
       el('line', { x1: e.x, y1: e.y + m.headH, x2: e.x + e.w, y2: e.y + m.headH, stroke: STROKE, 'stroke-width': 1 }, g);
@@ -1005,6 +1056,7 @@
       return;
     }
     case 'entity': {
+      if (!m.cols) return;
       /* eXERD-style entity: dark-red header, explicit PK/FK badges, aligned columns */
       el('rect', { x: e.x, y: e.y, width: e.w, height: e.h, fill: '#ffffff', stroke: ERD_HEADER, 'stroke-width': 1.2, ...SHADOW }, g);
       el('rect', { x: e.x, y: e.y, width: e.w, height: m.headH, fill: ERD_HEADER, stroke: ERD_HEADER, 'stroke-width': 1.2 }, g);
@@ -1059,8 +1111,9 @@
     }      }
     }
 
-    function drawClassifierElement(e, context) {
+    function drawClassifierElement(e: DiagramElement, context: ElementDrawingContext) {
       const { g, fill, m, cx } = context;
+    if (m.headH === undefined) return;
     /* classifier-like elements */
     el('rect', { x: e.x, y: e.y, width: e.w, height: e.h, fill, stroke: STROKE, 'stroke-width': 1, ...SHADOW }, g);
     let ty = e.y + PAD + 4;
@@ -1074,7 +1127,7 @@
     text(g, m.title || e.name, titleCx, ty + 8, { bold: true, size: 13, anchor: 'middle', italic: !!e.isAbstract });
   
     let compY = e.y + m.headH;
-    const compartment = (items, h) => {
+    const compartment = (items: string[], h: number) => {
       el('line', { x1: e.x, y1: compY, x2: e.x + e.w, y2: compY, stroke: STROKE, 'stroke-width': 1 }, g);
       items.forEach((it, i) => text(g, it, e.x + PAD + 2, compY + 13 + i * LINE_H, {
         italic: /\{abstract\}/.test(it),
@@ -1094,11 +1147,11 @@
       runtime: drawRuntimeElement,
     });
 
-    function draw(parent, element) {
+    function draw(parent: SVGElement, element: DiagramElement | null | undefined) {
       if (!element || !element._m) return undefined;
       const diagram = currentDiagram();
       const family = elementFamily(element.kind);
-      const groupAttrs = { 'data-id': element.id, 'data-element-family': family };
+      const groupAttrs: SvgAttributes = { 'data-id': element.id, 'data-element-family': family };
       if (diagram?.type === 'sequence' && element.kind === 'lifeline') {
         groupAttrs['data-quick-edit'] = 'lifeline-name';
       }
@@ -1119,4 +1172,4 @@
   }
 
   return Object.freeze({ FAMILY_KINDS, elementFamily, create });
-});
+}

@@ -2,11 +2,16 @@
 
 /* Relation Creation — validates and commits new relation views while the host
    keeps ownership of diagram state, legality rules and pointer interaction. */
-(function initRelationCreationModule<Api>(root: typeof globalThis & { UMLRelationCreation?: Api }, factory: () => Api) {
+type RelationCreationApi = ReturnType<typeof createRelationCreationModule>;
+declare var UMLRelationCreation: RelationCreationApi;
+
+(function initRelationCreationModule(root: typeof globalThis & { UMLRelationCreation?: RelationCreationApi }, factory: () => RelationCreationApi) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLRelationCreation = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createRelationCreationModule() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createRelationCreationModule);
+
+function createRelationCreationModule() {
   const REQUIRED_FUNCTIONS = Object.freeze([
     'adoptView',
     'byId',
@@ -250,4 +255,4 @@
     REQUIRED_VALUES,
     create,
   });
-});
+}

@@ -1,10 +1,15 @@
 'use strict';
 
-(function initPresentationRegistry<Api>(root: typeof globalThis & { UMLPresentationRegistry?: Api }, factory: () => Api) {
+type PresentationRegistryApi = ReturnType<typeof createPresentationRegistry>;
+declare var UMLPresentationRegistry: PresentationRegistryApi;
+
+(function initPresentationRegistry(root: typeof globalThis & { UMLPresentationRegistry?: PresentationRegistryApi }, factory: () => PresentationRegistryApi) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLPresentationRegistry = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createPresentationRegistry() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createPresentationRegistry);
+
+function createPresentationRegistry() {
   const DASH_PATTERNS = {
     relation: '6 4',
     lifeline: '6 4',
@@ -251,4 +256,4 @@
     REL_STYLE,
     presentationRegistryProblems,
   });
-});
+}

@@ -1,10 +1,15 @@
 'use strict';
 
-(function initSequenceLayout<Api>(root: typeof globalThis & { UMLSequenceLayout?: Api }, factory: () => Api) {
+type SequenceLayoutApi = ReturnType<typeof createSequenceLayout>;
+declare var UMLSequenceLayout: SequenceLayoutApi;
+
+(function initSequenceLayout(root: typeof globalThis & { UMLSequenceLayout?: SequenceLayoutApi }, factory: () => SequenceLayoutApi) {
   const api = factory();
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.UMLSequenceLayout = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createSequenceLayout() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createSequenceLayout);
+
+function createSequenceLayout() {
   interface LifelineLayout {
     elements?: readonly { kind: string; y: number }[];
   }
@@ -74,7 +79,7 @@
     return items as (Interval & PositionedInterval)[];
   }
 
-  function activeAt<Interval extends PositionedInterval>(items: Interval[], lifelineId: string, y: number) {
+  function activeAt<Interval extends PositionedInterval>(items: readonly Interval[], lifelineId: string, y: number) {
     return items
       .filter(item => item.el === lifelineId && y >= item.y0 - 1 && y <= item.y1 + 1)
       .sort((a, b) => b.depth - a.depth || b.y0 - a.y0);
@@ -83,4 +88,4 @@
   return {
     DEFAULT_SEQUENCE_TOP, sequenceLifelineTop, sequenceMessageMinY, fragmentOperandLayout, assignTemporalDepths, activeAt,
   };
-});
+}

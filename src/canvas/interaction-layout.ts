@@ -1,13 +1,17 @@
-// @ts-nocheck
 'use strict';
 
 /* Interaction Layout — owns Sequence/Communication numbering, activation-bar
    cache, message geometry and connector/message synchronization. */
-(function initInteractionLayoutModule(root, factory) {
+type InteractionLayoutApi = ReturnType<typeof createInteractionLayoutModule>;
+declare var UMLInteractionLayout: InteractionLayoutApi;
+
+(function initInteractionLayoutModule(root: typeof globalThis & { UMLInteractionLayout?: InteractionLayoutApi }, factory: () => InteractionLayoutApi) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLInteractionLayout = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createInteractionLayoutModule() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createInteractionLayoutModule);
+
+function createInteractionLayoutModule() {
   const REQUIRED_FUNCTIONS = Object.freeze([
     'activeAt',
     'assignTemporalDepths',
@@ -20,19 +24,48 @@
     'relLabel',
     'sequenceLifelineTop',
     'syncRelationModel',
-  ]);
+  ] as const);
   const REQUIRED_VALUES = Object.freeze([
     'DEFAULT_SEQUENCE_TOP',
     'EXEC_NEST_OFFSET',
     'EXEC_WIDTH',
     'GRID',
-  ]);
+  ] as const);
   const DEFAULT_SEQUENCE_BOTTOM = 520;
   const EMPTY_BARS = Object.freeze([]);
 
-  function create(dependencies) {
-    const deps = dependencies || {};
-    const missing = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
+  type SequenceMessage = DiagramRelation & { y: number };
+  interface ActivationBar {
+    id: string;
+    el: string;
+    y0: number;
+    y1: number;
+    depth?: number;
+    manual?: boolean;
+  }
+  type PositionedBar = ActivationBar & { depth: number };
+
+  interface InteractionLayoutDependencies {
+    activeAt: (bars: readonly PositionedBar[], id: string, y: number) => PositionedBar[];
+    assignTemporalDepths: (bars: ActivationBar[]) => PositionedBar[];
+    byId: (id: string) => DiagramElement | undefined | null;
+    dg: () => EditorDiagram;
+    isCommMsg: (kind: string) => boolean;
+    isMsg: (kind: string) => boolean;
+    relById: (id?: string) => DiagramRelation | undefined | null;
+    relEndpoints: (relation: DiagramRelation) => DiagramEndpoints | null;
+    relLabel: (relation: DiagramRelation) => string;
+    sequenceLifelineTop: (diagram: EditorDiagram) => number;
+    syncRelationModel: (relation: DiagramRelation, diagram: EditorDiagram) => void;
+    DEFAULT_SEQUENCE_TOP: number;
+    EXEC_NEST_OFFSET: number;
+    EXEC_WIDTH: number;
+    GRID: number;
+  }
+
+  function create(dependencies?: InteractionLayoutDependencies) {
+    const deps: Partial<InteractionLayoutDependencies> = dependencies || {};
+    const missing: string[] = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
     REQUIRED_VALUES.forEach(name => {
       if (!Number.isFinite(deps[name])) missing.push(`${name}.number`);
     });
@@ -56,20 +89,20 @@
       EXEC_NEST_OFFSET,
       EXEC_WIDTH,
       GRID,
-    } = deps;
+    } = deps as InteractionLayoutDependencies;
 
-    let sequenceBars = EMPTY_BARS;
+    let sequenceBars: readonly PositionedBar[] = EMPTY_BARS;
     let sequenceBottom = DEFAULT_SEQUENCE_BOTTOM;
-    let sequenceNumbers = Object.freeze({});
+    let sequenceNumbers: Readonly<Partial<Record<string, string>>> = Object.freeze({});
 
-    function computeSeqNumbers(diagram) {
+    function computeSeqNumbers(diagram: EditorDiagram) {
       const messages = diagram.type === 'communication'
         ? diagram.relations.filter(relation => isCommMsg(relation.kind))
         : diagram.relations
           .filter(relation => isMsg(relation.kind))
           .slice()
-          .sort((a, b) => a.y - b.y);
-      const nextNumbers = {};
+          .sort((a, b) => Number(a.y) - Number(b.y));
+      const nextNumbers: Record<string, string> = {};
       messages.forEach((message, index) => {
         nextNumbers[message.id] = message.seqNo != null && message.seqNo !== ''
           ? String(message.seqNo)
@@ -78,10 +111,13 @@
       sequenceNumbers = Object.freeze(nextNumbers);
     }
 
-    function computeSequenceLayout(diagram) {
-      const messages = diagram.relations.filter(relation => isMsg(relation.kind));
+    function computeSequenceLayout(diagram: EditorDiagram) {
+      const messages = diagram.relations.filter(
+        (relation): relation is SequenceMessage => isMsg(relation.kind) && typeof relation.y === 'number',
+      );
       const maxY = messages.reduce((value, relation) => Math.max(value, relation.y || 0), 0);
-      const executions = diagram.elements.filter(element => element.kind === 'execution');
+      const executions = diagram.elements.filter((element): element is DiagramElement & { lifeId: string } =>
+        element.kind === 'execution' && typeof element.lifeId === 'string');
       const executionMaxY = executions.reduce(
         (value, element) => Math.max(value, element.y + element.h),
         0,
@@ -89,8 +125,8 @@
       const defaultBottom = DEFAULT_SEQUENCE_BOTTOM + sequenceLifelineTop(diagram) - DEFAULT_SEQUENCE_TOP;
       const nextBottom = Math.max(defaultBottom, maxY + 72, executionMaxY + 48);
       const manualLifelines = new Set(executions.map(element => element.lifeId));
-      const stacks = {};
-      const bars = [];
+      const stacks: Partial<Record<string, { y: number; id: string }[]>> = {};
+      const bars: ActivationBar[] = [];
 
       messages.slice().sort((a, b) => a.y - b.y).forEach(message => {
         if (message.from === message.to) {
@@ -112,6 +148,7 @@
           const stack = stacks[message.from];
           if (stack && stack.length) {
             const start = stack.pop();
+            if (!start) return;
             bars.push({
               id: `auto-${start.id}-${message.id}`,
               el: message.from,
@@ -122,7 +159,7 @@
         }
       });
       Object.keys(stacks).forEach(id => {
-        stacks[id].forEach(start => bars.push({
+        stacks[id]?.forEach(start => bars.push({
           id: `auto-${start.id}`,
           el: id,
           y0: start.y,
@@ -143,10 +180,10 @@
       sequenceBars = Object.freeze(assignedBars.map(bar => Object.freeze(bar)));
     }
 
-    const barsAt = (id, y) => activeAt(sequenceBars, id, y);
-    const deepestBarAt = (id, y) => barsAt(id, y)[0] || null;
+    const barsAt = (id: string, y: number) => activeAt(sequenceBars, id, y);
+    const deepestBarAt = (id: string, y: number) => barsAt(id, y)[0] || null;
 
-    function msgDisplayLabel(relation) {
+    function msgDisplayLabel(relation: DiagramRelation) {
       const base = relLabel(relation);
       const diagram = dg();
       if (!['sequence', 'communication'].includes(diagram.type) || diagram.seqNumbers === false) return base;
@@ -155,13 +192,14 @@
       return base ? `${number}: ${base}` : number;
     }
 
-    function msgPoints(relation) {
+    function msgPoints(relation: DiagramRelation) {
       const source = byId(relation.from);
       const target = byId(relation.to);
       if (!source || !target) return null;
       const sourceCenter = source.x + source.w / 2;
       const targetCenter = target.x + target.w / 2;
       const y = relation.y;
+      if (typeof y !== 'number') return null;
       if (relation.from === relation.to) {
         const active = barsAt(relation.from, y);
         const deepest = active[0];
@@ -170,11 +208,11 @@
           .sort((a, b) => b.depth - a.depth)[0];
         const childDepth = started ? started.depth : deepest ? deepest.depth : -1;
         const parentDepth = started && childDepth > 0 ? childDepth - 1 : childDepth;
-        const edgeAt = depth => depth < 0
+        const edgeAt = (depth: number) => depth < 0
           ? sourceCenter
           : sourceCenter + depth * EXEC_NEST_OFFSET + EXEC_WIDTH / 2;
         return {
-          self: true,
+          self: true as const,
           cx: sourceCenter,
           startX: edgeAt(parentDepth),
           endX: edgeAt(childDepth),
@@ -197,7 +235,7 @@
       };
     }
 
-    function communicationSelfConnectorGeom(relation) {
+    function communicationSelfConnectorGeom(relation: DiagramRelation | null | undefined) {
       if (!relation || relation.kind !== 'commconnector' || relation.from !== relation.to) return null;
       const host = byId(relation.from);
       if (!host) return null;
@@ -209,7 +247,7 @@
       return { p1, p2, c1, c2, label: { x: p2.x + lift, y: p2.y + 16 } };
     }
 
-    function communicationMessagePoints(relation) {
+    function communicationMessagePoints(relation: DiagramRelation) {
       if (!isCommMsg(relation.kind)) return null;
       const connector = relById(relation.connectorId);
       if (!connector || connector.kind !== 'commconnector') return null;
@@ -222,7 +260,7 @@
         const host = byId(connector.from);
         if (!host) return null;
         return {
-          self: true,
+          self: true as const,
           startX: host.x + host.w,
           endX: host.x + host.w,
           y: host.y + host.h * 0.2 + index * 18,
@@ -254,7 +292,7 @@
       };
     }
 
-    function syncCommunicationMessages(connector, diagram = dg()) {
+    function syncCommunicationMessages(connector: DiagramRelation | null | undefined, diagram = dg()) {
       if (!connector || connector.kind !== 'commconnector') return;
       diagram.relations
         .filter(relation => isCommMsg(relation.kind) && relation.connectorId === connector.id)
@@ -302,4 +340,4 @@
     REQUIRED_VALUES,
     create,
   });
-});
+}

@@ -1,8 +1,100 @@
-// @ts-nocheck
-(function (global) {
+interface CanvasSelectionState { selectedId: string | null; selection: string[]; tool: string; zoom: number }
+interface CanvasLinking extends DiagramPoint { fromId: string; armed: boolean }
+interface CanvasMarquee { x0: number; y0: number; x1: number; y1: number }
+interface CanvasEndpointDrag { mode: 'endpoint'; rel: DiagramRelation; end: 'src' | 'dst'; hoverId?: string | null }
+interface CanvasColumnDrag { mode: 'erdcolumn'; entity: DiagramElement; fromIndex: number; targetIndex: number; start: DiagramPoint; moved: boolean }
+type CanvasDrag = CanvasEndpointDrag | CanvasColumnDrag
+  | { mode: 'resize'; dir: string; el: DiagramElement; orig: DiagramBounds; start: DiagramPoint; origins: Map<string, DiagramPoint> }
+  | { mode: 'move'; el: DiagramElement; moved: boolean; offx: number; offy: number; start: DiagramPoint; origins: Map<string, DiagramPoint> }
+  | { mode: 'connectionpoint' | 'compositeport' | 'activityattachment'; el: DiagramElement; moved: boolean }
+  | { mode: 'operanddivider'; fragment: DiagramElement; index: number; boundaries: number[]; minHeight: number; startY: number; moved: boolean }
+  | { mode: 'sequencemove'; start: DiagramPoint; moved: boolean; wholeDiagram: boolean; elements: (DiagramPoint & { view: DiagramElement })[]; messages: { view: DiagramRelation; y: number }[]; minX: number; minY: number }
+  | { mode: 'groupmove'; start: DiagramPoint; moved: boolean; els: { e: DiagramElement; ox: number; oy: number }[] }
+  | { mode: 'marquee' }
+  | { mode: 'msgmove'; rel: DiagramRelation; moved: boolean }
+  | { mode: 'label'; rel: DiagramRelation; field: string; start: DiagramPoint; orig: LabelOffset; moved: boolean }
+  | { mode: 'routepoint'; rel: DiagramRelation; index: number; moved: boolean }
+  | { mode: 'relmove'; rel: DiagramRelation; start: DiagramPoint; origEp: DiagramEndpoints | null; origManualPoints: DiagramPoint[]; moved: boolean };
+
+type CanvasRelationRule = (kind: string, from: DiagramElement | null | undefined, to: DiagramElement | null | undefined, relationId?: string) => string;
+interface CanvasInteractionDependencies {
+  cancelAnimationFrame(handle: number): void;
+  requestAnimationFrame(callback: FrameRequestCallback): number;
+  ACTIVITY_PIN_KINDS: ReadonlySet<string>;
+  INSTANCE_KINDS: ReadonlySet<string>;
+  STATE_VERTEX_KINDS: ReadonlySet<string>;
+  KIND_META: Partial<Record<string, unknown>>;
+  REL_STYLE: Partial<Record<string, unknown>>;
+  elementPlacement: { placeElementForTool(point: DiagramPoint, tool: string, hit?: DiagramElement | null): unknown };
+  activityRelationError: CanvasRelationRule;
+  attachPartToCompositeContainer(view: DiagramElement): void;
+  attachToActivityContainer(view: DiagramElement): void;
+  attachToContainingRegion(view: DiagramElement): void;
+  attachToInternalBlockContainer(view: DiagramElement): void;
+  attachToPackageContainer(view: DiagramElement): void;
+  attachToParametricContainer(view: DiagramElement): void;
+  bddRelationError: CanvasRelationRule;
+  bindingWaypoints(relation: DiagramRelation): DiagramPoint[];
+  borderAnchorFrac(view: DiagramElement, point: DiagramPoint): DiagramAnchor;
+  branchGeom(relation: DiagramRelation): DiagramEndpoints | null;
+  byId(id?: string | null): DiagramElement | null | undefined;
+  closeInlineEditor(): void;
+  communicationConnectorAt(point: DiagramPoint): DiagramRelation | null | undefined;
+  completeLink(target: DiagramElement, point: DiagramPoint): void;
+  compositeRelationError: CanvasRelationRule;
+  createCommunicationMessage(connector: DiagramRelation, kind: string): void;
+  descendantViews(id: string): DiagramElement[];
+  dg(): EditorDiagram;
+  elementAt(point: DiagramPoint): DiagramElement | null | undefined;
+  ensureMemberArray(view: DiagramElement, kind: 'columns'): string[];
+  eventRoot: Pick<Window, 'addEventListener' | 'removeEventListener'>;
+  flashStatus(message: string): void;
+  fragmentOperandLayout(view: DiagramElement): { boundaries: number[]; minHeight: number };
+  handleCanvasQuickEdit(event: MouseEvent, point: DiagramPoint): boolean;
+  ibdRelationError: CanvasRelationRule;
+  informationFlowRelationError: CanvasRelationRule;
+  isCommMsg(kind: string): boolean;
+  isInteractionMsg(kind: string): boolean;
+  isMsg(kind?: string): boolean;
+  isPortOwner(view: DiagramElement): boolean;
+  lblOff(relation: DiagramRelation, field: string): LabelOffset;
+  markDirty(): void;
+  measure(view: DiagramElement): ElementMeasurement;
+  memberRowAt(view: DiagramElement, point: DiagramPoint): { kind: string; index: number; arr: readonly unknown[] } | null;
+  moveErdColumnTo(view: DiagramElement, from: number, to: number): boolean;
+  moveViewTree(view: DiagramElement, dx: number, dy: number, origins: ReadonlyMap<string, DiagramPoint>): void;
+  msgPoints(relation: DiagramRelation): MessagePoints | null;
+  packageRelationError: CanvasRelationRule;
+  parametricRelationError: CanvasRelationRule;
+  profileRelationError: CanvasRelationRule;
+  relById(id: string | null): DiagramRelation | null | undefined;
+  relEndpoints(relation: DiagramRelation): DiagramEndpoints | null;
+  relationAt(point: DiagramPoint): DiagramRelation | null | undefined;
+  relationLabelAt(point: DiagramPoint): QuickEditLabelHit | null;
+  render(): void;
+  renderProps(): void;
+  requirementRelationError: CanvasRelationRule;
+  rootViews(views: DiagramElement[]): DiagramElement[];
+  sequenceMessageMinY(diagram: EditorDiagram): number;
+  setSelection(ids: string[]): void;
+  snap(value: number): number;
+  snapshot(): void;
+  state: CanvasSelectionState;
+  stateSelfTransitionGeom(relation: DiagramRelation): LabeledCubicCurve | null;
+  svg: SVGSVGElement;
+  syncCommunicationMessages(relation: DiagramRelation): void;
+  syncRelationModel(relation: DiagramRelation): void;
+  transitionDirectionError(from: DiagramElement | null | undefined, to: DiagramElement | null | undefined): string;
+}
+
+type CanvasInteractionApi = ReturnType<typeof createCanvasInteractionModule>;
+declare var UMLCanvasInteraction: CanvasInteractionApi;
+type CanvasInteractionFrame = ReturnType<ReturnType<CanvasInteractionApi['create']>['state']>;
+
+function createCanvasInteractionModule() {
   'use strict';
 
-  function canvasPoint(event, svg, zoom) {
+  function canvasPoint(event: Pick<MouseEvent, 'clientX' | 'clientY'>, svg: Pick<SVGSVGElement, 'getBoundingClientRect'>, zoom: number) {
     const rect = svg.getBoundingClientRect();
     const scale = Number.isFinite(zoom) && zoom > 0 ? zoom : 1;
     return {
@@ -11,11 +103,11 @@
     };
   }
 
-  function marqueeBounds({ x0, y0, x1, y1 }) {
+  function marqueeBounds({ x0, y0, x1, y1 }: CanvasMarquee) {
     return { left: Math.min(x0, x1), top: Math.min(y0, y1), right: Math.max(x0, x1), bottom: Math.max(y0, y1) };
   }
 
-  function marqueeElementIds(marquee, elements) {
+  function marqueeElementIds(marquee: CanvasMarquee, elements: DiagramElement[]) {
     const { left, top, right, bottom } = marqueeBounds(marquee);
     return elements.filter(element => {
       if (element.kind === 'boundary' || element.kind === 'fragment') {
@@ -86,7 +178,7 @@
     'syncCommunicationMessages',
     'syncRelationModel',
     'transitionDirectionError',
-  ]);
+  ] as const);
   const REQUIRED_VALUES = Object.freeze([
     'ACTIVITY_PIN_KINDS',
     'elementPlacement',
@@ -94,9 +186,9 @@
     'KIND_META',
     'REL_STYLE',
     'STATE_VERTEX_KINDS',
-  ]);
+  ] as const);
 
-  function create(deps) {
+  function create(deps: CanvasInteractionDependencies) {
     if (!deps || typeof deps !== 'object') {
       throw new TypeError('Canvas interaction dependencies are required');
     }
@@ -192,16 +284,16 @@
       throw new TypeError(`Canvas interaction function dependencies are missing: ${missingFunctions.join(', ')}`);
     }
 
-    let drag = null;
-    let linking = null;
-    let marquee = null;
+    let drag: CanvasDrag | null = null;
+    let linking: CanvasLinking | null = null;
+    let marquee: CanvasMarquee | null = null;
 
-    function beginSequenceMove(start) {
+    function beginSequenceMove(start: DiagramPoint) {
       const diagram = dg();
       if (diagram.type !== 'sequence') return false;
       const selected = new Set(state.selection);
       const selectedElements = diagram.elements.filter(view => selected.has(view.id));
-      const sequenceMessages = diagram.relations.filter(relation => isMsg(relation.kind) && Number.isFinite(relation.y));
+      const sequenceMessages = diagram.relations.filter( (relation): relation is DiagramRelation & { y: number } => isMsg(relation.kind) && Number.isFinite(relation.y));
       const selectedMessages = sequenceMessages.filter(view => selected.has(view.id));
       const wholeDiagram = diagram.elements.length > 0 && selectedElements.length === diagram.elements.length
         && selectedMessages.length === sequenceMessages.length;
@@ -219,7 +311,7 @@
       return true;
     }
 
-    function toggleSelection(id) {
+    function toggleSelection(id: string) {
       const selected = new Set(state.selection.filter(selectedId => byId(selectedId) || isMsg(relById(selectedId)?.kind)));
       if (selected.has(id)) selected.delete(id);
       else selected.add(id);
@@ -227,20 +319,21 @@
       render(); renderProps();
     }
 
-  function svgPoint(ev) {
+    function svgPoint(ev: MouseEvent) {
       return canvasPoint(ev, svg, state.zoom);
     }
 
-    function handleMouseDown(ev) {
+    function handleMouseDown(ev: MouseEvent) {
     if (ev.button !== 0) return;
     closeInlineEditor();
     const p = svgPoint(ev);
 
-    const divider = ev.target.getAttribute?.('data-operand-divider');
+    const target = ev.target as Element | null;
+    const divider = target?.getAttribute?.('data-operand-divider');
     if (state.tool === 'select' && divider != null) {
-      const fragment = byId(ev.target.getAttribute('data-fragment-id'));
+      const fragment = byId(target?.getAttribute('data-fragment-id'));
       const index = Number(divider);
-      if (fragment?.kind === 'fragment' && Number.isInteger(index) && index > 0 && index < fragment.operands?.length) {
+      if (fragment?.kind === 'fragment' && Number.isInteger(index) && index > 0 && index < (fragment.operands?.length ?? 0)) {
         const { boundaries, minHeight } = fragmentOperandLayout(fragment);
         drag = { mode: 'operanddivider', fragment, index, boundaries, minHeight, startY: p.y, moved: false };
         if (state.selectedId !== fragment.id) {
@@ -261,7 +354,7 @@
       return;
     }
 
-    const routePointIndex = ev.target.getAttribute && ev.target.getAttribute('data-route-point');
+    const routePointIndex = target?.getAttribute?.('data-route-point');
     if (routePointIndex != null && state.selectedId) {
       const r = relById(state.selectedId);
       const index = Number(routePointIndex);
@@ -276,8 +369,8 @@
     }
 
     /* relation endpoint handle → drag to re-anchor or reconnect */
-    const epDir = ev.target.getAttribute && ev.target.getAttribute('data-endpoint');
-    if (epDir && state.selectedId) {
+    const epDir = target?.getAttribute?.('data-endpoint');
+    if ((epDir === 'src' || epDir === 'dst') && state.selectedId) {
       const r = relById(state.selectedId);
       if (r && !isInteractionMsg(r.kind)) {
         snapshot();
@@ -287,7 +380,7 @@
       }
     }
 
-    const hDir = ev.target.getAttribute && ev.target.getAttribute('data-handle');
+    const hDir = target?.getAttribute?.('data-handle');
     if (hDir && state.selectedId) {
       const e = byId(state.selectedId);
       if (e) {
@@ -388,7 +481,7 @@
       if (beginSequenceMove(p)) return;
       if (state.selection.length > 1) {
         /* group move: every selected element follows the drag */
-        const roots = rootViews(state.selection.map(byId).filter(Boolean));
+        const roots = rootViews(state.selection.map(byId).filter((view): view is DiagramElement => view != null));
         const moving = [...new Map(roots.flatMap(root => [root, ...descendantViews(root.id)]).map(view => [view.id, view])).values()];
         drag = {
           mode: 'groupmove', start: p, moved: false,
@@ -469,13 +562,13 @@
       });
     }
 
-    function marqueeHits(mq) {
+    function marqueeHits(mq: CanvasMarquee) {
       const diagram = dg();
       const ids = marqueeElementIds(mq, diagram.elements);
       if (diagram.type !== 'sequence') return ids;
       const { left, top, right, bottom } = marqueeBounds(mq);
       if (left === right || top === bottom) return ids;
-      const crossesHorizontal = (x1, x2, y) =>
+      const crossesHorizontal = (x1: number, x2: number, y: number) =>
         y >= top && y <= bottom && Math.min(x1, x2) <= right && Math.max(x1, x2) >= left;
       for (const relation of diagram.relations) {
         if (!isMsg(relation.kind)) continue;
@@ -496,7 +589,7 @@
       return ids;
     }
 
-    function handleMouseMove(ev) {
+    function handleMouseMove(ev: MouseEvent) {
     const p = svgPoint(ev);
     if (linking) { linking.x = p.x; linking.y = p.y; scheduleRender(); return; }
     if (!drag) return;
@@ -506,6 +599,7 @@
       const columns = ensureMemberArray(drag.entity, 'columns');
       if (!columns.length) return;
       const metrics = drag.entity._m || measure(drag.entity);
+      if (metrics.headH === undefined || metrics.RH === undefined) return;
       const bodyTop = drag.entity.y + metrics.headH;
       drag.moved = true;
       drag.targetIndex = Math.max(0, Math.min(columns.length - 1,
@@ -514,6 +608,7 @@
     } else if (drag.mode === 'move') {
       if (!drag.moved) { snapshot(); drag.moved = true; }
       const origin = drag.origins.get(drag.el.id);
+      if (!origin) return;
       const targetX = snap(p.x - drag.offx);
       const targetY = snap(p.y - drag.offy);
       moveViewTree(drag.el, targetX - origin.x, targetY - origin.y, drag.origins);
@@ -544,7 +639,7 @@
       if (!drag.moved && y === previous) return;
       if (!drag.moved) { snapshot(); drag.moved = true; }
       const top = boundaries[0];
-      const height = boundaries.at(-1) - top;
+      const height = boundaries[boundaries.length - 1] - top;
       fragment.operandDividers = boundaries.slice(1, -1)
         .map((boundary, offset) => ((offset + 1 === index ? y : boundary) - top) / height);
       scheduleRender();
@@ -567,7 +662,7 @@
         e.y = dg().type === 'sequence' && e.kind === 'lifeline' ? oy : snap(oy + dy);
       });
       scheduleRender();
-    } else if (drag.mode === 'marquee') {
+    } else if (drag.mode === 'marquee' && marquee) {
       marquee.x1 = p.x; marquee.y1 = p.y;
       setSelection(marqueeHits(marquee));   // 드래그 중 실시간 선택
       scheduleRender();
@@ -589,17 +684,17 @@
         drag.rel.manualPoints = waypoints;
         scheduleRender();
       }
-    } else if (drag.mode === 'relmove') {
+    } else if (drag.mode === 'relmove' && drag.origEp) {
       if (!drag.moved) { snapshot(); drag.moved = true; }
       const r = drag.rel;
       const dx = p.x - drag.start.x, dy = p.y - drag.start.y;
-      const clamp01 = v => Math.max(0, Math.min(1, v));
+      const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
       /* each endpoint SLIDES ALONG the edge it already sits on:
          a point on a top/bottom edge only moves left↔right, a point on a
          left/right edge only moves up↔down. So a vertical relation slides
          horizontally and a horizontal one slides vertically — no surprise
          axis. (Use the square endpoint handles to switch edges.) */
-      const apply = (id, anchorKey, pt) => {
+      const apply = (id: string, anchorKey: 'srcAnchor' | 'dstAnchor', pt: DiagramPoint) => {
         const host = byId(id);
         if (!host) return;
         const side = borderAnchorFrac(host, pt);           // which edge the end is on
@@ -633,7 +728,7 @@
         scheduleRender();
       }
     } else if (drag.mode === 'resize') {
-      const { dir, el: e, orig, start } = drag;
+      const { dir, el: e, orig, start, origins } = drag;
       const dx = p.x - start.x, dy = p.y - start.y;
       const m = e._m || measure(e);
       let { x, y, w, h } = orig;
@@ -647,14 +742,14 @@
       e.x = snap(x); e.y = dg().type === 'sequence' && e.kind === 'lifeline' ? orig.y : snap(y); e.w = w; e.h = h;
       const tx = e.x - orig.x, ty = e.y - orig.y;
       descendantViews(e.id).forEach(child => {
-        const origin = drag.origins.get(child.id);
+        const origin = origins.get(child.id);
         if (origin) { child.x = snap(origin.x + tx); child.y = snap(origin.y + ty); }
       });
       scheduleRender();
     }
     }
 
-    function handleMouseUp(ev) {
+    function handleMouseUp(ev: MouseEvent) {
     if (linking) {
       const p = svgPoint(ev);
       const target = elementAt(p);
@@ -726,7 +821,7 @@
             const previousFrom = byId(r.from), previousTo = byId(r.to);
             if (drag.end === 'src') r.from = target.id; else r.to = target.id;
             delete r[drag.end === 'src' ? 'srcAnchor' : 'dstAnchor'];
-            if (r.kind === 'containment') {
+            if (r.kind === 'containment' && nextFrom && nextTo) {
               if (previousFrom && previousFrom.parentId === previousTo?.id) delete previousFrom.parentId;
               nextFrom.parentId = nextTo.id;
             }
@@ -785,7 +880,7 @@
       detach,
       state: () => ({ drag, linking, marquee }),
       getLinking: () => linking,
-      setLinking(value) { linking = value; },
+      setLinking(value: CanvasLinking | null) { linking = value; },
       cancel() {
         drag = null;
         linking = null;
@@ -794,13 +889,17 @@
     });
   }
 
-  const api = Object.freeze({
+  return Object.freeze({
     REQUIRED_FUNCTIONS,
     REQUIRED_VALUES,
     canvasPoint,
     marqueeElementIds,
     create,
   });
+}
+
+(function initCanvasInteraction(global: typeof globalThis, factory: () => CanvasInteractionApi) {
+  const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   global.UMLCanvasInteraction = api;
-})(typeof window !== 'undefined' ? window : globalThis);
+})(typeof window !== 'undefined' ? window : globalThis, createCanvasInteractionModule);

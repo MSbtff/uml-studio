@@ -14,14 +14,19 @@ interface PersistenceEnvironment {
   fetch?: typeof fetch;
 }
 
-(function initPersistence<Api>(
-  root: typeof globalThis & { UMLPersistence?: Api },
-  factory: (environment: PersistenceEnvironment) => Api,
+type PersistenceApi = ReturnType<typeof createPersistence>;
+declare var UMLPersistence: PersistenceApi;
+
+(function initPersistence(
+  root: typeof globalThis,
+  factory: (environment: PersistenceEnvironment) => PersistenceApi,
 ) {
   const api = factory(root || {});
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.UMLPersistence = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createPersistence(environment: PersistenceEnvironment) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createPersistence);
+
+function createPersistence(environment: PersistenceEnvironment) {
   const DB_NAME = 'uml-studio-v7';
   const DB_VERSION = 2;
   const STORE_NAME = 'recovery';
@@ -452,4 +457,4 @@ interface PersistenceEnvironment {
     deleteServerProject,
     serverAvailable: () => serverAvailable,
   };
-});
+}

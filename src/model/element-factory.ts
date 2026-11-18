@@ -3,11 +3,16 @@
 /* Element Factory — owns generated view names and the initial persisted shape
    of every element placed on a diagram. Project-wide IDs, counters and the
    active diagram remain host state and are injected. */
-(function initElementFactoryModule<Api>(root: typeof globalThis & { UMLElementFactory?: Api }, factory: () => Api) {
+type ElementFactoryApi = ReturnType<typeof createElementFactoryModule>;
+declare var UMLElementFactory: ElementFactoryApi;
+
+(function initElementFactoryModule(root: typeof globalThis & { UMLElementFactory?: ElementFactoryApi }, factory: () => ElementFactoryApi) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLElementFactory = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createElementFactoryModule() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createElementFactoryModule);
+
+function createElementFactoryModule() {
   const REQUIRED_FUNCTIONS = Object.freeze([
     'dg',
     'sequenceLifelineTop',
@@ -295,4 +300,4 @@
     REQUIRED_VALUES,
     create,
   });
-});
+}

@@ -1,7 +1,35 @@
-// @ts-nocheck
 'use strict';
 
-(function initValidation(root, factory) {
+interface ValidationColumn {
+  flags: string[];
+  phys: string;
+  logical: string;
+  type: string;
+}
+interface ValidationColumnApi {
+  parseColumn(value: unknown): ValidationColumn;
+  validateColumn(column: ValidationColumn, existingColumns?: unknown[], editIndex?: number): { valid: boolean; error?: string };
+}
+interface ValidationSchemaApi {
+  validateEntitySchema(model: Pick<ModelFields, 'erdColumnDetails' | 'erdIndexes' | 'erdChecks'>, columns: string[]): { columnDetails: Record<string, ErdColumnDetails>; checks: ErdSchemaCheck[]; indexes: ErdSchemaIndex[] };
+  validateReferentialActions(model: Pick<ModelFields, 'foreignKeyOnDelete' | 'foreignKeyOnUpdate'>): { onDelete: string; onUpdate: string };
+}
+interface ValidationIconApi {
+  parseIconScript(value: unknown): { valid: boolean; errors: string[] };
+}
+
+type ValidationApi = ReturnType<typeof createValidation>;
+declare var UMLValidation: ValidationApi;
+
+(function initValidation(
+  root: typeof globalThis & {
+    UMLIconScript?: ValidationIconApi;
+    UMLErdColumn?: ValidationColumnApi;
+    UMLErdSchema?: ValidationSchemaApi;
+    UMLValidation?: ValidationApi;
+  },
+  factory: (iconScript?: ValidationIconApi, erdColumn?: ValidationColumnApi, erdSchema?: ValidationSchemaApi) => ValidationApi,
+) {
   let iconScript = root && root.UMLIconScript;
   let erdColumn = root && root.UMLErdColumn;
   let erdSchema = root && root.UMLErdSchema;
@@ -17,20 +45,45 @@
   const api = factory(iconScript, erdColumn, erdSchema);
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.UMLValidation = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createValidation(iconScript, erdColumn, erdSchema) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createValidation);
+
+function createValidation(iconScript?: ValidationIconApi, erdColumn?: ValidationColumnApi, erdSchema?: ValidationSchemaApi) {
+  type View = DiagramElement | DiagramRelation;
+  type ModelOf = (view: View) => DiagramModel;
+  type KindOf = (view: View) => string;
+  type IssueSeverity = 'error' | 'warning' | 'info';
+  interface ValidationIssue {
+    severity: IssueSeverity;
+    code: string;
+    message: string;
+    diagramId?: string | null;
+    diagramName?: string | null;
+    viewId?: string | null;
+    modelId?: string | null;
+    modelName: string;
+  }
+  type ReportIssue = (severity: IssueSeverity, code: string, message: string,
+    diagram: EditorDiagram | null, view: View | null, extra?: Partial<ValidationIssue>) => void;
+  type ResolvedRelation = { view: DiagramRelation; diagram: EditorDiagram; model: DiagramModel; from: DiagramElement; to: DiagramElement };
+  type CompatibilityStatus = 'unknown' | 'compatible' | 'warning' | 'error';
+  const interfaceFields = ['providedInterfaceModelId', 'requiredInterfaceModelId'] as const;
+  const findById = <Value>(index: ReadonlyMap<string, Value>, id: string | null | undefined): Value | undefined =>
+    id == null ? undefined : index.get(id);
+
+  const compatibility = (status: CompatibilityStatus, code: string, message: string) => ({ status, code, message });
   const parseIconScript = iconScript && iconScript.parseIconScript
     ? iconScript.parseIconScript
     : () => ({ valid: true, errors: [] });
-  const parseErdColumn = erdColumn && erdColumn.parseColumn
+  const parseErdColumn: ValidationColumnApi['parseColumn'] = erdColumn && erdColumn.parseColumn
     ? erdColumn.parseColumn
     : raw => ({ flags: [], phys: String(raw || '').trim(), logical: '', type: '' });
-  const validateErdColumn = erdColumn && erdColumn.validateColumn
+  const validateErdColumn: ValidationColumnApi['validateColumn'] = erdColumn && erdColumn.validateColumn
     ? erdColumn.validateColumn
     : column => ({ valid: !!column.phys, error: '물리명을 입력하세요.' });
-  const validateErdSchema = erdSchema && erdSchema.validateEntitySchema
+  const validateErdSchema: ValidationSchemaApi['validateEntitySchema'] = erdSchema && erdSchema.validateEntitySchema
     ? erdSchema.validateEntitySchema
     : () => ({ columnDetails: {}, checks: [], indexes: [] });
-  const validateReferentialActions = erdSchema && erdSchema.validateReferentialActions
+  const validateReferentialActions: ValidationSchemaApi['validateReferentialActions'] = erdSchema && erdSchema.validateReferentialActions
     ? erdSchema.validateReferentialActions
     : () => ({ onDelete: '', onUpdate: '' });
   const ER_RELATION_KINDS = new Set(['erd-11', 'erd-1n', 'erd-nm']);
@@ -47,8 +100,8 @@
     'block', 'valuetype', 'interfaceblock', 'constraintblock',
   ]);
 
-  const UNIT_INDEX = new Map();
-  [
+  const UNIT_INDEX = new Map<string, { family: string; canonical: string }>();
+  const unitFamilies: [string, [string, string[]][]][] = [
     ['time', [
       ['ns', ['nanosecond', 'nanoseconds']],
       ['us', ['µs', 'μs', 'microsecond', 'microseconds']],
@@ -93,7 +146,8 @@
       ['V', ['volt', 'volts']],
       ['kV', ['kilovolt', 'kilovolts']],
     ]],
-  ].forEach(([family, definitions]) => {
+  ];
+  unitFamilies.forEach(([family, definitions]) => {
     definitions.forEach(([canonical, aliases]) => {
       [canonical, ...aliases].forEach(alias => {
         const raw = String(alias).replace(/[µμ]/g, 'u').replace(/\s+/g, '');
@@ -103,14 +157,14 @@
     });
   });
 
-  const semanticToken = value => String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
-  const unitInfo = value => {
+  const semanticToken = (value: unknown) => String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  const unitInfo = (value: unknown) => {
     const raw = String(value || '').trim().replace(/[µμ]/g, 'u').replace(/\s+/g, '');
     if (!raw) return { raw: '', canonical: '', family: '' };
     const indexed = UNIT_INDEX.get(raw) || (raw.length > 2 ? UNIT_INDEX.get(raw.toLowerCase()) : null);
     return indexed ? { raw, ...indexed } : { raw, canonical: raw, family: '' };
   };
-  const typeDescription = type => {
+  const typeDescription = (type?: DiagramModel | null) => {
     if (!type) return '(missing type)';
     if (type.kind !== 'valuetype') return type.name || type.kind || '(unnamed type)';
     const details = [
@@ -119,7 +173,7 @@
     ].filter(Boolean);
     return `${type.name || 'ValueType'}${details.length ? ` (${details.join(', ')})` : ''}`;
   };
-  const modelConformsTo = (childId, parentId, models) => {
+  const modelConformsTo = (childId: string, parentId: string, models?: DiagramModels) => {
     const pending = [childId], visited = new Set();
     while (pending.length) {
       const current = pending.pop();
@@ -128,13 +182,13 @@
       visited.add(current);
       Object.values(models || {})
         .filter(model => model.kind === 'generalization' && model.fromModelId === current)
-        .forEach(model => pending.push(model.toModelId));
+        .forEach(model => { if (model.toModelId) pending.push(model.toModelId); });
     }
     return false;
   };
 
-  function bindingTypeCompatibility(fromTypeId, toTypeId, models) {
-    const result = (status, code, message) => ({ status, code, message });
+  function bindingTypeCompatibility(fromTypeId: string | undefined, toTypeId: string | undefined, models: DiagramModels) {
+    const result = compatibility;
     if (!fromTypeId || !toTypeId) {
       return result('unknown', '', 'Binding Connector 양 끝의 Type을 모두 지정하면 호환성을 검사할 수 있습니다.');
     }
@@ -194,8 +248,8 @@
       `서로 다른 Value Type의 동등성을 확인할 수 없습니다: ${typeDescription(fromType)} ↔ ${typeDescription(toType)}`);
   }
 
-  function defaultValueUnitCompatibility(defaultValue, valueType) {
-    const result = (status, code, message) => ({ status, code, message });
+  function defaultValueUnitCompatibility(defaultValue: unknown, valueType: DiagramModel | undefined) {
+    const result = compatibility;
     const rawValue = String(defaultValue || '').trim();
     if (!rawValue || !valueType || valueType.kind !== 'valuetype') {
       return result('unknown', '', 'Value Type과 숫자 기본값이 있으면 Unit을 검사할 수 있습니다.');
@@ -226,14 +280,14 @@
       `기본값 Unit을 Value Type의 Unit으로 환산하거나 확인해야 합니다: ${rawValue} · Type ${typeDescription(valueType)}`);
   }
 
-  function validateProject(project) {
-    const issues = [];
+  function validateProject(project: { models?: DiagramModels; diagrams?: EditorDiagram[] }) {
+    const issues: ValidationIssue[] = [];
     const models = project.models || {};
     const diagrams = project.diagrams || [];
-    const modelOf = view => models[view.modelId] || view;
-    const kindOf = view => modelOf(view).kind;
-    const nameOf = view => modelOf(view).name || '';
-    const issue = (severity, code, message, diagram, view, extra) => issues.push({
+    const modelOf: ModelOf = view => (view.modelId ? models[view.modelId] : undefined) || view;
+    const kindOf: KindOf = view => modelOf(view).kind;
+    const nameOf = (view: View) => modelOf(view).name || '';
+    const issue: ReportIssue = (severity, code, message, diagram, view, extra) => issues.push({
       severity, code, message,
       diagramId: diagram && diagram.id,
       diagramName: diagram && diagram.name,
@@ -243,15 +297,15 @@
       ...(extra || {}),
     });
 
-    const uniqueRelations = new Map();
-    const requirementIds = new Map();
-    const validatedRequirementModels = new Set();
+    const uniqueRelations = new Map<string, ResolvedRelation>();
+    const requirementIds = new Map<string, DiagramElement>();
+    const validatedRequirementModels = new Set<string>();
     diagrams.forEach(diagram => {
       if (!diagram.elements.length && !diagram.relations.length) {
         issue('info', 'PRJ001', '다이어그램이 비어 있습니다.', diagram, null);
       }
       const elementIds = new Set(diagram.elements.map(x => x.id));
-      const names = new Map();
+      const names = new Map<string, DiagramElement>();
       diagram.elements.forEach(view => {
         const model = modelOf(view), kind = model.kind, name = String(model.name || '').trim();
         if (view.modelId && !models[view.modelId]) issue('error', 'PRJ002', '참조하는 모델을 찾을 수 없습니다.', diagram, view);
@@ -325,15 +379,15 @@
     return issues.sort((a, b) => severityOrder(a.severity) - severityOrder(b.severity) || a.code.localeCompare(b.code));
   }
 
-  function severityOrder(value) { return value === 'error' ? 0 : value === 'warning' ? 1 : 2; }
+  function severityOrder(value: unknown) { return value === 'error' ? 0 : value === 'warning' ? 1 : 2; }
 
-  function validateActorAssociation(from, to, diagram, relation, kindOf, issue) {
+  function validateActorAssociation(from: DiagramElement, to: DiagramElement, diagram: EditorDiagram, relation: DiagramRelation, kindOf: KindOf, issue: ReportIssue) {
     const allowed = new Set(['actor', 'usecase', 'component', 'class']);
     if (kindOf(from) === 'actor' && !allowed.has(kindOf(to))) issue('error', 'UML019', 'Actor는 Use Case, Component 또는 Class와만 연결할 수 있습니다.', diagram, relation);
     if (kindOf(to) === 'actor' && !allowed.has(kindOf(from))) issue('error', 'UML019', 'Actor는 Use Case, Component 또는 Class와만 연결할 수 있습니다.', diagram, relation);
   }
 
-  function validateDuplicateRelations(relations, kind, code, issue) {
+  function validateDuplicateRelations(relations: ResolvedRelation[], kind: string, code: string, issue: ReportIssue) {
     const seen = new Map();
     relations.filter(x => x.model.kind === kind).forEach(entry => {
       const key = `${entry.from.modelId}->${entry.to.modelId}`;
@@ -342,15 +396,17 @@
     });
   }
 
-  function validateCycles(relations, kind, code, message, issue) {
+  function validateCycles(relations: ResolvedRelation[], kind: string, code: string, message: string, issue: ReportIssue) {
     const edges = relations.filter(x => x.model.kind === kind);
-    const graph = new Map();
+    const graph = new Map<string | undefined, { to: string | undefined; entry: ResolvedRelation }[]>();
     edges.forEach(x => {
-      if (!graph.has(x.from.modelId)) graph.set(x.from.modelId, []);
-      graph.get(x.from.modelId).push({ to: x.to.modelId, entry: x });
+      const group = graph.get(x.from.modelId);
+      const edge = { to: x.to.modelId, entry: x };
+      if (group) group.push(edge);
+      else graph.set(x.from.modelId, [edge]);
     });
     const visiting = new Set(), visited = new Set(), reported = new Set();
-    function walk(node) {
+    function walk(node: string | undefined) {
       if (visiting.has(node)) return true;
       if (visited.has(node)) return false;
       visiting.add(node);
@@ -365,7 +421,7 @@
     [...graph.keys()].forEach(walk);
   }
 
-  function validateActivity(diagram, kindOf, modelOf, issue) {
+  function validateActivity(diagram: EditorDiagram, kindOf: KindOf, modelOf: ModelOf, issue: ReportIssue) {
     if (diagram.type !== 'activity' && diagram.type !== 'interactionoverview') return;
     const interactionOverview = diagram.type === 'interactionoverview';
     const elements = new Map(diagram.elements.map(view => [view.id, view]));
@@ -383,17 +439,17 @@
     ]);
     const controlFlows = diagram.relations.filter(r => modelOf(r).kind === 'controlflow');
     const allFlows = diagram.relations.filter(r => flowKinds.has(modelOf(r).kind));
-    const ancestor = (view, expectedKind) => {
-      let current = view;
+    const ancestor = (view: DiagramElement, expectedKind: string) => {
+      let current: DiagramElement | undefined = view;
       const seen = new Set();
       while (current && current.parentId && !seen.has(current.parentId)) {
         seen.add(current.parentId);
-        current = elements.get(current.parentId);
+        current = findById(elements, current.parentId);
         if (current && kindOf(current) === expectedKind) return current;
       }
       return null;
     };
-    const validBorderAnchor = view => {
+    const validBorderAnchor = (view: DiagramElement) => {
       const anchor = view.borderAnchor;
       return anchor && Number.isFinite(anchor.fx) && Number.isFinite(anchor.fy)
         && anchor.fx >= 0 && anchor.fx <= 1 && anchor.fy >= 0 && anchor.fy <= 1
@@ -426,14 +482,14 @@
         issue('error', 'UML053', 'Join Node는 둘 이상의 입력과 정확히 하나의 출력을 가져야 합니다.', diagram, view);
       }
       if (kind === 'inputpin' || kind === 'outputpin') {
-        const owner = elements.get(view.parentId);
+        const owner = findById(elements, view.parentId);
         if (!owner || !actionKinds.has(kindOf(owner))) {
           issue('error', 'ACT002', 'Input/Output Pin은 Action 또는 Signal/Time Event Action에 부착되어야 합니다.', diagram, view);
         }
         if (!validBorderAnchor(view)) issue('error', 'ACT003', 'Pin은 소유 Action의 테두리에 고정되어야 합니다.', diagram, view);
       }
       if (kind === 'expansioninput' || kind === 'expansionoutput') {
-        const owner = elements.get(view.parentId);
+        const owner = findById(elements, view.parentId);
         if (!owner || kindOf(owner) !== 'expansionregion') {
           issue('error', 'ACT004', 'Expansion Node는 Expansion Region에 부착되어야 합니다.', diagram, view);
         }
@@ -458,7 +514,7 @@
         issue('error', 'ACT010', 'Object Node와 Pin에는 Control Flow 대신 Object Flow를 사용해야 합니다.', diagram, flow);
       }
       if (kind === 'objectflow') {
-        const allowed = view => objectKinds.has(kindOf(view)) || actionKinds.has(kindOf(view)) || kindOf(view) === 'structuredactivity';
+        const allowed = (view: DiagramElement) => objectKinds.has(kindOf(view)) || actionKinds.has(kindOf(view)) || kindOf(view) === 'structuredactivity';
         if (!allowed(from) || !allowed(to)) issue('error', 'ACT011', 'Object Flow의 연결 대상이 올바르지 않습니다.', diagram, flow);
         if (kindOf(from) === 'inputpin' || kindOf(from) === 'expansioninput') {
           issue('error', 'ACT015', 'Input Pin/Expansion Node는 외부 Object Flow의 도착점이어야 합니다.', diagram, flow);
@@ -468,7 +524,7 @@
         }
       }
       if (kind === 'exceptionhandler') {
-        const actionLike = view => actionKinds.has(kindOf(view)) || kindOf(view) === 'structuredactivity';
+        const actionLike = (view: DiagramElement) => actionKinds.has(kindOf(view)) || kindOf(view) === 'structuredactivity';
         if (!actionLike(from) || !actionLike(to)) issue('error', 'ACT012', 'Exception Handler는 Action 또는 Structured Activity Node 사이에 연결해야 합니다.', diagram, flow);
       }
       if (kind === 'activityinterrupt') {
@@ -481,7 +537,7 @@
     });
   }
 
-  function validateInteractionOverview(diagram, kindOf, modelOf, issue, diagrams) {
+  function validateInteractionOverview(diagram: EditorDiagram, kindOf: KindOf, modelOf: ModelOf, issue: ReportIssue, diagrams: EditorDiagram[]) {
     if (diagram.type !== 'interactionoverview') return;
     const allowedElements = new Set([
       'interactionuse', 'interactioninline', 'initial', 'final', 'forkbar', 'joinbar', 'merge', 'decision', 'note',
@@ -507,18 +563,18 @@
     });
   }
 
-  function validatePackageDiagram(diagram, kindOf, modelOf, issue) {
+  function validatePackageDiagram(diagram: EditorDiagram, kindOf: KindOf, modelOf: ModelOf, issue: ReportIssue) {
     if (diagram.type !== 'package') return;
     const containerKinds = new Set(['package', 'model', 'subsystem']);
     const elements = new Map(diagram.elements.map(view => [view.id, view]));
     const containmentBySource = new Map();
-    const hasAncestor = (view, candidateId) => {
-      let current = view;
+    const hasAncestor = (view: DiagramElement, candidateId: string) => {
+      let current: DiagramElement | undefined = view;
       const seen = new Set();
       while (current && current.parentId && !seen.has(current.parentId)) {
         if (current.parentId === candidateId) return true;
         seen.add(current.parentId);
-        current = elements.get(current.parentId);
+        current = findById(elements, current.parentId);
       }
       return false;
     };
@@ -527,7 +583,7 @@
       const kind = kindOf(view);
       if (!containerKinds.has(kind)) return;
       if (view.parentId) {
-        const owner = elements.get(view.parentId);
+        const owner = findById(elements, view.parentId);
         if (!owner || !containerKinds.has(kindOf(owner))) {
           issue('error', 'PKG001', 'Package, Model, Subsystem은 Package 컨테이너에만 포함될 수 있습니다.', diagram, view);
         }
@@ -563,7 +619,7 @@
     });
   }
 
-  function validateProfileDiagram(diagram, kindOf, modelOf, issue) {
+  function validateProfileDiagram(diagram: EditorDiagram, kindOf: KindOf, modelOf: ModelOf, issue: ReportIssue) {
     if (diagram.type !== 'profile') return;
     const elements = new Map(diagram.elements.map(view => [view.id, view]));
     const validVisibility = new Set(['public', 'protected', 'private', 'package']);
@@ -582,7 +638,7 @@
     });
 
     const extensionPairs = new Set();
-    const generalizations = [];
+    const generalizations: DiagramRelation[] = [];
     diagram.relations.forEach(relation => {
       const kind = kindOf(relation);
       const from = elements.get(relation.from), to = elements.get(relation.to);
@@ -607,13 +663,15 @@
       }
     });
 
-    const graph = new Map();
+    const graph = new Map<string, { to: string; relation: DiagramRelation }[]>();
     generalizations.forEach(relation => {
-      if (!graph.has(relation.from)) graph.set(relation.from, []);
-      graph.get(relation.from).push({ to: relation.to, relation });
+      const group = graph.get(relation.from);
+      const edge = { to: relation.to, relation };
+      if (group) group.push(edge);
+      else graph.set(relation.from, [edge]);
     });
     const visiting = new Set(), visited = new Set(), reported = new Set();
-    const walk = id => {
+    const walk = (id: string): boolean => {
       if (visiting.has(id)) return true;
       if (visited.has(id)) return false;
       visiting.add(id);
@@ -634,19 +692,19 @@
     'shallowhistory', 'deephistory', 'entrypoint', 'exitpoint', 'terminate', 'connectionpointref',
   ]);
 
-  function validateStateMachine(diagram, kindOf, modelOf, issue, diagrams) {
+  function validateStateMachine(diagram: EditorDiagram, kindOf: KindOf, modelOf: ModelOf, issue: ReportIssue, diagrams: EditorDiagram[]) {
     if (diagram.type !== 'state') return;
     const transitions = diagram.relations.filter(r => modelOf(r).kind === 'transition');
     const elementById = new Map(diagram.elements.map(e => [e.id, e]));
     const regions = diagram.elements.filter(e => kindOf(e) === 'region');
 
     regions.forEach(region => {
-      const owner = elementById.get(region.parentId);
+      const owner = findById(elementById, region.parentId);
       if (!owner || kindOf(owner) !== 'compositestate') {
         issue('error', 'STM011', 'Region은 Composite State에 포함되어야 합니다.', diagram, region);
       }
       const members = diagram.elements.filter(e => e.parentId === region.id);
-      const countKind = kind => members.filter(e => kindOf(e) === kind).length;
+      const countKind = (kind: string) => members.filter(e => kindOf(e) === kind).length;
       if (countKind('stateinitial') > 1) issue('error', 'STM014', '한 Region에는 Initial Pseudostate를 최대 하나만 둘 수 있습니다.', diagram, region);
       if (countKind('shallowhistory') > 1) issue('error', 'STM015', '한 Region에는 Shallow History를 최대 하나만 둘 수 있습니다.', diagram, region);
       if (countKind('deephistory') > 1) issue('error', 'STM016', '한 Region에는 Deep History를 최대 하나만 둘 수 있습니다.', diagram, region);
@@ -666,7 +724,7 @@
         }
       }
       if (kind === 'connectionpointref') {
-        const owner = elementById.get(view.parentId);
+        const owner = findById(elementById, view.parentId);
         if (!owner || kindOf(owner) !== 'submachinestate') {
           issue('error', 'STM017', 'Connection Point Reference는 Submachine State에 포함되어야 합니다.', diagram, view);
         } else {
@@ -688,7 +746,7 @@
         }
       }
       if (STATE_VERTEX_KINDS.has(kind) && kind !== 'connectionpointref' && view.parentId) {
-        const parent = elementById.get(view.parentId);
+        const parent = findById(elementById, view.parentId);
         if (!parent || kindOf(parent) !== 'region') {
           issue('error', 'STM013', '중첩된 State 또는 Pseudostate는 Region에 포함되어야 합니다.', diagram, view);
         }
@@ -732,7 +790,7 @@
   }
 
   const INSTANCE_KINDS = new Set(['object', 'artifactinstance', 'componentinstance', 'nodeinstance']);
-  const INSTANCE_TYPES = {
+  const INSTANCE_TYPES: Partial<Record<string, ReadonlySet<string>>> = {
     object: new Set([
       'class', 'interface', 'enumeration', 'component', 'artifact', 'node',
       'block', 'valuetype', 'interfaceblock', 'constraintblock',
@@ -742,7 +800,7 @@
     nodeinstance: new Set(['node']),
   };
 
-  function validateObjectDiagram(diagram, kindOf, modelOf, issue, models) {
+  function validateObjectDiagram(diagram: EditorDiagram, kindOf: KindOf, modelOf: ModelOf, issue: ReportIssue, models: DiagramModels) {
     if (diagram.type !== 'object') return;
     const elementById = new Map(diagram.elements.map(element => [element.id, element]));
     diagram.elements.forEach(view => {
@@ -756,8 +814,8 @@
         const classifier = models[classifierId];
         if (!classifier) {
           issue('error', 'OBJ002', 'Instance가 참조하는 Classifier 모델을 찾을 수 없습니다.', diagram, view);
-        } else if (!INSTANCE_TYPES[kind].has(classifier.kind)) {
-          const codes = { artifactinstance: 'UML013', componentinstance: 'UML014', nodeinstance: 'UML015' };
+        } else if (!INSTANCE_TYPES[kind]?.has(classifier.kind)) {
+          const codes: Partial<Record<string, string>> = { artifactinstance: 'UML013', componentinstance: 'UML014', nodeinstance: 'UML015' };
           issue('error', codes[kind] || 'OBJ003',
             `${kind === 'object' ? 'Object' : 'Instance'} 타입으로 ${classifier.kind}을(를) 사용할 수 없습니다.`, diagram, view);
         }
@@ -783,7 +841,7 @@
     });
   }
 
-  function validateCommunicationDiagram(diagram, kindOf, modelOf, issue) {
+  function validateCommunicationDiagram(diagram: EditorDiagram, kindOf: KindOf, modelOf: ModelOf, issue: ReportIssue) {
     if (diagram.type !== 'communication') return;
     const elements = new Map(diagram.elements.map(element => [element.id, element]));
     const connectors = new Map(diagram.relations
@@ -800,7 +858,7 @@
 
     diagram.relations.filter(relation => ['comm-forward', 'comm-reverse'].includes(kindOf(relation))).forEach(message => {
       const model = modelOf(message);
-      const connector = connectors.get(message.connectorId);
+      const connector = findById(connectors, message.connectorId);
       if (!String(model.name || '').trim()) {
         issue('error', 'UML001', 'Communication Message에 이름이 필요합니다.', diagram, message);
       }
@@ -827,21 +885,21 @@
     });
   }
 
-  function validateCompositeStructureDiagram(diagram, kindOf, modelOf, issue, models) {
+  function validateCompositeStructureDiagram(diagram: EditorDiagram, kindOf: KindOf, modelOf: ModelOf, issue: ReportIssue, models: DiagramModels) {
     if (diagram.type !== 'composite') return;
     const elements = new Map(diagram.elements.map(element => [element.id, element]));
-    const rootOf = view => {
+    const rootOf = (view: DiagramElement) => {
       let current = view;
       const visited = new Set();
       while (current && current.parentId && !visited.has(current.id)) {
         visited.add(current.id);
-        current = elements.get(current.parentId) || current;
+        current = findById(elements, current.parentId) || current;
         if (visited.has(current.id)) break;
       }
       return current;
     };
     const typeKinds = new Set(['class', 'interface', 'enumeration', 'component', 'artifact', 'node']);
-    const validTypedReference = (view, field) => {
+    const validTypedReference = (view: DiagramElement, field: 'classifierModelId' | typeof interfaceFields[number]): DiagramModel | false | null => {
       const referenceId = modelOf(view)[field];
       if (!referenceId) return null;
       return models[referenceId] || false;
@@ -850,7 +908,7 @@
     diagram.elements.forEach(view => {
       const kind = kindOf(view);
       const model = modelOf(view);
-      const owner = elements.get(view.parentId);
+      const owner = findById(elements, view.parentId);
       if (kind === 'part') {
         if (!owner || !['class', 'collaboration'].includes(kindOf(owner))) {
           issue('error', 'CS001', 'Part는 Class 또는 Collaboration에 포함되어야 합니다.', diagram, view);
@@ -884,7 +942,7 @@
         }
       }
       if (kind === 'port') {
-        ['providedInterfaceModelId', 'requiredInterfaceModelId'].forEach(field => {
+        interfaceFields.forEach(field => {
           const reference = validTypedReference(view, field);
           if (reference === false || (reference && reference.kind !== 'interface')) {
             issue('error', 'CS008', `${field === 'providedInterfaceModelId' ? 'Provided' : 'Required'} Interface 참조가 유효하지 않습니다.`, diagram, view);
@@ -913,7 +971,7 @@
     });
   }
 
-  function validateTimingDiagram(diagram, kindOf, modelOf, issue, models) {
+  function validateTimingDiagram(diagram: EditorDiagram, kindOf: KindOf, modelOf: ModelOf, issue: ReportIssue, models: DiagramModels) {
     if (diagram.type !== 'timing') return;
     const elements = new Map(diagram.elements.map(element => [element.id, element]));
     const relations = new Map(diagram.relations.map(relation => [relation.id, relation]));
@@ -929,13 +987,13 @@
         }
       }
       if (kind === 'timingstate') {
-        const owner = elements.get(view.parentId);
+        const owner = findById(elements, view.parentId);
         if (!owner || kindOf(owner) !== 'lifeline') {
           issue('error', 'TIM003', 'State / Condition은 Timing Lifeline에 포함되어야 합니다.', diagram, view);
         }
       }
       if (kind === 'timesegment') {
-        const owner = elements.get(view.parentId);
+        const owner = findById(elements, view.parentId);
         if (!owner || kindOf(owner) !== 'timingstate') {
           issue('error', 'TIM004', 'Time Segment는 State / Condition에 포함되어야 합니다.', diagram, view);
         }
@@ -952,8 +1010,8 @@
         issue('error', 'TIM006', 'Time Tick에는 표시할 시간 값이 필요합니다.', diagram, view);
       }
       if (kind === 'timeconstraint') {
-        const targetElement = elements.get(view.constrainedViewId);
-        const targetRelation = relations.get(view.constrainedViewId);
+        const targetElement = findById(elements, view.constrainedViewId);
+        const targetRelation = findById(relations, view.constrainedViewId);
         if ((!targetElement || kindOf(targetElement) !== 'timesegment')
           && (!targetRelation || kindOf(targetRelation) !== 'timingmessage')) {
           issue('error', 'TIM007', 'Time Constraint는 Time Segment 또는 Timing Message에 부착되어야 합니다.', diagram, view);
@@ -987,7 +1045,7 @@
     });
   }
 
-  function validateInformationFlowDiagram(diagram, kindOf, modelOf, issue, models) {
+  function validateInformationFlowDiagram(diagram: EditorDiagram, kindOf: KindOf, modelOf: ModelOf, issue: ReportIssue, models: DiagramModels) {
     if (diagram.type !== 'informationflow') return;
     const endpoints = new Set([
       'actor', 'usecase', 'node', 'artifact', 'class', 'component', 'interface',
@@ -1010,7 +1068,7 @@
       if (!['public', 'protected', 'private', 'package'].includes(model.visibility || 'public')) {
         issue('error', 'INF008', `Information Item의 visibility가 올바르지 않습니다: ${model.visibility}`, diagram, element);
       }
-      for (const field of ['attributes', 'operations', 'receptions']) {
+      for (const field of ['attributes', 'operations', 'receptions'] as const) {
         if (model[field] !== undefined && !Array.isArray(model[field])) {
           issue('error', 'INF009', `Information Item의 ${field} 목록이 올바르지 않습니다.`, diagram, element);
         }
@@ -1052,7 +1110,7 @@
     });
   }
 
-  function validateBlockDefinitionDiagram(diagram, kindOf, modelOf, issue, models) {
+  function validateBlockDefinitionDiagram(diagram: EditorDiagram, kindOf: KindOf, modelOf: ModelOf, issue: ReportIssue, models: DiagramModels) {
     if (diagram.type !== 'bdd') return;
     const classifierKinds = new Set(['block', 'valuetype', 'interfaceblock', 'constraintblock']);
     const elementKinds = new Set([...classifierKinds, 'port', 'object', 'note']);
@@ -1063,15 +1121,15 @@
     const listFields = new Set([
       'parts', 'references', 'values', 'flowProperties', 'constraintProperties',
       'properties', 'constraints', 'constraintParameters', 'operations', 'receptions',
-    ]);
+    ] as const);
     const elements = new Map(diagram.elements.map(element => [element.id, element]));
-    const validBorderAnchor = view => {
+    const validBorderAnchor = (view: DiagramElement) => {
       const anchor = view.borderAnchor;
       return anchor && Number.isFinite(anchor.fx) && Number.isFinite(anchor.fy)
         && anchor.fx >= 0 && anchor.fx <= 1 && anchor.fy >= 0 && anchor.fy <= 1
         && (anchor.fx === 0 || anchor.fx === 1 || anchor.fy === 0 || anchor.fy === 1);
     };
-    const propertyName = raw => String(raw || '')
+    const propertyName = (raw: unknown) => String(raw || '')
       .replace(/^\s*«[^»]+»\s*/, '')
       .replace(/^\s*(?:inout|in|out)\s+/i, '')
       .replace(/^\s*[+\-#~]\s*/, '')
@@ -1099,11 +1157,11 @@
         if (kind === 'valuetype' && !String(model.quantityKind || '').trim()) {
           issue('warning', 'BDD005', 'Value Type에 Quantity Kind가 지정되지 않았습니다.', diagram, element);
         }
-        const names = new Map();
-        [
+        const names = new Map<string, string>();
+        ([
           'parts', 'references', 'values', 'flowProperties',
           'constraintProperties', 'properties', 'constraintParameters',
-        ].forEach(field => {
+        ] as const).forEach(field => {
           (Array.isArray(model[field]) ? model[field] : []).forEach(raw => {
             const name = propertyName(raw);
             if (!name) {
@@ -1117,7 +1175,7 @@
         });
       }
       if (kind === 'port') {
-        const owner = elements.get(element.parentId);
+        const owner = findById(elements, element.parentId);
         if (!owner || !new Set(['block', 'interfaceblock', 'constraintblock']).has(kindOf(owner))) {
           issue('error', 'BDD008', 'Port는 Block, Interface Block 또는 Constraint Block에 포함되어야 합니다.', diagram, element);
         }
@@ -1130,7 +1188,7 @@
         } else if (!models[classifierId] || !classifierKinds.has(models[classifierId].kind)) {
           issue('error', 'BDD011', 'Port가 참조하는 Block Classifier Type이 올바르지 않습니다.', diagram, element);
         }
-        ['providedInterfaceModelId', 'requiredInterfaceModelId'].forEach(field => {
+        interfaceFields.forEach(field => {
           const interfaceId = model[field];
           if (interfaceId && (!models[interfaceId] || !['interface', 'interfaceblock'].includes(models[interfaceId].kind))) {
             issue('error', 'BDD012', 'Port가 참조하는 Provided/Required Interface가 올바르지 않습니다.', diagram, element);
@@ -1148,8 +1206,8 @@
     });
 
     const seen = new Set();
-    const generalizations = [];
-    const compositions = [];
+    const generalizations: DiagramRelation[] = [];
+    const compositions: DiagramRelation[] = [];
     diagram.relations.forEach(relation => {
       const kind = kindOf(relation);
       if (!relationKinds.has(kind)) {
@@ -1183,7 +1241,7 @@
         }
         if (kind === 'composition') compositions.push(relation);
       } else {
-        const structural = view => classifierKinds.has(kindOf(view)) || kindOf(view) === 'object';
+        const structural = (view: DiagramElement) => classifierKinds.has(kindOf(view)) || kindOf(view) === 'object';
         if (!structural(from) || !structural(to)) {
           issue('error', 'BDD021', `${kind}의 연결 대상이 올바르지 않습니다.`, diagram, relation);
         }
@@ -1196,14 +1254,16 @@
       }
     });
 
-    const validateCycle = (relations, code, message) => {
-      const graph = new Map();
+    const validateCycle = (relations: DiagramRelation[], code: string, message: string) => {
+      const graph = new Map<string, { to: string; relation: DiagramRelation }[]>();
       relations.forEach(relation => {
-        if (!graph.has(relation.from)) graph.set(relation.from, []);
-        graph.get(relation.from).push({ to: relation.to, relation });
+        const group = graph.get(relation.from);
+        const edge = { to: relation.to, relation };
+        if (group) group.push(edge);
+        else graph.set(relation.from, [edge]);
       });
       const visiting = new Set(), visited = new Set(), reported = new Set();
-      const walk = id => {
+      const walk = (id: string): boolean => {
         if (visiting.has(id)) return true;
         if (visited.has(id)) return false;
         visiting.add(id);
@@ -1222,7 +1282,7 @@
     validateCycle(compositions, 'BDD024', 'Block Composition 계층이 순환합니다.');
   }
 
-  function validateInternalBlockDiagram(diagram, kindOf, modelOf, issue, models) {
+  function validateInternalBlockDiagram(diagram: EditorDiagram, kindOf: KindOf, modelOf: ModelOf, issue: ReportIssue, models: DiagramModels) {
     if (diagram.type !== 'ibd') return;
     const allowedElements = new Set(['ibdframe', 'part', 'reference', 'value', 'port', 'note']);
     const containerKinds = new Set(['ibdframe', 'part', 'reference']);
@@ -1232,7 +1292,7 @@
     const itemFlowKinds = new Set(['informationitem', 'block', 'valuetype', 'interfaceblock']);
     const elements = new Map(diagram.elements.map(element => [element.id, element]));
     const frames = diagram.elements.filter(element => kindOf(element) === 'ibdframe');
-    const validBorderAnchor = view => {
+    const validBorderAnchor = (view: DiagramElement) => {
       const anchor = view.borderAnchor;
       return anchor && Number.isFinite(anchor.fx) && Number.isFinite(anchor.fy)
         && anchor.fx >= 0 && anchor.fx <= 1 && anchor.fy >= 0 && anchor.fy <= 1
@@ -1259,7 +1319,7 @@
         return;
       }
       if (kind === 'note') return;
-      const owner = elements.get(element.parentId);
+      const owner = findById(elements, element.parentId);
       if (!owner || !containerKinds.has(kindOf(owner))) {
         issue('error', 'IBD006', `${kind}은 IBD Frame, Part 또는 Reference에 포함되어야 합니다.`, diagram, element);
       }
@@ -1281,7 +1341,7 @@
         } else if (!structuralTypes.has(classifier.kind)) {
           issue('error', 'IBD011', 'Port가 참조하는 Type이 올바르지 않습니다.', diagram, element);
         }
-        ['providedInterfaceModelId', 'requiredInterfaceModelId'].forEach(field => {
+        interfaceFields.forEach(field => {
           const interfaceId = model[field];
           if (interfaceId && (!models[interfaceId] || !['interface', 'interfaceblock'].includes(models[interfaceId].kind))) {
             issue('error', 'IBD012', 'Port가 참조하는 Provided/Required Interface가 올바르지 않습니다.', diagram, element);
@@ -1317,7 +1377,7 @@
         issue('error', 'IBD017', 'Connector의 Item Flow 참조가 올바르지 않습니다.', diagram, relation);
       }
       if (Array.isArray(itemFlowIds) && itemFlowIds.length) {
-        const endpointTyped = view => !!modelOf(view).classifierModelId;
+        const endpointTyped = (view: DiagramElement) => !!modelOf(view).classifierModelId;
         if (!endpointTyped(from) || !endpointTyped(to)) {
           issue('warning', 'IBD018', 'Item Flow가 있는 Connector의 양 끝에는 Type을 지정하는 것이 좋습니다.', diagram, relation);
         }
@@ -1331,7 +1391,7 @@
     });
   }
 
-  function validateParametricDiagram(diagram, kindOf, modelOf, issue, models) {
+  function validateParametricDiagram(diagram: EditorDiagram, kindOf: KindOf, modelOf: ModelOf, issue: ReportIssue, models: DiagramModels) {
     if (diagram.type !== 'parametric') return;
     const allowedElements = new Set([
       'parametricframe', 'constraintproperty', 'constraintparameter', 'value', 'note',
@@ -1340,13 +1400,13 @@
     const connectableKinds = new Set(['constraintparameter', 'value']);
     const elements = new Map(diagram.elements.map(element => [element.id, element]));
     const frames = diagram.elements.filter(element => kindOf(element) === 'parametricframe');
-    const validBorderAnchor = view => {
+    const validBorderAnchor = (view: DiagramElement) => {
       const anchor = view.borderAnchor;
       return anchor && Number.isFinite(anchor.fx) && Number.isFinite(anchor.fy)
         && anchor.fx >= 0 && anchor.fx <= 1 && anchor.fy >= 0 && anchor.fy <= 1
         && (anchor.fx === 0 || anchor.fx === 1 || anchor.fy === 0 || anchor.fy === 1);
     };
-    const parameterName = raw => String(raw || '')
+    const parameterName = (raw: unknown) => String(raw || '')
       .replace(/^\s*[+\-#~]\s*/, '')
       .split(/[:=]/)[0].trim().toLowerCase();
 
@@ -1371,7 +1431,7 @@
         return;
       }
       if (kind === 'note') return;
-      const owner = elements.get(element.parentId);
+      const owner = findById(elements, element.parentId);
       if (kind === 'constraintproperty' || kind === 'value') {
         if (!owner || kindOf(owner) !== 'parametricframe') {
           issue('error', 'PAR006', `${kind}은 Parametric Frame에 포함되어야 합니다.`, diagram, element);
@@ -1405,7 +1465,7 @@
           issue('error', 'PAR012', 'Value Property는 Block 또는 Value Type을 참조해야 합니다.', diagram, element);
         } else if (classifier.kind === 'valuetype') {
           const compatibility = defaultValueUnitCompatibility(model.defaultValue, classifier);
-          if (compatibility.code) {
+          if ((compatibility.status === 'error' || compatibility.status === 'warning') && compatibility.code) {
             issue(compatibility.status, compatibility.code, compatibility.message, diagram, element);
           }
         }
@@ -1452,7 +1512,7 @@
       const fromType = modelOf(from).classifierModelId;
       const toType = modelOf(to).classifierModelId;
       const compatibility = bindingTypeCompatibility(fromType, toType, models);
-      if (compatibility.code) {
+      if ((compatibility.status === 'error' || compatibility.status === 'warning') && compatibility.code) {
         issue(compatibility.status, compatibility.code, compatibility.message, diagram, relation);
       }
       const key = [relation.from, relation.to].sort().join('::');
@@ -1470,8 +1530,8 @@
   }
 
   function validateRequirementDiagram(
-    diagram, kindOf, modelOf, issue,
-    requirementIds, validatedRequirementModels,
+    diagram: EditorDiagram, kindOf: KindOf, modelOf: ModelOf, issue: ReportIssue,
+    requirementIds: Map<string, DiagramElement>, validatedRequirementModels: Set<string>,
   ) {
     if (diagram.type !== 'requirement') return;
     const endpointKinds = new Set([
@@ -1563,14 +1623,16 @@
       }
     });
 
-    const validateLocalCycle = (kind, code, message) => {
-      const graph = new Map();
+    const validateLocalCycle = (kind: string, code: string, message: string) => {
+      const graph = new Map<string, { to: string; relation: DiagramRelation }[]>();
       diagram.relations.filter(relation => kindOf(relation) === kind).forEach(relation => {
-        if (!graph.has(relation.from)) graph.set(relation.from, []);
-        graph.get(relation.from).push({ to: relation.to, relation });
+        const group = graph.get(relation.from);
+        const edge = { to: relation.to, relation };
+        if (group) group.push(edge);
+        else graph.set(relation.from, [edge]);
       });
       const visiting = new Set(), visited = new Set(), reported = new Set();
-      const walk = node => {
+      const walk = (node: string): boolean => {
         if (visiting.has(node)) return true;
         if (visited.has(node)) return false;
         visiting.add(node);
@@ -1590,7 +1652,7 @@
     validateLocalCycle('derivereqt', 'REQ017', 'Requirement DeriveReqt 관계가 순환합니다.');
   }
 
-  function validateEntity(model, diagram, view, issue) {
+  function validateEntity(model: DiagramModel, diagram: EditorDiagram, view: DiagramElement, issue: ReportIssue) {
     if (!Array.isArray(model.columns)) {
       issue('error', 'ERD003', 'Entity의 컬럼 목록 형식이 올바르지 않습니다.', diagram, view);
       return;
@@ -1614,11 +1676,11 @@
     try {
       validateErdSchema(model, parsed.map(column => column.phys).filter(Boolean));
     } catch (error) {
-      issue('error', 'ERD009', `DDL 제약조건 또는 인덱스가 올바르지 않습니다: ${error.message}`, diagram, view);
+      issue('error', 'ERD009', `DDL 제약조건 또는 인덱스가 올바르지 않습니다: ${error instanceof Error ? error.message : String(error)}`, diagram, view);
     }
   }
 
-  function validateErdForeignKey(model, diagram, relation, from, to, modelOf, kindOf, issue) {
+  function validateErdForeignKey(model: DiagramModel, diagram: EditorDiagram, relation: DiagramRelation, from: DiagramElement, to: DiagramElement, modelOf: ModelOf, kindOf: KindOf, issue: ReportIssue) {
     const foreignKeyEnd = String(model.foreignKeyEnd || '');
     const sourceColumnName = String(model.sourceColumnName || '').trim();
     const targetColumnName = String(model.targetColumnName || '').trim();
@@ -1626,7 +1688,7 @@
     try {
       actions = validateReferentialActions(model);
     } catch (error) {
-      issue('error', 'ERD010', `FK 참조 동작이 올바르지 않습니다: ${error.message}`, diagram, relation);
+      issue('error', 'ERD010', `FK 참조 동작이 올바르지 않습니다: ${error instanceof Error ? error.message : String(error)}`, diagram, relation);
       return;
     }
     if (!foreignKeyEnd && !sourceColumnName && !targetColumnName && !actions.onDelete && !actions.onUpdate) return;
@@ -1638,7 +1700,7 @@
       issue('error', 'ERD004', 'FK 연결의 양끝은 Entity여야 합니다.', diagram, relation);
       return;
     }
-    const columnAt = (entity, name) => {
+    const columnAt = (entity: DiagramElement, name: string) => {
       const columns = modelOf(entity).columns;
       if (!Array.isArray(columns)) return null;
       const key = name.toLocaleLowerCase();
@@ -1668,7 +1730,7 @@
         `단일 컬럼 FK의 참조 대상은 단일 PK여야 합니다: ${referencedColumn.phys}`,
         diagram, relation);
     }
-    const normalizeType = value => String(value || '').trim().replace(/\s+/g, ' ').toLocaleUpperCase();
+    const normalizeType = (value: unknown) => String(value || '').trim().replace(/\s+/g, ' ').toLocaleUpperCase();
     if (normalizeType(foreignKeyColumn.type) !== normalizeType(referencedColumn.type)) {
       issue('warning', 'ERD008',
         `FK와 참조 컬럼의 타입이 다릅니다: ${foreignKeyColumn.type || '(없음)'} ↔ ${referencedColumn.type || '(없음)'}`,
@@ -1705,4 +1767,4 @@
     defaultValueUnitCompatibility,
     severityOrder,
   };
-});
+}

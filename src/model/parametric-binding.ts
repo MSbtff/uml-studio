@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use strict';
 
 /* Parametric diagram support — Constraint Parameter ports and the Binding
@@ -8,11 +7,16 @@
    must leave the port. Geometry, the orthogonal router and the element factory
    are injected, so this module owns only the parametric rules and the route
    cache for the diagram being rendered. */
-(function initParametricBindingModule(root, factory) {
+type ParametricBindingApi = ReturnType<typeof createParametricBindingModule>;
+declare var UMLParametricBinding: ParametricBindingApi;
+
+(function initParametricBindingModule(root: typeof globalThis & { UMLParametricBinding?: ParametricBindingApi }, factory: () => ParametricBindingApi) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLParametricBinding = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createParametricBindingModule() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createParametricBindingModule);
+
+function createParametricBindingModule() {
   const REQUIRED_FUNCTIONS = Object.freeze([
     'adoptView',
     'byId',
@@ -33,11 +37,11 @@
     'setSelection',
     'snap',
     'snapshot',
-  ]);
+  ] as const);
   const REQUIRED_VALUES = Object.freeze([
     'GRID',
     'state',
-  ]);
+  ] as const);
   const ROUTING = Object.freeze({
     /* how far a route keeps away from the boxes it passes */
     clearance: 14,
@@ -53,9 +57,33 @@
     jumpCrossings: [], jumpCount: 0,
   });
 
-  function create(dependencies) {
-    const deps = dependencies || {};
-    const missing = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
+  interface ParametricBindingDependencies {
+    adoptView: (view: DiagramElement) => DiagramElement;
+    byId: (id: string | null | undefined) => DiagramElement | undefined | null;
+    childViews: (id: string) => DiagramElement[];
+    collectPolylineCrossings: (points: readonly DiagramPoint[], routes: DiagramPoint[][]) => BindingCrossing[];
+    compactBindingWaypoints: (points: readonly DiagramPoint[]) => DiagramPoint[];
+    createElement: (kind: string, x: number, y: number) => DiagramElement;
+    dg: () => EditorDiagram;
+    distanceAlongPolyline: (point: DiagramPoint, points: DiagramPoint[]) => number;
+    flashStatus: (message: string) => void;
+    instanceClassifier: (view: DiagramElement) => DiagramModel | null | undefined;
+    nearestPolylineSegmentIndex: (point: DiagramPoint, points: DiagramPoint[]) => number;
+    parseConstraintParameterDefinition: (raw: string) => { name: string; typeName: string } | null;
+    relEndpoints: (relation: DiagramRelation) => DiagramEndpoints | null;
+    renderAll: () => void;
+    routeManualOrthogonal: (options: BindingRouteOptions & { waypoints: DiagramPoint[] }) => OrthogonalRoute;
+    routeOrthogonal: (options: BindingRouteOptions) => OrthogonalRoute;
+    setSelection: (ids: string[]) => void;
+    snap: (value: number) => number;
+    snapshot: () => void;
+    GRID: number;
+    state: { models: DiagramModels };
+  }
+
+  function create(dependencies?: ParametricBindingDependencies) {
+    const deps: Partial<ParametricBindingDependencies> = dependencies || {};
+    const missing: string[] = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
     REQUIRED_VALUES.forEach(name => {
       if (deps[name] == null) missing.push(name);
     });
@@ -85,20 +113,20 @@
       snapshot,
       GRID,
       state,
-    } = deps;
+    } = deps as ParametricBindingDependencies;
 
     /* routes for the diagram currently being rendered, keyed by relation id */
-    let routeCache = new Map();
+    let routeCache = new Map<string, BindingRoute>();
 
     /* ── Constraint Parameters ───────────────────────────────── */
 
     /* the parameters declared by the Constraint Block this property is typed
        by, in declaration order and without duplicate names */
-    function declaredParameters(classifier) {
+    function declaredParameters(classifier: DiagramModel) {
       const names = new Set();
       return (classifier.constraintParameters || [])
         .map(parseConstraintParameterDefinition)
-        .filter(definition => definition && definition.name)
+        .filter((definition): definition is NonNullable<typeof definition> => Boolean(definition?.name))
         .filter(definition => {
           const key = definition.name.toLowerCase();
           if (names.has(key)) return false;
@@ -108,13 +136,13 @@
     }
 
     /* parameters alternate left/right border, each side spread evenly */
-    function borderAnchorFor(index, sideCounts) {
+    function borderAnchorFor(index: number, sideCounts: [number, number]) {
       const side = index % 2;
       const sideIndex = Math.floor(index / 2);
       return { fx: side, fy: (sideIndex + 1) / (sideCounts[side] + 1) };
     }
 
-    function syncConstraintParameters(container) {
+    function syncConstraintParameters(container: DiagramElement) {
       const classifier = instanceClassifier(container);
       if (!classifier || classifier.kind !== 'constraintblock') {
         flashStatus('먼저 Constraint Block Type을 선택하세요');
@@ -139,7 +167,7 @@
 
       const typeCandidates = Object.values(state.models)
         .filter(model => CONSTRAINT_TYPE_KINDS.includes(model.kind));
-      const sideCounts = [
+      const sideCounts: [number, number] = [
         declarations.filter((_, index) => index % 2 === 0).length,
         declarations.filter((_, index) => index % 2 === 1).length,
       ];
@@ -169,7 +197,7 @@
 
     /* which way a route leaves this view: an anchored parameter uses the
        border it was pinned to, anything else uses its nearest edge */
-    function portDirection(view, point) {
+    function portDirection(view: DiagramElement, point: DiagramPoint) {
       if (view.kind === 'constraintparameter') {
         const owner = byId(view.parentId);
         const anchor = view.borderAnchor;
@@ -191,7 +219,7 @@
 
     /* everything a route has to avoid: the frame is scenery, and the two
        views being connected are where the route starts and ends */
-    function obstaclesFor(diagram, from, to) {
+    function obstaclesFor(diagram: EditorDiagram, from: DiagramElement, to: DiagramElement) {
       const excluded = new Set([from.id, to.id]);
       return diagram.elements
         .filter(element => element.kind !== 'parametricframe'
@@ -202,10 +230,10 @@
     }
 
     /* routes are laid one at a time so each can see and jump the earlier ones */
-    function computeRoutes(diagram) {
+    function computeRoutes(diagram: EditorDiagram | null | undefined) {
       routeCache = new Map();
       if (!diagram || diagram.type !== 'parametric') return;
-      const existingRoutes = [];
+      const existingRoutes: DiagramPoint[][] = [];
       diagram.relations.filter(relation => relation.kind === 'bindingconnector').forEach(relation => {
         const endpoints = relEndpoints(relation);
         const from = byId(relation.from), to = byId(relation.to);
@@ -223,16 +251,15 @@
         const route = relation.routeMode === 'manual'
           ? routeManualOrthogonal({ ...routeOptions, waypoints: waypoints(relation) })
           : routeOrthogonal(routeOptions);
-        route.jumpCrossings = relation.jumpStyle === 'none'
+        const jumpCrossings = relation.jumpStyle === 'none'
           ? []
           : collectPolylineCrossings(route.points, existingRoutes);
-        route.jumpCount = route.jumpCrossings.length;
-        routeCache.set(relation.id, route);
+        routeCache.set(relation.id, { ...route, jumpCrossings, jumpCount: jumpCrossings.length });
         existingRoutes.push(route.points);
       });
     }
 
-    function route(r) {
+    function route(r: DiagramRelation): BindingRoute | null {
       const cached = routeCache.get(r.id);
       if (cached) return cached;
       const endpoints = relEndpoints(r);
@@ -241,14 +268,14 @@
 
     /* ── Manual waypoints ────────────────────────────────────── */
 
-    function waypoints(r) {
+    function waypoints(r: DiagramRelation) {
       return (Array.isArray(r.manualPoints) ? r.manualPoints : [])
         .filter(point => Number.isFinite(point?.x) && Number.isFinite(point?.y))
         .map(point => ({ x: point.x, y: point.y }));
     }
 
     /* freeze the route as it looks now so later edits stop moving it */
-    function lock(r) {
+    function lock(r: DiagramRelation | null | undefined) {
       if (!r || r.kind !== 'bindingconnector') return;
       if (r.routeMode === 'manual' && Array.isArray(r.manualPoints)) return;
       const current = route(r);
@@ -256,18 +283,18 @@
       r.manualPoints = compactBindingWaypoints((current?.points || []).slice(1, -1));
     }
 
-    function unlock(r) {
+    function unlock(r: DiagramRelation | null | undefined) {
       if (!r || r.kind !== 'bindingconnector') return;
       delete r.routeMode;
       delete r.manualPoints;
     }
 
-    function addWaypoint(r, point, segmentIndex) {
+    function addWaypoint(r: DiagramRelation | null | undefined, point: DiagramPoint, segmentIndex?: number) {
       if (!r || r.kind !== 'bindingconnector' || waypoints(r).length >= ROUTING.maxWaypoints) return false;
       const current = route(r);
       if (!current?.points?.length || current.points.length > ROUTING.maxWaypoints + 1) return false;
       const routePoints = current.points.map(item => ({ x: item.x, y: item.y }));
-      const index = Number.isInteger(segmentIndex)
+      const index = segmentIndex !== undefined && Number.isInteger(segmentIndex)
         ? Math.max(0, Math.min(routePoints.length - 2, segmentIndex))
         : nearestPolylineSegmentIndex(point, routePoints);
       const existing = r.routeMode === 'manual'
@@ -307,4 +334,4 @@
     ROUTING,
     create,
   });
-});
+}

@@ -1,9 +1,13 @@
-// @ts-nocheck
-(function initCommandRouterModule(root, factory) {
+type CommandRouterApi = ReturnType<typeof createCommandRouterModule>;
+declare var UMLCommandRouter: CommandRouterApi;
+
+(function initCommandRouterModule(root: typeof globalThis & { UMLCommandRouter?: CommandRouterApi }, factory: () => CommandRouterApi) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLCommandRouter = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createCommandRouterModule() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createCommandRouterModule);
+
+function createCommandRouterModule() {
   'use strict';
 
   const REQUIRED_FUNCTIONS = Object.freeze([
@@ -12,10 +16,50 @@
     'hasClipboard', 'hasElementSelection', 'hasSelection', 'isMinimapVisible',
     'isValidationVisible', 'moveSelection', 'openSelectedMemberQuickEdit',
     'openSelectedQuickEdit', 'selectAll',
-  ]);
-  const REQUIRED_VALUES = Object.freeze(['commands', 'document', 'eventRoot', 'MutationObserver', 'toolbar']);
+  ] as const);
+  const REQUIRED_VALUES = Object.freeze(['commands', 'document', 'eventRoot', 'MutationObserver', 'toolbar'] as const);
 
-  function create(deps = {}) {
+  type MenuItem = {
+    label: string;
+    cmd: string;
+    shortcut?: string;
+    enabled?: () => boolean;
+    checked?: () => boolean;
+    sep?: false;
+  };
+  type MenuEntry = MenuItem | { sep: true; cmd?: never };
+  type TriggerBinding = {
+    trigger: HTMLElement;
+    click: (event: MouseEvent) => void;
+    mouseenter: () => void;
+    keydown: (event: KeyboardEvent) => void;
+  };
+
+  interface CommandRouterDependencies {
+    cancelInteraction: () => void;
+    canBringFront: () => boolean;
+    canRedo: () => boolean;
+    canSendBack: () => boolean;
+    canUndo: () => boolean;
+    closeTabMenu: () => boolean;
+    closeTopModal: () => boolean;
+    hasClipboard: () => boolean;
+    hasElementSelection: () => boolean;
+    hasSelection: () => boolean;
+    isMinimapVisible: () => boolean;
+    isValidationVisible: () => boolean;
+    moveSelection: (key: string, coarse: boolean) => boolean;
+    openSelectedMemberQuickEdit: (backward: boolean) => boolean;
+    openSelectedQuickEdit: () => boolean;
+    selectAll: () => void;
+    commands: Readonly<Partial<Record<string, () => unknown>>>;
+    document: Document;
+    eventRoot: Window;
+    MutationObserver: typeof MutationObserver;
+    toolbar: HTMLElement;
+  }
+
+  function create(deps: Partial<CommandRouterDependencies> = {}) {
     REQUIRED_FUNCTIONS.forEach(name => {
       if (typeof deps[name] !== 'function') throw new Error(`UMLCommandRouter requires ${name}()`);
     });
@@ -30,18 +74,18 @@
       isValidationVisible, moveSelection, openSelectedMemberQuickEdit,
       openSelectedQuickEdit, selectAll,
       commands, document, eventRoot, MutationObserver, toolbar,
-    } = deps;
-    const triggerBindings = [];
-    const menuTriggers = [];
-    let toolbarKey = null;
-    let toolbarFocused = null;
-    let toolbarObserver = null;
-    let menuItems = [];
-    let menuPopup = null;
-    let openTrigger = null;
+    } = deps as CommandRouterDependencies;
+    const triggerBindings: TriggerBinding[] = [];
+    const menuTriggers: HTMLElement[] = [];
+    let toolbarKey: string | null = null;
+    let toolbarFocused: HTMLButtonElement | null = null;
+    let toolbarObserver: MutationObserver | null = null;
+    let menuItems: HTMLButtonElement[] = [];
+    let menuPopup: HTMLDivElement | null = null;
+    let openTrigger: HTMLElement | null = null;
     let attached = false;
 
-    const menuDefinitions = Object.freeze({
+    const menuDefinitions: Readonly<Partial<Record<string, readonly MenuEntry[]>>> = Object.freeze({
       file: [
         { label: 'New Project', cmd: 'new', shortcut: 'Ctrl+N' },
         { label: 'Open…', cmd: 'open', shortcut: 'Ctrl+O' },
@@ -108,25 +152,25 @@
       help: [{ label: 'About UML Studio', cmd: 'about' }],
     });
     Object.values(menuDefinitions).forEach(definitions => {
-      definitions.forEach(Object.freeze);
+      definitions?.forEach(Object.freeze);
       Object.freeze(definitions);
     });
     const missingCommands = [...new Set(Object.values(menuDefinitions)
       .flat()
-      .map(definition => definition.cmd)
+      .map(definition => definition?.cmd)
       .filter(commandName => commandName && typeof commands[commandName] !== 'function'))];
     if (missingCommands.length) {
       throw new Error(`UMLCommandRouter missing commands: ${missingCommands.join(', ')}`);
     }
 
-    function run(commandName) {
+    function run(commandName: string) {
       const command = commands[commandName];
       if (typeof command !== 'function') return false;
       command();
       return true;
     }
 
-    function focusNode(node) {
+    function focusNode(node?: HTMLElement | null) {
       if (!node || typeof node.focus !== 'function') return false;
       node.focus();
       return true;
@@ -134,14 +178,14 @@
 
     /* the menubar triggers, falling back to the DOM before attach() has run */
     function triggerList() {
-      return menuTriggers.length ? menuTriggers : [...document.querySelectorAll('#menubar .menu')];
+      return menuTriggers.length ? menuTriggers : [...document.querySelectorAll<HTMLElement>('#menubar .menu')];
     }
 
-    function wrapIndex(index, length) {
+    function wrapIndex(index: number, length: number) {
       return ((index % length) + length) % length;
     }
 
-    function prepareTrigger(trigger, index) {
+    function prepareTrigger(trigger: HTMLElement, index: number) {
       trigger.setAttribute('role', 'menuitem');
       trigger.setAttribute('aria-haspopup', 'true');
       trigger.setAttribute('aria-expanded', 'false');
@@ -150,11 +194,11 @@
     }
 
     /* roving tabindex: the menubar is a single tab stop */
-    function setTabStop(activeTrigger) {
+    function setTabStop(activeTrigger: HTMLElement) {
       triggerList().forEach(trigger => { trigger.tabIndex = trigger === activeTrigger ? 0 : -1; });
     }
 
-    function focusTriggerAt(index) {
+    function focusTriggerAt(index: number) {
       const triggers = triggerList();
       if (!triggers.length) return null;
       const target = triggers[wrapIndex(index, triggers.length)];
@@ -164,19 +208,19 @@
     }
 
     /* W3C APG keeps unavailable menu items focusable so they stay discoverable */
-    function isItemDisabled(item) {
-      return item.getAttribute?.('aria-disabled') === 'true' || item.attributes?.['aria-disabled'] === 'true';
+    function isItemDisabled(item: HTMLButtonElement) {
+      return item.getAttribute?.('aria-disabled') === 'true' || item.attributes?.getNamedItem?.('aria-disabled')?.value === 'true';
     }
 
-    function focusItemAt(index) {
+    function focusItemAt(index: number) {
       if (!menuItems.length) return false;
       return focusNode(menuItems[wrapIndex(index, menuItems.length)]);
     }
 
-    function focusMatchingItem(character) {
+    function focusMatchingItem(character: string) {
       if (!menuItems.length) return false;
       const needle = character.toLowerCase();
-      const start = menuItems.indexOf(document.activeElement) + 1;
+      const start = menuItems.findIndex(item => item === document.activeElement) + 1;
       for (let step = 0; step < menuItems.length; step += 1) {
         const item = menuItems[wrapIndex(start + step, menuItems.length)];
         if ((item.dataset.label || '').toLowerCase().startsWith(needle)) return focusNode(item);
@@ -190,7 +234,7 @@
       return active === openTrigger || menuPopup.contains?.(active) === true;
     }
 
-    function closeMenu(options = {}) {
+    function closeMenu(options: { restoreFocus?: boolean | 'auto' } = {}) {
       const hadMenu = !!menuPopup;
       const lastTrigger = openTrigger;
       const restoreFocus = options.restoreFocus === 'auto'
@@ -200,7 +244,7 @@
       menuPopup = null;
       menuItems = [];
       openTrigger = null;
-      document.querySelectorAll('#menubar .menu').forEach(node => {
+      document.querySelectorAll<HTMLElement>('#menubar .menu').forEach(node => {
         node.classList.remove('menu-open');
         node.setAttribute('aria-expanded', 'false');
         node.removeAttribute?.('aria-controls');
@@ -213,9 +257,9 @@
     }
 
     /* ArrowLeft/ArrowRight inside an open menu walks the menubar, as W3C APG requires */
-    function moveToAdjacentMenu(step) {
+    function moveToAdjacentMenu(step: number) {
       const triggers = triggerList();
-      const index = triggers.indexOf(openTrigger);
+      const index = openTrigger ? triggers.indexOf(openTrigger) : -1;
       if (index < 0 || triggers.length < 2) return false;
       const next = triggers[wrapIndex(index + step, triggers.length)];
       setTabStop(next);
@@ -223,8 +267,8 @@
       return true;
     }
 
-    function handleMenuKeydown(event) {
-      const index = menuItems.indexOf(document.activeElement);
+    function handleMenuKeydown(event: KeyboardEvent) {
+      const index = menuItems.findIndex(item => item === document.activeElement);
       const consume = () => { event.preventDefault(); event.stopPropagation?.(); };
       switch (event.key) {
         case 'ArrowDown': consume(); focusItemAt(index + 1); return;
@@ -243,7 +287,7 @@
         && focusMatchingItem(event.key)) consume();
     }
 
-    function createMenuItem(definition) {
+    function createMenuItem(definition: MenuItem) {
       const item = document.createElement('button');
       item.className = 'app-menu-item';
       item.type = 'button';
@@ -264,7 +308,7 @@
       shortcut.className = 'menu-shortcut';
       shortcut.textContent = definition.shortcut || '';
       item.append(check, label, shortcut);
-      item.addEventListener('click', (event = {}) => {
+      item.addEventListener('click', (event: Partial<MouseEvent> = {}) => {
         if (isItemDisabled(item)) return;
         /* a keyboard-fired click has detail 0; only then does focus belong on the menubar */
         closeMenu({ restoreFocus: !event.detail });
@@ -273,8 +317,8 @@
       return item;
     }
 
-    function openMenu(trigger, options = {}) {
-      const menuId = trigger.dataset.menu;
+    function openMenu(trigger: HTMLElement, options: { focus?: 'first' | 'last' } = {}) {
+      const menuId = trigger.dataset.menu || '';
       const wasSame = menuPopup && menuPopup.dataset.menu === menuId;
       closeMenu();
       if (wasSame) return false;
@@ -284,7 +328,7 @@
       popup.id = `app-menu-${menuId}`;
       popup.setAttribute('role', 'menu');
       if (trigger.id) popup.setAttribute('aria-labelledby', trigger.id);
-      const items = [];
+      const items: HTMLButtonElement[] = [];
       (menuDefinitions[menuId] || []).forEach(definition => {
         if (definition.sep) {
           const separator = document.createElement('div');
@@ -313,13 +357,13 @@
       return true;
     }
 
-    function handleKeydown(event) {
+    function handleKeydown(event: KeyboardEvent) {
       if (event.key === 'F9') {
         event.preventDefault();
         run('validate');
         return;
       }
-      if (event.target?.matches?.('input, textarea, select')) return;
+      if ((event.target as Element | null)?.matches?.('input, textarea, select')) return;
       const mod = event.metaKey || event.ctrlKey;
       if (event.key === 'Enter' && mod && !event.altKey && openSelectedMemberQuickEdit(event.shiftKey)) {
         event.preventDefault();
@@ -330,7 +374,7 @@
         return;
       }
       const key = event.key.toLowerCase();
-      const shortcutCommands = {
+      const shortcutCommands: Readonly<Partial<Record<string, string>>> = {
         n: 'new', o: 'open', s: 'save', f: 'explorerfocus',
         '9': 'fit', '0': 'zoomreset', c: 'copy', x: 'cut', v: 'paste', d: 'duplicate',
       };
@@ -369,9 +413,10 @@
         selectAll();
         return;
       }
-      if (mod && shortcutCommands[key]) {
+      const shortcut = shortcutCommands[key];
+      if (mod && shortcut) {
         event.preventDefault();
-        run(shortcutCommands[key]);
+        run(shortcut);
         return;
       }
       if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)
@@ -392,8 +437,9 @@
       }
     }
 
-    function handleDocumentMouseDown(event) {
-      if (menuPopup && !menuPopup.contains(event.target) && !event.target.closest?.('#menubar .menu')) closeMenu();
+    function handleDocumentMouseDown(event: MouseEvent) {
+      const target = event.target as Element | null;
+      if (menuPopup && !menuPopup.contains(target) && !target?.closest?.('#menubar .menu')) closeMenu();
     }
 
     /* ── Toolbar: one tab stop, arrow keys inside ─────────────── */
@@ -401,18 +447,18 @@
     /* #erdmode and #seqopts are rebuilt on every canvas render, so the button
        list is queried live rather than cached */
     function toolbarButtons() {
-      return [...toolbar.querySelectorAll('button:not([disabled])')]
+      return [...toolbar.querySelectorAll<HTMLButtonElement>('button:not([disabled])')]
         .filter(button => button.offsetParent === undefined || button.offsetParent !== null);
     }
 
-    function toolbarButtonKey(button) {
+    function toolbarButtonKey(button: HTMLButtonElement) {
       return button.dataset?.cmd ? `cmd:${button.dataset.cmd}` : `label:${button.textContent}`;
     }
 
-    function syncToolbarTabStops(preferred) {
+    function syncToolbarTabStops(preferred?: Element | null) {
       const buttons = toolbarButtons();
       if (!buttons.length) return null;
-      let chosen = buttons.includes(preferred) ? preferred : null;
+      let chosen = buttons.find(button => button === preferred);
       if (!chosen && toolbarKey) chosen = buttons.find(button => toolbarButtonKey(button) === toolbarKey);
       if (!chosen) [chosen] = buttons;
       buttons.forEach(button => { button.tabIndex = button === chosen ? 0 : -1; });
@@ -420,7 +466,7 @@
       return chosen;
     }
 
-    function focusToolbarAt(index) {
+    function focusToolbarAt(index: number) {
       const buttons = toolbarButtons();
       if (!buttons.length) return false;
       const target = buttons[wrapIndex(index, buttons.length)];
@@ -429,8 +475,8 @@
       return focusNode(target);
     }
 
-    function handleToolbarKeydown(event) {
-      const button = event.target?.closest?.('button');
+    function handleToolbarKeydown(event: KeyboardEvent) {
+      const button = (event.target as Element | null)?.closest?.('button');
       if (!button) return;
       const index = toolbarButtons().indexOf(button);
       if (index < 0) return;
@@ -449,8 +495,8 @@
       }
     }
 
-    function handleToolbarFocusIn(event) {
-      const button = event.target?.closest?.('button');
+    function handleToolbarFocusIn(event: FocusEvent) {
+      const button = (event.target as Element | null)?.closest?.('button');
       if (!button || toolbar.contains?.(button) === false) return;
       toolbarFocused = button;
       syncToolbarTabStops(button);
@@ -459,7 +505,7 @@
     /* replacing a holder's innerHTML drops the focused button on the floor */
     function handleToolbarMutations() {
       const active = document.activeElement;
-      const lostFocus = Boolean(toolbarFocused)
+      const lostFocus = toolbarFocused
         && toolbarFocused.isConnected === false
         && (!active || active === document.body);
       const chosen = syncToolbarTabStops(lostFocus ? null : active);
@@ -468,12 +514,12 @@
       focusNode(chosen);
     }
 
-    function handleToolbarClick(event) {
-      const button = event.target.closest?.('button');
+    function handleToolbarClick(event: MouseEvent) {
+      const button = (event.target as Element | null)?.closest?.('button');
       if (button?.dataset.cmd) run(button.dataset.cmd);
     }
 
-    function handleTriggerKeydown(event, trigger) {
+    function handleTriggerKeydown(event: KeyboardEvent, trigger: HTMLElement) {
       const consume = () => { event.preventDefault(); event.stopPropagation?.(); };
       const position = triggerList().indexOf(trigger);
       switch (event.key) {
@@ -505,9 +551,9 @@
       }
     }
 
-    function attachTrigger(trigger, index) {
+    function attachTrigger(trigger: HTMLElement, index: number) {
       prepareTrigger(trigger, index);
-      const click = event => {
+      const click = (event: MouseEvent) => {
         event.stopPropagation();
         setTabStop(trigger);
         openMenu(trigger);
@@ -515,7 +561,7 @@
       const mouseenter = () => {
         if (menuPopup && menuPopup.dataset.menu !== trigger.dataset.menu) openMenu(trigger);
       };
-      const keydown = event => handleTriggerKeydown(event, trigger);
+      const keydown = (event: KeyboardEvent) => handleTriggerKeydown(event, trigger);
       trigger.addEventListener('click', click);
       trigger.addEventListener('mouseenter', mouseenter);
       trigger.addEventListener('keydown', keydown);
@@ -525,7 +571,7 @@
     function attach() {
       if (attached) return;
       attached = true;
-      menuTriggers.push(...document.querySelectorAll('#menubar .menu'));
+      menuTriggers.push(...document.querySelectorAll<HTMLElement>('#menubar .menu'));
       menuTriggers.forEach(attachTrigger);
       document.addEventListener('mousedown', handleDocumentMouseDown);
       toolbar.addEventListener('click', handleToolbarClick);
@@ -561,4 +607,4 @@
   }
 
   return Object.freeze({ REQUIRED_FUNCTIONS, REQUIRED_VALUES, create });
-});
+}

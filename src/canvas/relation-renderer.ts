@@ -1,13 +1,70 @@
-// @ts-nocheck
 'use strict';
 
-(function initRelationRenderer(root, factory) {
+type SvgAttributes = Record<string, string | number | boolean | null | undefined>;
+type SvgElementFactory = <Tag extends keyof SVGElementTagNameMap>(tag: Tag, attrs: SvgAttributes, parent?: SVGElement | null) => SVGElementTagNameMap[Tag];
+interface SvgTextOptions {
+  color?: string;
+  size?: number;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  anchor?: 'start' | 'middle' | 'end';
+}
+type SvgTextFactory = (parent: SVGElement, label: string | undefined | null, x: number, y: number, options?: SvgTextOptions) => SVGTextElement;
+interface LabelOffset { dx: number; dy: number }
+interface LabeledCubicCurve extends DiagramCubicCurve { label: DiagramPoint }
+interface SelfMessagePoints { self: true; startX: number; endX: number; y: number; width: number; height: number }
+interface StraightMessagePoints extends DiagramEndpoints { self?: false }
+type MessagePoints = SelfMessagePoints | StraightMessagePoints;
+type CommunicationMessagePoints = SelfMessagePoints | (StraightMessagePoints & { normal: DiagramPoint });
+type RelationEnd = 'source' | 'target';
+interface RelationDrawingStyle { head?: string | null; dash?: string | null }
+interface ErdCardinalityMarker { canonical: string; min: 'zero' | 'one'; max: 'one' | 'many' }
+
+interface RelationRendererDependencies {
+  el: SvgElementFactory;
+  text: SvgTextFactory;
+  measureText(label: string): number;
+  headGeom(tip: DiagramPoint, angle: number, length: number, width: number): { l: DiagramPoint; r: DiagramPoint; bx: number; by: number };
+  parseErdCardinality(value?: string, fallback?: string): ErdCardinalityMarker;
+  isMessage(kind: string): boolean;
+  isCommunicationMessage(kind: string): boolean;
+  messagePoints(relation: DiagramRelation): MessagePoints | null;
+  messageLabel(relation: DiagramRelation): string;
+  communicationSelfConnectorGeometry(relation: DiagramRelation): LabeledCubicCurve | null;
+  communicationMessagePoints(relation: DiagramRelation): CommunicationMessagePoints | null;
+  stateSelfTransitionGeometry(relation: DiagramRelation): LabeledCubicCurve | null;
+  relationEndpoints(relation: DiagramRelation): DiagramEndpoints | null;
+  bindingRoute(relation: DiagramRelation): BindingRoute | null;
+  polylinePath(points: DiagramPoint[]): string;
+  polylineJumpPath(points: DiagramPoint[], crossings: BindingCrossing[], options: { style: string; radius: number }): string;
+  polylineMidpoint(points: DiagramPoint[]): DiagramPoint;
+  relationLabel(relation: DiagramRelation): string;
+  labelOffset(relation: DiagramRelation, field: string): LabelOffset;
+  branchGeometry(relation: DiagramRelation): DiagramQuadraticCurve | null;
+  bezierPoint(curve: DiagramQuadraticCurve, fraction: number): DiagramPoint;
+  relationSupportsEndQuickEdit(relation: DiagramRelation): boolean;
+  relationEndAggregation(relation: DiagramRelation, end: RelationEnd): string;
+  relationEndNavigability(relation: DiagramRelation, end: RelationEnd): string;
+  relationEndRoleLabel(relation: DiagramRelation, end: RelationEnd): string;
+  relationStyles: { association: RelationDrawingStyle } & Partial<Record<string, RelationDrawingStyle>>;
+  erRelationKinds: ReadonlySet<string>;
+  stroke?: string;
+  dashRelation?: string;
+}
+
+type RelationRendererApi = ReturnType<typeof createRelationRendererModule>;
+declare var UMLRelationRenderer: RelationRendererApi;
+
+(function initRelationRenderer(root: typeof globalThis, factory: () => RelationRendererApi) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLRelationRenderer = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createRelationRendererModule() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createRelationRendererModule);
+
+function createRelationRendererModule() {
   const ERD_LINE = '#9c4130';
-  const ERD_ENDS = Object.freeze({
+  const ERD_ENDS: Readonly<Partial<Record<string, readonly string[]>>> = Object.freeze({
     'erd-11': Object.freeze(['1', '1']),
     'erd-1n': Object.freeze(['1', '1..N']),
     'erd-nm': Object.freeze(['1..N', '1..N']),
@@ -21,9 +78,9 @@
     'polylinePath', 'polylineJumpPath', 'polylineMidpoint', 'relationLabel',
     'labelOffset', 'branchGeometry', 'bezierPoint', 'relationSupportsEndQuickEdit',
     'relationEndAggregation', 'relationEndNavigability', 'relationEndRoleLabel',
-  ];
+  ] as const;
 
-  function relationMessageStyle(relation, dashRelation = '6 4') {
+  function relationMessageStyle(relation: Pick<DiagramRelation, 'messageSort'>, dashRelation = '6 4') {
     const sort = relation.messageSort || 'synchCall';
     if (sort === 'reply') return { head: 'open', dash: dashRelation };
     if (sort === 'asynchCall' || sort === 'asynchSignal') return { head: 'open', dash: null };
@@ -32,9 +89,9 @@
     return { head: 'filled', dash: null };
   }
 
-  function create(dependencies) {
-    const deps = dependencies || {};
-    const missing = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
+  function create(dependencies?: RelationRendererDependencies) {
+    const deps: Partial<RelationRendererDependencies> = dependencies || {};
+    const missing: string[] = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
     if (!deps.relationStyles || typeof deps.relationStyles !== 'object') missing.push('relationStyles');
     if (!deps.erRelationKinds || typeof deps.erRelationKinds.has !== 'function') missing.push('erRelationKinds');
     if (missing.length) {
@@ -69,11 +126,11 @@
       relationEndRoleLabel,
       relationStyles,
       erRelationKinds,
-    } = deps;
+    } = deps as RelationRendererDependencies;
     const stroke = deps.stroke || '#3d3a2e';
     const dashRelation = deps.dashRelation || '6 4';
 
-    function drawTriangle(group, tip, angle, filled) {
+    function drawTriangle(group: SVGElement, tip: DiagramPoint, angle: number, filled: boolean) {
       const head = headGeom(tip, angle, filled ? 12 : 14, filled ? 10 : 12);
       el('path', {
         d: `M ${tip.x} ${tip.y} L ${head.l.x} ${head.l.y} L ${head.r.x} ${head.r.y} Z`,
@@ -82,7 +139,7 @@
       return { x: head.bx, y: head.by };
     }
 
-    function drawOpenArrow(group, tip, angle) {
+    function drawOpenArrow(group: SVGElement, tip: DiagramPoint, angle: number) {
       const head = headGeom(tip, angle, 12, 10);
       el('path', {
         d: `M ${head.l.x} ${head.l.y} L ${tip.x} ${tip.y} L ${head.r.x} ${head.r.y}`,
@@ -91,7 +148,7 @@
       return tip;
     }
 
-    function drawCirclePlus(group, tip, angle) {
+    function drawCirclePlus(group: SVGElement, tip: DiagramPoint, angle: number) {
       const cos = Math.cos(angle), sin = Math.sin(angle);
       const cx = tip.x - cos * 7, cy = tip.y - sin * 7;
       const px = -sin, py = cos;
@@ -104,7 +161,7 @@
       return { x: tip.x - cos * 13, y: tip.y - sin * 13 };
     }
 
-    function drawDiamond(group, tip, angle, filled) {
+    function drawDiamond(group: SVGElement, tip: DiagramPoint, angle: number, filled: boolean) {
       const length = 10, width = 8;
       const cos = Math.cos(angle), sin = Math.sin(angle);
       const middle = { x: tip.x - cos * length, y: tip.y - sin * length };
@@ -117,7 +174,7 @@
       return back;
     }
 
-    function drawXMark(group, point) {
+    function drawXMark(group: SVGElement, point: DiagramPoint) {
       const size = 6;
       el('path', {
         d: `M ${point.x - size} ${point.y - size} L ${point.x + size} ${point.y + size} M ${point.x - size} ${point.y + size} L ${point.x + size} ${point.y - size}`,
@@ -125,7 +182,7 @@
       }, group);
     }
 
-    function drawErdEnd(group, point, angle, cardinality) {
+    function drawErdEnd(group: SVGElement, point: DiagramPoint, angle: number, cardinality: ErdCardinalityMarker | string) {
       const ux = Math.cos(angle), uy = Math.sin(angle);
       const px = -uy, py = ux;
       const parsed = typeof cardinality === 'string'
@@ -134,7 +191,7 @@
       const marker = el('g', {
         'data-erd-cardinality': parsed.canonical, 'pointer-events': 'none',
       }, group);
-      const bar = distance => {
+      const bar = (distance: number) => {
         const x = point.x + ux * distance, y = point.y + uy * distance;
         el('line', {
           x1: x - px * 6, y1: y - py * 6, x2: x + px * 6, y2: y + py * 6,
@@ -160,7 +217,7 @@
       }
     }
 
-    function drawStateSelfTransition(parent, relation, curve) {
+    function drawStateSelfTransition(parent: SVGElement, relation: DiagramRelation, curve: LabeledCubicCurve) {
       const group = el('g', { 'data-rel': relation.id }, parent);
       const path = `M ${curve.p1.x} ${curve.p1.y} C ${curve.c1.x} ${curve.c1.y}, ${curve.c2.x} ${curve.c2.y}, ${curve.p2.x} ${curve.p2.y}`;
       el('path', { d: path, fill: 'none', stroke: 'transparent', 'stroke-width': 12 }, group);
@@ -174,7 +231,7 @@
       return group;
     }
 
-    function drawCommunicationSelfConnector(parent, relation, curve) {
+    function drawCommunicationSelfConnector(parent: SVGElement, relation: DiagramRelation, curve: LabeledCubicCurve) {
       const group = el('g', { 'data-rel': relation.id }, parent);
       const path = `M ${curve.p1.x} ${curve.p1.y} C ${curve.c1.x} ${curve.c1.y}, ${curve.c2.x} ${curve.c2.y}, ${curve.p2.x} ${curve.p2.y}`;
       el('path', { d: path, fill: 'none', stroke: 'transparent', 'stroke-width': 12 }, group);
@@ -186,7 +243,7 @@
       return group;
     }
 
-    function drawCommunicationMessageLabel(group, label, x, y, anchor, offset) {
+    function drawCommunicationMessageLabel(group: SVGElement, label: string, x: number, y: number, anchor: 'start' | 'middle', offset: LabelOffset) {
       if (!label) return;
       const position = offset || { dx: 0, dy: 0 };
       const tx = x + position.dx, ty = y + position.dy;
@@ -196,7 +253,7 @@
       text(group, label, tx, ty, { anchor });
     }
 
-    function drawCommunicationMessage(parent, relation) {
+    function drawCommunicationMessage(parent: SVGElement, relation: DiagramRelation) {
       const points = communicationMessagePoints(relation);
       if (!points) return undefined;
       const style = relationMessageStyle(relation, dashRelation);
@@ -249,7 +306,7 @@
       return group;
     }
 
-    function drawBindingConnector(parent, relation) {
+    function drawBindingConnector(parent: SVGElement, relation: DiagramRelation) {
       const route = bindingRoute(relation);
       if (!route || route.points.length < 2) return undefined;
       const jumpStyle = relation.jumpStyle || 'arc';
@@ -279,7 +336,7 @@
       return group;
     }
 
-    function drawBranch(parent, relation) {
+    function drawBranch(parent: SVGElement, relation: DiagramRelation) {
       const geometry = branchGeometry(relation);
       if (!geometry) return undefined;
       const group = el('g', { 'data-rel': relation.id }, parent);
@@ -297,7 +354,7 @@
       return group;
     }
 
-    function drawSequenceMessage(parent, relation) {
+    function drawSequenceMessage(parent: SVGElement, relation: DiagramRelation) {
       const style = relationStyles[relation.kind] || relationStyles.association;
       const points = messagePoints(relation);
       if (!points) return undefined;
@@ -338,12 +395,12 @@
       if (style.dash) line.setAttribute('stroke-dasharray', style.dash);
       if (label) {
         const offset = labelOffset(relation, 'name');
-        text(group, label, (p1.x + p2.x) / 2 + offset.dx, relation.y - 6 + offset.dy, { anchor: 'middle' });
+        text(group, label, (p1.x + p2.x) / 2 + offset.dx, p1.y - 6 + offset.dy, { anchor: 'middle' });
       }
       return group;
     }
 
-    function drawGenericRelation(parent, relation) {
+    function drawGenericRelation(parent: SVGElement, relation: DiagramRelation) {
       const endpoints = relationEndpoints(relation);
       if (!endpoints) return undefined;
       const style = relation.kind === 'timingmessage'
@@ -398,7 +455,7 @@
         const offset = labelOffset(relation, 'name');
         text(group, label, middleX + offset.dx, middleY - 6 + offset.dy, { anchor: 'middle' });
       }
-      const endLabel = (point, other, value, field) => {
+      const endLabel = (point: DiagramPoint, other: DiagramPoint, value: string | undefined, field: string) => {
         if (!value) return;
         const endAngle = Math.atan2(other.y - point.y, other.x - point.x);
         const offset = labelOffset(relation, field);
@@ -412,7 +469,7 @@
       };
       endLabel(p1, p2, relation.sourceLabel, 'sourceLabel');
       endLabel(p2, p1, relation.targetLabel, 'targetLabel');
-      const endRole = (point, other, value, field) => {
+      const endRole = (point: DiagramPoint, other: DiagramPoint, value: string | undefined, field: string) => {
         if (!value) return;
         const endAngle = Math.atan2(other.y - point.y, other.x - point.x);
         const nx = -Math.sin(endAngle), ny = Math.cos(endAngle);
@@ -432,7 +489,7 @@
       return group;
     }
 
-    function draw(parent, relation) {
+    function draw(parent: SVGElement, relation: DiagramRelation) {
       if (isMessage(relation.kind)) return drawSequenceMessage(parent, relation);
       if (isCommunicationMessage(relation.kind)) return drawCommunicationMessage(parent, relation);
       if (relation.kind === 'mindbranch') return drawBranch(parent, relation);
@@ -448,4 +505,4 @@
   }
 
   return Object.freeze({ ERD_ENDS, ERD_LINE, relationMessageStyle, create });
-});
+}

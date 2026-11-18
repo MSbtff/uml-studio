@@ -387,8 +387,8 @@ assert.throws(() => create({}), err => {
   h.renderer.render();
 
   assert.equal(h.svg.getAttribute('viewBox'), '0 0 3000 2000');
-  assert.equal(h.svg.getAttribute('width'), 4500);
-  assert.equal(h.svg.getAttribute('height'), 3000);
+  assert.equal(h.svg.getAttribute('width'), '4500');
+  assert.equal(h.svg.getAttribute('height'), '3000');
 
   const defs = byTag(h.svg, 'defs');
   assert.equal(defs.length, 1);

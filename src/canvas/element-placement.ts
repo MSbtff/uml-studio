@@ -5,11 +5,16 @@
    view, attaches it to whatever container it landed in, selects it and drops
    back to the select tool; none of it touches the drag or linking state, which
    is why it can live outside the interaction state machine. */
-(function initElementPlacement<Api>(root: typeof globalThis & { UMLElementPlacement?: Api }, factory: () => Api) {
+type ElementPlacementApi = ReturnType<typeof createElementPlacementModule>;
+declare var UMLElementPlacement: ElementPlacementApi;
+
+(function initElementPlacement(root: typeof globalThis & { UMLElementPlacement?: ElementPlacementApi }, factory: () => ElementPlacementApi) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLElementPlacement = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createElementPlacementModule() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createElementPlacementModule);
+
+function createElementPlacementModule() {
   const REQUIRED_FUNCTIONS = Object.freeze([
     'activityAttachmentOwnerAtPoint',
     'adoptView',
@@ -405,4 +410,4 @@
   }
 
   return Object.freeze({ REQUIRED_FUNCTIONS, REQUIRED_VALUES, create });
-});
+}

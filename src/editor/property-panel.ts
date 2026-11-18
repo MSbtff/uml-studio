@@ -1,11 +1,82 @@
-// @ts-nocheck
 'use strict';
 
-(function initPropertyPanel(root, factory) {
+type PropertySelection = Pick<CanvasSelectionState, 'selection' | 'selectedId'>;
+type PropertyPanelState = PropertySelection & { diagrams: EditorDiagram[]; models: DiagramModels };
+type PropertyPanelDependencies = Omit<NonNullable<Parameters<ErdPropertySectionsApi['create']>[0]>,
+  'propRow' | 'sectionHeading' | 'renderProps' | 'parseColumn' | 'byId'> & {
+  byId(id?: string | null): DiagramElement | null | undefined;
+  dg(): EditorDiagram;
+  referencedInteraction(element: DiagramElement): EditorDiagram | null;
+  relById(id?: string | null): DiagramRelation | null | undefined;
+  instanceClassifier(element: DiagramElement): DiagramModel | null | undefined;
+  isInteractionMsg(kind: string): boolean;
+  parseColumn(raw: string): ErdColumnValue;
+  childViews(id: string): DiagramElement[];
+  syncConstraintParameters(element: DiagramElement): void;
+  unlockBindingRoute(relation: DiagramRelation): void;
+  bindingRoute: RelationRendererDependencies['bindingRoute'];
+  bindingWaypoints(relation: DiagramRelation): DiagramPoint[];
+  relationEndExpression(relation: DiagramRelation, end: RelationEnd): string;
+  parseQuickEditExpression(kind: 'name', value: string): AnyParsedExpression | InvalidExpression;
+  erdRelationCardinality(relation: DiagramRelation, end: RelationEnd): string;
+  relationEndNavigability: RelationRendererDependencies['relationEndNavigability'];
+  relationEndAggregation: RelationRendererDependencies['relationEndAggregation'];
+  openRelationEndQuickEdit: ReturnType<QuickEditApi['create']>['openRelationEndQuickEdit'];
+  switchDiagram(id: string): void;
+  parseIconScript: IconScriptApi['parseIconScript'];
+  descendantViews(id: string): DiagramElement[];
+  constraintPropertyEquations(element: DiagramElement): string[];
+  defaultValueUnitCompatibility(value: unknown, type: DiagramModel | null | undefined): { status: string; message: string };
+  diagramKindLabel(kind: string): string;
+  bindingTypeCompatibility(from: string | undefined, to: string | undefined, models: DiagramModels): { status: string; message: string };
+  lockBindingRoute(relation: DiagramRelation): void;
+  bindingConnectorStackInfo(relation: DiagramRelation): { index: number; total: number };
+  reorderBindingConnector(relation: DiagramRelation, action: BindingStackAction): void;
+  addBindingWaypoint(relation: DiagramRelation, point: DiagramPoint, segmentIndex?: number): void;
+  isCommMsg(kind: string): boolean;
+  relationSupportsEndQuickEdit: RelationRendererDependencies['relationSupportsEndQuickEdit'];
+  erdPropertySections: ErdPropertySectionsApi;
+  state: PropertyPanelState;
+  KIND_META: Partial<Record<string, { label: string }>>;
+  PACKAGE_CONTAINER_KINDS: ReadonlySet<string>;
+  ACTIVITY_PIN_KINDS: ReadonlySet<string>;
+  AUTO_LABEL: Partial<Record<string, string>>;
+  INFORMATION_FLOW_CONVEYED_KINDS: ReadonlySet<string>;
+  ER_RELATION_KINDS: ReadonlySet<string>;
+  VISIBILITY_VALUE: Partial<Record<string, string>>;
+  ERD_CARDINALITY_OPTIONS: readonly (readonly [string, string])[];
+  ASSOCIATION_QUALIFIER_KINDS: ReadonlySet<string>;
+  REQUIREMENT_TYPES: readonly string[];
+  BDD_CLASSIFIER_KINDS: ReadonlySet<string>;
+  ACTIVITY_CONTAINER_KINDS: ReadonlySet<string>;
+  INSTANCE_KINDS: ReadonlySet<string>;
+  INSTANCE_CLASSIFIER_KINDS: Partial<Record<string, readonly string[]>>;
+  REQUIREMENT_RELATION_KINDS: ReadonlySet<string>;
+  GRID?: number;
+  FILL_DEFAULT?: string;
+};
+const compatibilityColors: Partial<Record<string, string>> = {
+  compatible: '#25713f',
+  warning: '#9a6700',
+  error: '#b42318',
+};
+
+type BindingStackAction = 'backward' | 'forward' | 'back' | 'front';
+type StringListField = { [K in keyof ModelFields]-?: ModelFields[K] extends string[] | undefined ? K : never }[keyof ModelFields];
+type ModelReferenceField = 'providedInterfaceModelId' | 'requiredInterfaceModelId' | 'collaborationModelId';
+type EndSelectField = `${RelationEnd}${'Navigability' | 'Aggregation'}`;
+type PropertyControl = HTMLElement & Partial<Pick<HTMLInputElement, 'selectionStart' | 'selectionEnd' | 'setSelectionRange'>>;
+
+type PropertyPanelApi = ReturnType<typeof createPropertyPanelModule>;
+declare var UMLPropertyPanel: PropertyPanelApi;
+
+(function initPropertyPanel(root: typeof globalThis, factory: () => PropertyPanelApi) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLPropertyPanel = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createPropertyPanelModule() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createPropertyPanelModule);
+
+function createPropertyPanelModule() {
   const REQUIRED_FUNCTIONS = Object.freeze([
   "snapshot",
   "render",
@@ -55,7 +126,7 @@
   "isCommMsg",
   "relationSupportsEndQuickEdit",
   "getErdColumnClipboard"
-]);
+] as const);
   const REQUIRED_VALUES = Object.freeze([
   "document",
   "erdPropertySections",
@@ -77,20 +148,20 @@
   "INSTANCE_KINDS",
   "INSTANCE_CLASSIFIER_KINDS",
   "REQUIREMENT_RELATION_KINDS"
-]);
+] as const);
 
-  function selectionMode(panelState) {
+  function selectionMode(panelState?: Partial<PropertySelection> | null) {
     if ((panelState?.selection || []).length > 1) return 'multiple';
     return panelState?.selectedId ? 'selected' : 'empty';
   }
 
-  function create(dependencies) {
-    const deps = dependencies || {};
-    const missing = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
+  function create(dependencies?: PropertyPanelDependencies) {
+    const provided: Partial<PropertyPanelDependencies> = dependencies || {};
+    const missing: string[] = REQUIRED_FUNCTIONS.filter(name => typeof provided[name] !== 'function');
     REQUIRED_VALUES.forEach(name => {
-      if (deps[name] == null) missing.push(name);
+      if (provided[name] == null) missing.push(name);
     });
-    if (typeof deps.erdPropertySections?.create !== 'function') {
+    if (typeof provided.erdPropertySections?.create !== 'function') {
       missing.push('erdPropertySections.create');
     }
     if (missing.length) {
@@ -99,6 +170,7 @@
 
     /* names this panel only forwards to erdPropertySections stay in the REQUIRED
        lists above — app.js provides by declared name — but are not destructured */
+    const deps = provided as PropertyPanelDependencies;
     const {
       snapshot,
       render,
@@ -153,12 +225,12 @@
       INSTANCE_CLASSIFIER_KINDS,
       REQUIREMENT_RELATION_KINDS,
     } = deps;
-    const GRID = Number.isFinite(deps.GRID) ? deps.GRID : 8;
+    const GRID = typeof deps.GRID === 'number' && Number.isFinite(deps.GRID) ? deps.GRID : 8;
     const FILL_DEFAULT = deps.FILL_DEFAULT || '#fffbd8';
 
     const PROPERTY_CONTROL_SELECTOR = 'input, select, textarea, button, [tabindex]:not([tabindex="-1"])';
-    function propertyControls(box) {
-      return [...box.querySelectorAll(PROPERTY_CONTROL_SELECTOR)];
+    function propertyControls(box: HTMLElement) {
+      return [...box.querySelectorAll<PropertyControl>(PROPERTY_CONTROL_SELECTOR)];
     }
 
     /* the panel is rebuilt whole whenever a control changes the model, so the
@@ -167,8 +239,8 @@
     function selectionFingerprint() {
       return `${state.selectedId || ''}|${(state.selection || []).join(',')}`;
     }
-    function capturePropertyFocus(box) {
-      const active = document.activeElement;
+    function capturePropertyFocus(box: HTMLElement) {
+      const active = document.activeElement as PropertyControl | null;
       if (!active || box.contains?.(active) !== true) return null;
       const index = propertyControls(box).indexOf(active);
       if (index < 0) return null;
@@ -179,14 +251,14 @@
         end: typeof active.selectionEnd === 'number' ? active.selectionEnd : null,
       };
     }
-    function restorePropertyFocus(box, captured) {
+    function restorePropertyFocus(box: HTMLElement, captured: ReturnType<typeof capturePropertyFocus>) {
       if (!captured || captured.fingerprint !== selectionFingerprint()) return false;
       const target = propertyControls(box)[captured.index];
       if (typeof target?.focus !== 'function') return false;
       target.focus();
       if (captured.start === null || typeof target.setSelectionRange !== 'function') return true;
       try {
-        target.setSelectionRange(captured.start, captured.end);
+        target.setSelectionRange(captured.start, captured.end ?? captured.start);
       } catch {
         /* 캐럿을 지원하지 않는 입력 형식 */
       }
@@ -194,7 +266,7 @@
     }
 
     let fieldSequence = 0;
-    function sectionHeading(text) {
+    function sectionHeading(text: string) {
       const title = document.createElement('strong');
       title.textContent = text;
       title.id = `uml-property-section-${++fieldSequence}`;
@@ -202,7 +274,7 @@
       title.setAttribute('aria-level', '3');
       return title;
     }
-    function propRow(labelText, node, hint) {
+    function propRow(labelText: string, node: HTMLElement, hint?: string) {
       const row = document.createElement('div');
       row.className = 'prop-row';
       const l = document.createElement('label');
@@ -220,14 +292,14 @@
       }
       return row;
     }
-    function textInput(value, oninput) {
+    function textInput(value: string | undefined, oninput: (value: string) => void) {
       const i = document.createElement('input');
       i.type = 'text'; i.value = value || '';
       i.addEventListener('focus', () => snapshot());
       i.addEventListener('input', () => { oninput(i.value); render(); });
       return i;
     }
-    function textArea(value, oninput) {
+    function textArea(value: string | undefined, oninput: (value: string) => void) {
       const t = document.createElement('textarea');
       t.value = value || '';
       t.addEventListener('focus', () => snapshot());
@@ -247,7 +319,7 @@
 
     /* source and target repeat the same field labels, so each end needs its own
        named group for the labels to mean anything out of context */
-    function relationEndPropertySection(outerBox, r, end) {
+    function relationEndPropertySection(outerBox: HTMLElement, r: DiagramRelation, end: RelationEnd) {
       const prefix = end === 'source' ? 'source' : 'target';
       const erd = ER_RELATION_KINDS.has(r.kind);
       const endpoint = byId(end === 'source' ? r.from : r.to);
@@ -312,7 +384,7 @@
         box.appendChild(propRow('참여 개수', cardinality,
           '0..1 선택 한 개 · 1 필수 한 개 · 0..N 선택 여러 개 · 1..N 필수 여러 개'));
 
-        const columnField = `${prefix}ColumnName`;
+        const columnField = `${prefix}ColumnName` as const;
         const columnSelect = document.createElement('select');
         columnSelect.className = 'erd-relation-column-select';
         columnSelect.dataset.relationColumnEnd = end;
@@ -358,7 +430,7 @@
           '예: 1, *, 0..1, 0..*'));
       }
     
-      const addSelect = (label, field, value, choices, hint) => {
+      const addSelect = (label: string, field: EndSelectField, value: string, choices: readonly (readonly [string, string])[], hint: string) => {
         const node = document.createElement('select');
         choices.forEach(([optionValue, optionLabel]) => {
           const option = document.createElement('option');
@@ -380,7 +452,7 @@
         ], 'Shared는 빈 마름모, Composite는 채운 마름모입니다.');
         if (ASSOCIATION_QUALIFIER_KINDS.has(r.kind)) {
           box.appendChild(propRow('Qualifiers', textArea(
-            Array.isArray(r[`${prefix}Qualifiers`]) ? r[`${prefix}Qualifiers`].join('\n') : '',
+            (r[`${prefix}Qualifiers`] || []).join('\n'),
             value => { r[`${prefix}Qualifiers`] = value.split(/\r?\n/).map(x => x.trim()).filter(Boolean).slice(0, 50); },
           ), '한 줄에 하나씩 입력합니다.'));
         }
@@ -398,7 +470,7 @@
       'timesegment', 'timetick', 'timeconstraint', 'durationconstraint',
     ]);
     
-    function classifierProperty(e, label, allowedKinds) {
+    function classifierProperty(e: DiagramElement, label: string, allowedKinds: readonly string[]) {
       const select = document.createElement('select');
       const none = document.createElement('option');
       none.value = ''; none.textContent = '(Classifier 선택 안 함)';
@@ -409,7 +481,7 @@
         .forEach(model => {
           const option = document.createElement('option');
           option.value = model.id;
-          option.textContent = `${KIND_META[model.kind].label} · ${model.name || '(unnamed)'}`;
+          option.textContent = `${KIND_META[model.kind]?.label || model.kind} · ${model.name || '(unnamed)'}`;
           if (e.classifierModelId === model.id) option.selected = true;
           select.appendChild(option);
         });
@@ -422,7 +494,7 @@
       return propRow(label, select, '프로젝트 모델 저장소의 실제 Classifier를 참조하며 이름 변경도 표기에 동기화됩니다.');
     }
     
-    function modelReferenceProperty(e, field, label, allowedKinds, emptyLabel, hint) {
+    function modelReferenceProperty(e: DiagramElement, field: ModelReferenceField, label: string, allowedKinds: readonly string[], emptyLabel: string, hint: string) {
       const select = document.createElement('select');
       const none = document.createElement('option');
       none.value = ''; none.textContent = emptyLabel || '(선택 안 함)';
@@ -433,7 +505,7 @@
         .forEach(model => {
           const option = document.createElement('option');
           option.value = model.id;
-          option.textContent = `${KIND_META[model.kind].label} · ${model.name || '(unnamed)'}`;
+          option.textContent = `${KIND_META[model.kind]?.label || model.kind} · ${model.name || '(unnamed)'}`;
           if (e[field] === model.id) option.selected = true;
           select.appendChild(option);
         });
@@ -446,7 +518,7 @@
       return propRow(label, select, hint);
     }
     
-    function interactionDiagramProperty(e) {
+    function interactionDiagramProperty(e: DiagramElement) {
       const select = document.createElement('select');
       const none = document.createElement('option');
       none.value = ''; none.textContent = '(Sequence Diagram 선택)';
@@ -487,7 +559,7 @@
     }
     
     
-    function renderSelectionState(box) {
+    function renderSelectionState(box: HTMLElement) {
       if (state.selection.length > 1) {
         box.innerHTML = `<div class="prop-kind">요소 ${state.selection.length}개 선택됨</div>
           <div class="prop-hint">드래그로 함께 이동 · Ctrl+C 복사(내부 관계 포함) · Del 일괄 삭제<br>Shift+클릭으로 선택 추가/해제</div>`;
@@ -501,10 +573,10 @@
       return false;
     }
     
-    function renderElementProperties(box, e) {
+    function renderElementProperties(box: HTMLElement, e: DiagramElement) {
         const kind = document.createElement('span');
         kind.className = 'prop-kind';
-        kind.textContent = (e.kind === 'lifeline' && e.isActor) ? 'Actor' : KIND_META[e.kind].label;
+        kind.textContent = (e.kind === 'lifeline' && e.isActor) ? 'Actor' : KIND_META[e.kind]?.label || e.kind;
         box.appendChild(kind);
         const usage = document.createElement('div');
         usage.className = 'prop-hint model-usage';
@@ -704,7 +776,7 @@
           abstractRow.className = 'prop-row'; abstractRow.appendChild(abstract);
           box.appendChild(abstractRow);
     
-          const listArea = (label, field, hint) => {
+          const listArea = (label: string, field: StringListField, hint: string) => {
             box.appendChild(propRow(label, textArea((e[field] || []).join('\n'), value => {
               e[field] = value.split('\n').filter(line => line.trim() !== '');
               e.w = 0; e.h = 0;
@@ -787,10 +859,10 @@
           chk.appendChild(c); chk.appendChild(document.createTextNode('Abstract (이탤릭 이름)'));
           const row = document.createElement('div'); row.className = 'prop-row'; row.appendChild(chk);
           box.appendChild(row);
-          box.appendChild(propRow('Attributes', textArea(e.attributes.join('\n'), v => {
+          box.appendChild(propRow('Attributes', textArea((e.attributes || []).join('\n'), v => {
             e.attributes = v.split('\n').filter(s => s.trim() !== '');
           }), '한 줄에 하나씩 · 예: + name: String'));
-          box.appendChild(propRow('Operations', textArea(e.operations.join('\n'), v => {
+          box.appendChild(propRow('Operations', textArea((e.operations || []).join('\n'), v => {
             e.operations = v.split('\n').filter(s => s.trim() !== '');
           }), '예: + getName(): String'));
         }
@@ -798,12 +870,12 @@
           box.appendChild(propRow('Attributes', textArea((e.attributes || []).join('\n'), v => {
             e.attributes = v.split('\n').filter(s => s.trim() !== '');
           }), 'Ctrl/Cmd+Enter로 빠르게 추가 · 예: + id: String'));
-          box.appendChild(propRow('Operations', textArea(e.operations.join('\n'), v => {
+          box.appendChild(propRow('Operations', textArea((e.operations || []).join('\n'), v => {
             e.operations = v.split('\n').filter(s => s.trim() !== '');
           }), '예: + draw(ctx: Context): void'));
         }
         if (e.kind === 'enumeration') {
-          box.appendChild(propRow('Literals', textArea(e.literals.join('\n'), v => {
+          box.appendChild(propRow('Literals', textArea((e.literals || []).join('\n'), v => {
             e.literals = v.split('\n').filter(s => s.trim() !== '');
           }), '한 줄에 하나씩 · 예: RED'));
           box.appendChild(propRow('Operations', textArea((e.operations || []).join('\n'), v => {
@@ -876,7 +948,7 @@
             const target = byId(e.constrainedViewId) || relById(e.constrainedViewId);
             const hint = document.createElement('div');
             hint.className = 'prop-hint';
-            hint.textContent = `Attached to: ${target ? KIND_META[target.kind].label : '(missing)'}`;
+            hint.textContent = `Attached to: ${target ? (KIND_META[target.kind]?.label || target.kind) : '(missing)'}`;
             box.appendChild(hint);
           }
         }
@@ -952,11 +1024,7 @@
             const compatibility = defaultValueUnitCompatibility(e.defaultValue, instanceClassifier(e));
             unitHint.dataset.compatibility = compatibility.status;
             unitHint.textContent = `Default Unit · ${compatibility.message}`;
-            unitHint.style.color = ({
-              compatible: '#25713f',
-              warning: '#9a6700',
-              error: '#b42318',
-            })[compatibility.status] || '';
+            unitHint.style.color = (compatibilityColors[compatibility.status] || '');
           };
           defaultInput.addEventListener('input', updateUnitHint);
           updateUnitHint();
@@ -990,7 +1058,7 @@
             .forEach(model => {
               const option = document.createElement('option');
               option.value = model.id;
-              option.textContent = `${KIND_META[model.kind].label} · ${model.name || '(unnamed)'}`;
+              option.textContent = `${KIND_META[model.kind]?.label || model.kind} · ${model.name || '(unnamed)'}`;
               if (e.classifierModelId === model.id) option.selected = true;
               select.appendChild(option);
             });
@@ -1108,7 +1176,7 @@
         }
     }
     
-    function renderRelationProperties(box, r) {
+    function renderRelationProperties(box: HTMLElement, r: DiagramRelation) {
         const kind = document.createElement('span');
         kind.className = 'prop-kind';
         const a = byId(r.from), b = byId(r.to);
@@ -1152,7 +1220,7 @@
             .forEach(model => {
               const option = document.createElement('option');
               option.value = model.id;
-              option.textContent = `${KIND_META[model.kind].label} · ${model.name || '(unnamed)'}`;
+              option.textContent = `${KIND_META[model.kind]?.label || model.kind} · ${model.name || '(unnamed)'}`;
               option.selected = (r.conveyedModelIds || []).includes(model.id);
               conveyed.appendChild(option);
             });
@@ -1175,7 +1243,7 @@
           candidates.forEach(model => {
             const option = document.createElement('option');
             option.value = model.id;
-            option.textContent = `${KIND_META[model.kind].label} · ${model.name || '(unnamed)'}`;
+            option.textContent = `${KIND_META[model.kind]?.label || model.kind} · ${model.name || '(unnamed)'}`;
             option.selected = (r.itemFlowModelIds || []).includes(model.id);
             itemFlows.appendChild(option);
           });
@@ -1198,11 +1266,7 @@
           hint.className = 'prop-hint';
           hint.dataset.compatibility = compatibility.status;
           hint.textContent = `Type Compatibility · ${compatibility.message}`;
-          hint.style.color = ({
-            compatible: '#25713f',
-            warning: '#9a6700',
-            error: '#b42318',
-          })[compatibility.status] || '';
+          hint.style.color = compatibilityColors[compatibility.status] || '';
           box.appendChild(hint);
     
           const routingMode = document.createElement('select');
@@ -1254,7 +1318,7 @@
             + ' · 숫자가 높을수록 앞에 그려지고 교차 브리지를 가집니다.';
           box.appendChild(stackHint);
     
-          const stackButton = (label, action, disabled) => {
+          const stackButton = (label: string, action: BindingStackAction, disabled: boolean) => {
             const button = document.createElement('button');
             button.type = 'button';
             button.className = 'prop-btn';
@@ -1430,4 +1494,4 @@
   }
 
   return Object.freeze({ REQUIRED_FUNCTIONS, REQUIRED_VALUES, selectionMode, create });
-});
+}

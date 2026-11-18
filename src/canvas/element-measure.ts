@@ -1,15 +1,35 @@
-// @ts-nocheck
 'use strict';
 
 /* Element measurement — the intrinsic minimum size of every view kind plus the
    label, stereotype and compartment text that size depends on.  measure() also
    returns the derived metrics (row offsets, compartment heights, wrapped text)
    that the renderers draw from, so the two never disagree. */
-(function initElementMeasureModule(root, factory) {
+interface ElementMeasureDependencies {
+  childViews(parentId: string): DiagramElement[];
+  dg(): EditorDiagram;
+  parseColumn(raw: string): ErdColumnValue;
+  parseIconScript: IconScriptApi['parseIconScript'];
+  snapUp(value: number): number;
+  tw(text: string | undefined, font: string): number;
+  state: { diagrams: EditorDiagram[]; models: DiagramModels };
+  FONT12: string;
+  FONT13B: string;
+  FONT_FAMILY: string;
+  LINE_H: number;
+  TIMING_ROW_HEIGHT: number;
+}
+
+type ElementMeasureApi = ReturnType<typeof createElementMeasureModule>;
+type ElementMeasurement = ReturnType<ReturnType<ElementMeasureApi['create']>['measure']>;
+declare var UMLElementMeasure: ElementMeasureApi;
+
+(function initElementMeasureModule(root: typeof globalThis, factory: () => ElementMeasureApi) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLElementMeasure = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createElementMeasureModule() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createElementMeasureModule);
+
+function createElementMeasureModule() {
   const REQUIRED_FUNCTIONS = Object.freeze([
     'childViews',
     'dg',
@@ -17,7 +37,7 @@
     'parseIconScript',
     'snapUp',
     'tw',
-  ]);
+  ] as const);
   const REQUIRED_VALUES = Object.freeze([
     'state',
     'FONT12',
@@ -25,12 +45,12 @@
     'FONT_FAMILY',
     'LINE_H',
     'TIMING_ROW_HEIGHT',
-  ]);
+  ] as const);
   const VISIBILITY_SYMBOLS = Object.freeze({ public: '+', protected: '#', private: '-', package: '~' });
 
-  function create(dependencies) {
-    const deps = dependencies || {};
-    const missing = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
+  function create(dependencies?: ElementMeasureDependencies) {
+    const deps: Partial<ElementMeasureDependencies> = dependencies || {};
+    const missing: string[] = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
     REQUIRED_VALUES.forEach(name => {
       if (deps[name] == null) missing.push(name);
     });
@@ -52,11 +72,11 @@
       FONT_FAMILY,
       LINE_H,
       TIMING_ROW_HEIGHT,
-    } = deps;
+    } = deps as ElementMeasureDependencies;
 
     const erdMode = () => dg().erdMode || 'physical';
 
-    function stateBehaviorLines(e) {
+    function stateBehaviorLines(e: DiagramElement) {
       return [
         e.entry ? `entry / ${e.entry}` : '',
         e.doActivity ? `do / ${e.doActivity}` : '',
@@ -65,58 +85,58 @@
       ].filter(Boolean);
     }
 
-    function referencedStateMachineName(e) {
+    function referencedStateMachineName(e: DiagramElement) {
       const diagram = state.diagrams.find(d => d.id === e.submachineDiagramId);
       return diagram ? diagram.name : '(unassigned)';
     }
 
-    function referencedInteraction(e) {
+    function referencedInteraction(e: DiagramElement) {
       return state.diagrams.find(d => d.id === e.interactionDiagramId && d.type === 'sequence') || null;
     }
 
-    function referencedInteractionName(e) {
+    function referencedInteractionName(e: DiagramElement) {
       const diagram = referencedInteraction(e);
       return diagram ? diagram.name : (e.name || '(unassigned)');
     }
 
-    function instanceClassifier(e) {
+    function instanceClassifier(e: DiagramElement) {
       return e.classifierModelId ? state.models[e.classifierModelId] : null;
     }
 
-    function instanceTitle(e) {
+    function instanceTitle(e: DiagramElement) {
       const classifier = instanceClassifier(e);
       const typeName = classifier ? classifier.name : '';
       return typeName ? `${e.name || ''}: ${typeName}` : (e.name || ': (untyped)');
     }
 
-    function lifelineTitle(e) {
+    function lifelineTitle(e: DiagramElement) {
       const classifier = instanceClassifier(e);
       return classifier && classifier.name ? `${e.name || ''}: ${classifier.name}` : (e.name || '');
     }
 
-    function typedElementTitle(e) {
+    function typedElementTitle(e: DiagramElement) {
       const classifier = instanceClassifier(e);
       return classifier && classifier.name ? `${e.name || ''}: ${classifier.name}` : (e.name || '');
     }
 
-    function ibdFrameTitle(e) {
+    function ibdFrameTitle(e: DiagramElement) {
       const classifier = instanceClassifier(e);
       return `ibd [${classifier?.name || e.name || 'Untyped Block'}]`;
     }
 
-    function parametricFrameTitle(e) {
+    function parametricFrameTitle(e: DiagramElement) {
       const classifier = instanceClassifier(e);
       return `par [${classifier?.name || e.name || 'Untyped Constraint Block'}]`;
     }
 
-    function constraintPropertyEquations(e) {
+    function constraintPropertyEquations(e: DiagramElement) {
       const classifier = instanceClassifier(e);
       return classifier?.kind === 'constraintblock' && Array.isArray(classifier.constraints)
         ? classifier.constraints.filter(value => String(value).trim())
         : [];
     }
 
-    function parseConstraintParameterDefinition(raw) {
+    function parseConstraintParameterDefinition(raw: string | undefined) {
       const normalized = String(raw || '')
         .trim()
         .replace(/^[+\-#~]\s*/, '')
@@ -130,28 +150,29 @@
       };
     }
 
-    function collaborationUseTitle(e) {
+    function collaborationUseTitle(e: DiagramElement) {
       const collaboration = e.collaborationModelId ? state.models[e.collaborationModelId] : null;
       return collaboration && collaboration.name ? `${e.name || ''}: ${collaboration.name}` : (e.name || '');
     }
 
-    function visibilitySymbol(value) {
-      return VISIBILITY_SYMBOLS[value] || '';
+    function visibilitySymbol(value?: string) {
+      return (value && Object.hasOwn(VISIBILITY_SYMBOLS, value))
+        ? VISIBILITY_SYMBOLS[value as keyof typeof VISIBILITY_SYMBOLS] : '';
     }
 
-    function packageElementTitle(e) {
+    function packageElementTitle(e: DiagramElement) {
       const prefix = visibilitySymbol(e.visibility);
       return `${prefix}${prefix ? ' ' : ''}${e.name || ''}`;
     }
 
-    function profileElementTitle(e) {
+    function profileElementTitle(e: DiagramElement) {
       const prefix = visibilitySymbol(e.visibility || 'public');
       return `${prefix}${prefix ? ' ' : ''}${e.name || ''}`;
     }
 
-    function bddCompartments(e) {
-      const sections = [];
-      const add = (label, items) => {
+    function bddCompartments(e: DiagramElement) {
+      const sections: { label: string; items: string[] }[] = [];
+      const add = (label: string, items?: string[]) => {
         const values = (items || []).map(value => String(value)).filter(value => value.trim());
         if (values.length) sections.push({ label, items: values });
       };
@@ -183,9 +204,9 @@
       return sections;
     }
 
-    function wrapRequirementText(value, maxWidth = 248) {
+    function wrapRequirementText(value: string, maxWidth = 248) {
       const paragraphs = String(value || '').split(/\r?\n/);
-      const lines = [];
+      const lines: string[] = [];
       paragraphs.forEach(paragraph => {
         const words = paragraph.trim().split(/\s+/).filter(Boolean);
         if (!words.length) { lines.push(''); return; }
@@ -204,7 +225,7 @@
       return lines.length ? lines : [''];
     }
 
-    function measure(e) {
+    function measure(e: DiagramElement) {
       switch (e.kind) {
         case 'note': {
           const lines = (e.text || '').split('\n');
@@ -236,10 +257,9 @@
           })[e.kind];
           const stereo = `«${stereotype}»`;
           const title = profileElementTitle(e);
-          const compartments = bddCompartments(e);
+          const compartments = bddCompartments(e).map(section => ({ ...section, h: 20 + section.items.length * LINE_H + 4 }));
           let minW = Math.max(216, tw(stereo, FONT12) + 32, tw(title, FONT13B) + 32);
           compartments.forEach(section => {
-            section.h = 20 + section.items.length * LINE_H + 4;
             minW = Math.max(minW, tw(section.label, FONT12) + 32);
             section.items.forEach(item => { minW = Math.max(minW, tw(item, FONT12) + 30); });
           });
@@ -414,7 +434,7 @@
           const cols = (e.columns || []).map(parseColumn);
           const headH = 24, RH = 17, GAP = 14;
           const F12B = `600 12px ${FONT_FAMILY}`;
-          const mx = arr => arr.length ? Math.max(...arr) : 0;
+          const mx = (arr: number[]) => arr.length ? Math.max(...arr) : 0;
           const wLog = mx(cols.map(c => tw(c.logical || c.phys, FONT12)));
           const wPhys = mx(cols.map(c => tw(c.phys, F12B)));
           const wType = mx(cols.map(c => tw(c.type, FONT12)));
@@ -517,7 +537,7 @@
       };
     }
 
-    function normalizeSize(e) {
+    function normalizeSize(e: DiagramElement) {
       const m = measure(e);
       e._m = m;
       e.w = Math.max(e.w || 0, m.minW);
@@ -550,4 +570,4 @@
   }
 
   return Object.freeze({ REQUIRED_FUNCTIONS, REQUIRED_VALUES, VISIBILITY_SYMBOLS, create });
-});
+}

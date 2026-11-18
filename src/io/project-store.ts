@@ -1,14 +1,68 @@
-// @ts-nocheck
 'use strict';
+
+interface ProjectStoreState {
+  projectId: string;
+  projectName: string;
+  diagrams: EditorDiagram[];
+  models: DiagramModels;
+  dirty: boolean;
+  indexedRevision: number | null;
+  sqliteRevision: number | null;
+  lastAutosavedAt: number | null;
+  storagePersistent: boolean;
+  autosaveStatus: string;
+  autosaveBackend: string;
+}
+
+type ProjectBackend = 'indexed' | 'sqlite';
+type ProjectRecords = { indexed: Awaited<ReturnType<PersistenceApi['loadProject']>>; sqlite: Awaited<ReturnType<PersistenceApi['loadServerProject']>> };
+type ProjectMetadata = Awaited<ReturnType<PersistenceApi['listProjects']>>[number];
+type StoredProject = ProjectMetadata & {
+  backends: ProjectBackend[];
+  indexedRevision?: number;
+  sqliteRevision?: number;
+};
+
+interface ProjectStoreDependencies {
+  cleanProjectName(name: string): string;
+  clearInterval(timer: number | null): void;
+  clearTimeout(timer: number | null): void;
+  clearValidationResults(): void;
+  confirmAction(message: string): boolean;
+  flashStatus(message: string): void;
+  hydrateCurrentProject(models: DiagramModels): void;
+  load(json: string, options?: DocumentLoadOptions): boolean;
+  markDirty(): void;
+  projectUid(): string;
+  renderAll(): void;
+  renderStatus(): void;
+  resetHistory(): void;
+  sampleEmpty(): void;
+  sampleProject(): void;
+  serialize(): string;
+  setInterval(callback: () => void, delay: number): number;
+  setTimeout(callback: () => void, delay: number): number;
+  document: Document;
+  eventRoot: Pick<Window, 'addEventListener' | 'removeEventListener'>;
+  localStorage: Pick<Storage, 'getItem' | 'setItem'>;
+  modalFocus: Pick<ReturnType<ModalFocusApi['create']>, 'activate' | 'closeOverlay'>;
+  persistence: PersistenceApi;
+  state: ProjectStoreState;
+}
+
+type ProjectStoreApi = ReturnType<typeof createProjectStoreModule>;
+declare var UMLProjectStore: ProjectStoreApi;
 
 /* Project store — recovery autosave scheduling across SQLite/IndexedDB/local
    storage, the stored-project catalogue, and the Project Manager · Rename ·
    Recovery History dialogs that sit on top of them. */
-(function initProjectStoreModule(root, factory) {
+(function initProjectStoreModule(root: typeof globalThis, factory: () => ProjectStoreApi) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLProjectStore = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createProjectStoreModule() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createProjectStoreModule);
+
+function createProjectStoreModule() {
   const REQUIRED_FUNCTIONS = Object.freeze([
     'cleanProjectName',
     'clearInterval',
@@ -28,7 +82,7 @@
     'serialize',
     'setInterval',
     'setTimeout',
-  ]);
+  ] as const);
   const REQUIRED_VALUES = Object.freeze([
     'document',
     'eventRoot',
@@ -36,7 +90,7 @@
     'modalFocus',
     'persistence',
     'state',
-  ]);
+  ] as const);
   const RECOVERY_STORAGE_KEY = 'uml-studio-v7';
   const RECOVERY_META_KEY = 'uml-studio-v7-meta';
   const ACTIVE_PROJECT_KEY = 'uml-studio-v7-active-project';
@@ -48,24 +102,24 @@
     'loadProjectRevision', 'loadServerAutosave', 'loadServerProject', 'loadServerProjectRevision',
     'renameProject', 'renameServerProject', 'requestPersistentStorage', 'saveProject',
     'saveServerProject',
-  ]);
+  ] as const);
 
-  function create(dependencies) {
-    const deps = dependencies || {};
-    const missing = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
+  function create(dependencies?: ProjectStoreDependencies) {
+    const deps: Partial<ProjectStoreDependencies> = dependencies || {};
+    const missing: string[] = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
     REQUIRED_VALUES.forEach(name => {
       if (deps[name] == null) missing.push(name);
     });
     if (deps.localStorage && typeof deps.localStorage.setItem !== 'function') missing.push('localStorage.setItem');
     if (deps.eventRoot && typeof deps.eventRoot.addEventListener !== 'function') missing.push('eventRoot.addEventListener');
     if (deps.modalFocus) {
-      ['activate', 'closeOverlay'].forEach(name => {
-        if (typeof deps.modalFocus[name] !== 'function') missing.push(`modalFocus.${name}`);
+      (['activate', 'closeOverlay'] as const).forEach(name => {
+        if (typeof deps.modalFocus?.[name] !== 'function') missing.push(`modalFocus.${name}`);
       });
     }
     if (deps.persistence) {
       PERSISTENCE_METHODS.forEach(name => {
-        if (typeof deps.persistence[name] !== 'function') missing.push(`persistence.${name}`);
+        if (typeof deps.persistence?.[name] !== 'function') missing.push(`persistence.${name}`);
       });
     }
     if (missing.length) {
@@ -97,18 +151,18 @@
       modalFocus,
       persistence,
       state,
-    } = deps;
+    } = deps as ProjectStoreDependencies;
 
-    let autosaveTimer = null;
+    let autosaveTimer: number | null = null;
     let autosaveErrorShown = false;
     let recoveryDirty = true;
-    let heartbeatTimer = null;
+    let heartbeatTimer: number | null = null;
     let attached = false;
 
     function markRecoveryDirty() { recoveryDirty = true; }
     function isRecoveryDirty() { return recoveryDirty; }
 
-    function writeLocalRecovery(json, savedAt) {
+    function writeLocalRecovery(json: string, savedAt: number) {
       try {
         localStorage.setItem(RECOVERY_STORAGE_KEY, json);
         localStorage.setItem(RECOVERY_META_KEY, String(savedAt));
@@ -135,7 +189,7 @@
       try { json = serialize(); }
       catch (err) {
         state.autosaveStatus = 'error';
-        flashStatus(`자동저장 직렬화 실패: ${err.message}`);
+        flashStatus(`자동저장 직렬화 실패: ${err instanceof Error ? err.message : String(err)}`);
         return false;
       }
 
@@ -191,7 +245,7 @@
       catch (_) { /* 비상 저장본은 별도로 계속 시도한다 */ }
     }
 
-    async function projectRecords(projectId) {
+    async function projectRecords(projectId: string): Promise<ProjectRecords> {
       const [indexed, sqlite] = await Promise.all([
         persistence.loadProject(projectId).catch(() => null),
         persistence.loadServerProject(projectId),
@@ -199,9 +253,9 @@
       return { indexed, sqlite };
     }
 
-    function newestProjectRecord(records) {
+    function newestProjectRecord(records: ProjectRecords) {
       return [records.sqlite, records.indexed]
-        .filter(record => record?.json)
+        .filter((record): record is NonNullable<typeof record> => !!record?.json)
         .sort((a, b) => Number(b.updatedAt) - Number(a.updatedAt))[0] || null;
     }
 
@@ -210,9 +264,9 @@
         persistence.listProjects().catch(() => []),
         persistence.listServerProjects(),
       ]);
-      const projects = new Map();
-      const add = (record, backend) => {
-        const current = projects.get(record.id) || { id: record.id, backends: [] };
+      const projects = new Map<string, StoredProject>();
+      const add = (record: ProjectMetadata, backend: ProjectBackend) => {
+        const current = projects.get(record.id) || { ...record, backends: [] };
         current.backends.push(backend);
         current[`${backend}Revision`] = record.revision;
         if (!current.updatedAt || Number(record.updatedAt) >= Number(current.updatedAt)) Object.assign(current, record);
@@ -223,7 +277,7 @@
       return [...projects.values()].sort((a, b) => Number(b.updatedAt) - Number(a.updatedAt));
     }
 
-    async function openStoredProject(projectId, options = {}) {
+    async function openStoredProject(projectId: string, options: { force?: boolean } = {}) {
       if (projectId === state.projectId && !options.force) return true;
       if (state.projectId && state.diagrams.length) await saveRecoveryCopy();
       const records = await projectRecords(projectId);
@@ -271,7 +325,7 @@
       return true;
     }
 
-    function projectActionButton(label, action, disabled = false) {
+    function projectActionButton(label: string, action: () => void, disabled = false) {
       const button = document.createElement('button');
       button.type = 'button'; button.className = 'project-action'; button.textContent = label; button.disabled = disabled;
       button.addEventListener('click', action);
@@ -283,7 +337,7 @@
        Naming each button with its own label *plus* the row name keeps the visible
        text at the front (WCAG 2.5.3) and still says which project it acts on. */
     let rowNameSequence = 0;
-    function nameRowActions(row, nameNode) {
+    function nameRowActions(row: HTMLElement, nameNode: HTMLElement) {
       row.setAttribute('role', 'listitem');
       if (!nameNode.id) nameNode.id = `uml-project-row-${++rowNameSequence}`;
       [...row.querySelectorAll('button')].forEach((button, index) => {
@@ -294,7 +348,7 @@
 
     /* a `list` may only contain `listitem` children, so the loading and empty
        states drop the role instead of sitting inside a broken list */
-    function markProjectList(list, hasRows, label) {
+    function markProjectList(list: HTMLElement, hasRows: boolean, label: string) {
       if (hasRows) {
         list.setAttribute('role', 'list');
         list.setAttribute('aria-label', label);
@@ -304,7 +358,7 @@
       }
     }
 
-    function projectModal(titleText, modalId) {
+    function projectModal(titleText: string, modalId: string) {
       modalFocus.closeOverlay(document.getElementById(modalId), { restoreFocus: false });
       const overlay = document.createElement('div'); overlay.id = modalId; overlay.className = 'modal-overlay';
       const dialog = document.createElement('div'); dialog.className = 'project-dialog';
@@ -321,7 +375,7 @@
       return { overlay, dialog, header, modal };
     }
 
-    function openProjectRenameDialog(project, onRenamed) {
+    function openProjectRenameDialog(project: Pick<ProjectMetadata, 'id' | 'name'>, onRenamed?: () => void | Promise<void>) {
       const { dialog, modal } = projectModal('Rename Project', 'project-rename-modal');
       const body = document.createElement('div'); body.className = 'project-rename-body';
       const label = document.createElement('label'); label.textContent = '프로젝트 이름'; label.htmlFor = 'project-rename-input';
@@ -353,10 +407,10 @@
       modal.focusInitial(input); input.select();
     }
 
-    const formatProjectTime = value => value
+    const formatProjectTime = (value: number) => value
       ? new Date(Number(value)).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'medium' })
       : '저장 시각 없음';
-    const formatBytes = value => Number(value) >= 1024 * 1024
+    const formatBytes = (value: number) => Number(value) >= 1024 * 1024
       ? `${(Number(value) / 1024 / 1024).toFixed(1)} MB`
       : `${Math.max(0, Math.round(Number(value || 0) / 1024))} KB`;
 
@@ -438,9 +492,10 @@
         persistence.listServerProjectRevisions(projectId),
       ]);
       if (!overlay.isConnected) return;
-      const revisions = new Map();
-      [...indexed.map(item => ({ ...item, backend: 'indexeddb' })), ...sqlite.map(item => ({ ...item, backend: 'sqlite' }))]
-        .forEach(item => {
+      const candidates = [...indexed.map(item => ({ ...item, backend: 'indexeddb' as const })),
+        ...sqlite.map(item => ({ ...item, backend: 'sqlite' as const }))];
+      const revisions = new Map<string, typeof candidates[number]>();
+      candidates.forEach(item => {
           const key = `${item.savedAt}:${item.byteLength}`;
           if (!revisions.has(key) || item.backend === 'sqlite') revisions.set(key, item);
         });
@@ -490,7 +545,7 @@
       if (recoveryDirty) saveRecoveryCopy();
     }
 
-    function handleBeforeUnload(ev) {
+    function handleBeforeUnload(ev: BeforeUnloadEvent) {
       try {
         if (state.diagrams.length) writeLocalRecovery(serialize(), Date.now());
       } catch (_) { /* the debounced IndexedDB copy remains available */ }
@@ -532,11 +587,10 @@
       } catch (_) { /* IndexedDB may still be available */ }
 
       let recovered = false;
-      let recovery = null;
       if (projects.length) {
         const selected = projects.find(project => project.id === preferredProjectId) || projects[0];
         const records = await projectRecords(selected.id);
-        recovery = newestProjectRecord(records);
+        const recovery = newestProjectRecord(records);
         recovered = recovery?.json
           ? load(recovery.json, {
             persist: false,
@@ -545,7 +599,7 @@
             projectName: selected.name,
           })
           : false;
-        if (recovered) {
+        if (recovered && recovery) {
           state.indexedRevision = records.indexed?.revision ?? null;
           state.sqliteRevision = records.sqlite?.revision ?? null;
           state.autosaveBackend = records.sqlite ? 'sqlite' : 'indexeddb';
@@ -564,12 +618,13 @@
           serverRecovery?.json ? { source: 'sqlite', ...serverRecovery } : null,
           databaseRecovery?.json ? { source: 'indexeddb', ...databaseRecovery } : null,
           localRecovery ? { source: 'local', json: localRecovery, savedAt: localSavedAt } : null,
-        ].filter(Boolean).sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
-        recovery = candidates[0] || null;
+        ].filter((record): record is NonNullable<typeof record> => record !== null)
+          .sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+        const recovery = candidates[0] || null;
         recovered = recovery?.json
           ? load(recovery.json, { persist: false, silent: true })
           : false;
-        if (recovered) {
+        if (recovered && recovery) {
           state.indexedRevision = null;
           state.sqliteRevision = null;
           state.lastAutosavedAt = recovery.savedAt || null;
@@ -634,4 +689,4 @@
     AUTOSAVE_HEARTBEAT_MS,
     create,
   });
-});
+}

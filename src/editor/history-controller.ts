@@ -2,11 +2,16 @@
 
 /* History Controller — owns the bounded Undo/Redo stacks while the host keeps
    responsibility for serializing and restoring the project document. */
-(function initHistoryControllerModule<Api>(root: typeof globalThis & { UMLHistoryController?: Api }, factory: () => Api) {
+type HistoryControllerApi = ReturnType<typeof createHistoryControllerModule>;
+declare var UMLHistoryController: HistoryControllerApi;
+
+(function initHistoryControllerModule(root: typeof globalThis & { UMLHistoryController?: HistoryControllerApi }, factory: () => HistoryControllerApi) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLHistoryController = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createHistoryControllerModule() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createHistoryControllerModule);
+
+function createHistoryControllerModule() {
   const REQUIRED_FUNCTIONS = Object.freeze([
     'captureState',
     'markDirty',
@@ -87,4 +92,4 @@
     REQUIRED_VALUES,
     create,
   });
-});
+}

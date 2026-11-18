@@ -1,15 +1,19 @@
-// @ts-nocheck
 'use strict';
 
 /* Selection editing — the clipboard and the commands that act on whatever the
    user has selected: copy/cut/paste/duplicate (carrying the semantic models the
    copied views depend on), delete from view or from the model repository,
    auto-size, keyboard nudge, and z-order. */
-(function initSelectionEditingModule(root, factory) {
+type SelectionEditingApi = ReturnType<typeof createSelectionEditingModule>;
+declare var UMLSelectionEditing: SelectionEditingApi;
+
+(function initSelectionEditingModule(root: typeof globalThis & { UMLSelectionEditing?: SelectionEditingApi }, factory: () => SelectionEditingApi) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLSelectionEditing = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createSelectionEditingModule() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createSelectionEditingModule);
+
+function createSelectionEditingModule() {
   const REQUIRED_FUNCTIONS = Object.freeze([
     'adoptView',
     'byId',
@@ -31,30 +35,30 @@
     'snapshot',
     'syncRelationModel',
     'uid',
-  ]);
+  ] as const);
   const REQUIRED_VALUES = Object.freeze([
     'state',
     'GRID',
-  ]);
+  ] as const);
   /* 붙여넣을 때 복사본이 원본과 배열을 공유하지 않도록 떼어낼 모델 필드 */
   const CLONED_MODEL_LIST_FIELDS = Object.freeze([
     'attributes', 'operations', 'literals', 'columns', 'operands', 'internalTransitions', 'slots',
     'parts', 'references', 'values', 'flowProperties', 'constraintProperties',
     'properties', 'constraints', 'constraintParameters', 'receptions',
-  ]);
+  ] as const);
   const CLONED_MODEL_STRUCTURED_FIELDS = Object.freeze([
     'erdColumnDetails', 'erdChecks', 'erdIndexes',
-  ]);
+  ] as const);
   const MODEL_REFERENCE_FIELDS = Object.freeze([
     'classifierModelId', 'collaborationModelId', 'providedInterfaceModelId', 'requiredInterfaceModelId',
-  ]);
+  ] as const);
   /* Views whose copy is a new thing rather than a second view of the same thing:
      a pasted table is a new table and a pasted lifeline is a new participant.
      Abstract classifiers — Class, Interface, Enumeration — keep the shared-model
      behaviour on purpose: a Class shown in two diagrams is one Class, and
      `Delete Model` is expected to remove every view of it. The label names the
      kind in the paste message; kinds sharing a label are counted together. */
-  const INDEPENDENT_COPY_KINDS = Object.freeze({
+  const INDEPENDENT_COPY_KINDS: Readonly<Partial<Record<string, string>>> = Object.freeze({
     entity: '테이블',
     lifeline: '라이프라인',
     fragment: '결합 프래그먼트',
@@ -70,9 +74,53 @@
   });
   const PASTE_OFFSET = 24;
 
-  function create(dependencies) {
-    const deps = dependencies || {};
-    const missing = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
+  interface ClipboardData {
+    elements: ImportedElement[];
+    relations: (Omit<DiagramRelation, 'kind'> & { kind?: string })[];
+    models?: DiagramModels;
+  }
+  interface Clipboard {
+    data: string;
+    count: number;
+    sourceRepository: DiagramModels;
+    cloneModels: boolean;
+  }
+
+  interface SelectionDependencies {
+    adoptView: {
+      (view: ImportedElement): DiagramElement;
+      (view: ImportedRelation): DiagramRelation;
+    };
+    byId: (id: string | null | undefined) => DiagramElement | null | undefined;
+    descendantViews: (id: string, diagram?: EditorDiagram) => DiagramElement[];
+    dg: () => EditorDiagram;
+    diagramAllowsElementKind: (type: string, kind: string | undefined) => boolean;
+    flashStatus: (message: string) => void;
+    isMsg: (kind: string) => boolean;
+    modelUid: () => string;
+    moveViewTree: (view: DiagramElement, dx: number, dy: number, origins: ReadonlyMap<string, DiagramPoint>, step: number) => void;
+    relById: (id: string | null | undefined) => DiagramRelation | null | undefined;
+    render: () => void;
+    renderAll: () => void;
+    renderProps: () => void;
+    rootViews: (views: DiagramElement[]) => DiagramElement[];
+    sequenceLifelineTop: (diagram: EditorDiagram) => number;
+    setSelection: (ids: string[]) => void;
+    snap: (value: number) => number;
+    snapshot: () => void;
+    syncRelationModel: (relation: DiagramRelation, diagram: EditorDiagram) => void;
+    uid: () => string;
+    state: { selection: string[]; selectedId: string | null; diagrams: EditorDiagram[]; models: DiagramModels };
+    GRID: number;
+  }
+
+  function present<T>(value: T | null | undefined): value is T {
+    return value != null;
+  }
+
+  function create(dependencies?: SelectionDependencies) {
+    const deps: Partial<SelectionDependencies> = dependencies || {};
+    const missing: string[] = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
     REQUIRED_VALUES.forEach(name => {
       if (deps[name] == null) missing.push(name);
     });
@@ -104,9 +152,9 @@
       uid,
       state,
       GRID,
-    } = deps;
+    } = deps as SelectionDependencies;
 
-    let clipboard = null; // { data: serialized element, count: paste count }
+    let clipboard: Clipboard | null = null;
 
     function selectAllViews() {
       const diagram = dg();
@@ -119,8 +167,8 @@
       renderProps();
     }
 
-    function moveSelectionByKey(key, coarse) {
-      const selected = state.selection.map(byId).filter(Boolean);
+    function moveSelectionByKey(key: string, coarse: boolean) {
+      const selected = state.selection.map(byId).filter(present);
       if (!selected.length) return false;
       snapshot();
       /* Shift nudges by a whole grid cell, a bare arrow by one pixel — the fine
@@ -139,11 +187,11 @@
     }
 
     function expandedElementSelection() {
-      const base = state.selection.map(byId).filter(Boolean);
-      const roots = base.map(e => e.kind === 'region' ? byId(e.parentId) : e).filter(Boolean);
+      const base = state.selection.map(byId).filter(present);
+      const roots = base.map(e => e.kind === 'region' ? byId(e.parentId) : e).filter(present);
       return [...new Map(roots.flatMap(root => [root, ...descendantViews(root.id)]).map(e => [e.id, e])).values()];
     }
-    function copySelection(options = {}) {
+    function copySelection(options: { cloneModels?: boolean } = {}) {
       let els = expandedElementSelection();
       if (!els.length) {
         if (relById(state.selectedId)) flashStatus('관계(선)는 단독으로 복사할 수 없습니다 — 양 끝 요소를 함께 선택하세요');
@@ -153,22 +201,23 @@
       /* relations whose both ends are inside the copied set travel with it */
       let rels = dg().relations.filter(r => ids.has(r.from) && ids.has(r.to));
       const attachedConstraints = dg().elements.filter(e => e.kind === 'timeconstraint'
-        && (ids.has(e.constrainedViewId) || rels.some(relation => relation.id === e.constrainedViewId)));
+        && (ids.has(e.constrainedViewId || '') || rels.some(relation => relation.id === e.constrainedViewId)));
       if (attachedConstraints.length) {
         els = [...new Map([...els, ...attachedConstraints].map(e => [e.id, e])).values()];
         ids = new Set(els.map(e => e.id));
         rels = dg().relations.filter(r => ids.has(r.from) && ids.has(r.to));
       }
-      const modelIds = new Set([...els, ...rels].map(v => v.modelId));
+      const modelIds = new Set([...els, ...rels].map(v => v.modelId).filter(present));
       [...els, ...rels].forEach(view => {
-        const model = state.models[view.modelId];
+        const model = view.modelId ? state.models[view.modelId] : undefined;
         MODEL_REFERENCE_FIELDS.forEach(field => {
-          if (model && model[field]) modelIds.add(model[field]);
+          const id = model?.[field];
+          if (id) modelIds.add(id);
         });
         (model?.conveyedModelIds || []).forEach(id => modelIds.add(id));
         (model?.itemFlowModelIds || []).forEach(id => modelIds.add(id));
       });
-      const models = {};
+      const models: DiagramModels = {};
       modelIds.forEach(id => { if (state.models[id]) models[id] = state.models[id]; });
       /* A copied table or lifeline must be safe to rename, edit, or delete from the
          model without affecting its source — see INDEPENDENT_COPY_KINDS. */
@@ -190,42 +239,44 @@
     }
     function pasteClipboard() {
       if (!clipboard) { flashStatus('클립보드가 비어 있습니다'); return; }
-      const src = JSON.parse(clipboard.data);
+      const currentClipboard = clipboard;
+      const src: ClipboardData = JSON.parse(currentClipboard.data);
       const sourceModels = src.models || {};
-      const kindOf = view => (sourceModels[view.modelId] && sourceModels[view.modelId].kind) || view.kind;
+      const kindOf = (view: ImportedElement) => (view.modelId && sourceModels[view.modelId]?.kind) || view.kind;
       const usable = src.elements.filter(e => diagramAllowsElementKind(dg().type, kindOf(e)));
       if (!usable.length) {
         flashStatus('복사한 요소를 이 다이어그램에 붙여넣을 수 없습니다');
         return;
       }
       snapshot();
-      clipboard.count++;
-      const off = PASTE_OFFSET * clipboard.count;
-      const idMap = {};
-      const modelIdMap = {};
-      const sameProject = clipboard.sourceRepository === state.models;
+      currentClipboard.count++;
+      const off = PASTE_OFFSET * currentClipboard.count;
+      const idMap: Record<string, string> = Object.create(null);
+      const modelIdMap: Record<string, string> = Object.create(null);
+      const sameProject = currentClipboard.sourceRepository === state.models;
       /* `viaReference` marks a model the copied view only points at — a lifeline's
          classifier, a component's interface. Cloning those too would duplicate the
          classifier itself, so within the same project they stay shared. */
-      const targetModelId = (oldId, viaReference = false) => {
-        if (sameProject && state.models[oldId] && (!clipboard.cloneModels || viaReference)) return oldId;
+      const targetModelId = (sourceId: string | undefined, viaReference = false): string => {
+        const oldId = sourceId || String(sourceId);
+        if (sameProject && state.models[oldId] && (!currentClipboard.cloneModels || viaReference)) return oldId;
         if (!modelIdMap[oldId]) {
           const nextId = modelUid();
-          const source = sourceModels[oldId] || { kind: 'note', name: 'Imported Element' };
+          const source: Omit<DiagramModel, 'id'> = sourceModels[oldId] || { kind: 'note', name: 'Imported Element' };
           modelIdMap[oldId] = nextId;
           state.models[nextId] = { ...source, id: nextId };
           CLONED_MODEL_LIST_FIELDS.forEach(k => {
-            if (state.models[nextId][k]) state.models[nextId][k] = [...state.models[nextId][k]];
+            const list = state.models[nextId][k];
+            if (list) state.models[nextId][k] = [...list];
           });
           CLONED_MODEL_STRUCTURED_FIELDS.forEach(k => {
             if (state.models[nextId][k]) {
-              state.models[nextId][k] = JSON.parse(JSON.stringify(state.models[nextId][k]));
+              Object.assign(state.models[nextId], { [k]: structuredClone(state.models[nextId][k]) });
             }
           });
           MODEL_REFERENCE_FIELDS.forEach(field => {
-            if (source[field] && sourceModels[source[field]]) {
-              state.models[nextId][field] = targetModelId(source[field], true);
-            }
+            const reference = source[field];
+            if (reference && sourceModels[reference]) state.models[nextId][field] = targetModelId(reference, true);
           });
           if (Array.isArray(source.conveyedModelIds)) {
             state.models[nextId].conveyedModelIds = source.conveyedModelIds
@@ -253,7 +304,7 @@
         if (source.parentId && idMap[source.parentId]) pasted.parentId = idMap[source.parentId];
         else delete pasted.parentId;
       });
-      const relationIdMap = {};
+      const relationIdMap: Record<string, string> = Object.create(null);
       const sourceRelations = (src.relations || []).filter(r => idMap[r.from] && idMap[r.to]);
       const newRels = sourceRelations.map(r => {
         const id = uid();
@@ -285,10 +336,10 @@
       if (usable.length < src.elements.length) flashStatus('일부 요소는 이 다이어그램 타입에 맞지 않아 제외되었습니다');
       setSelection(newEls.map(e => e.id));
       render(); renderProps();
-      if (clipboard.cloneModels) {
+      if (currentClipboard.cloneModels) {
         /* several kinds share one label (four instance kinds are all 인스턴스), so
            count by label rather than by kind */
-        const copied = new Map();
+        const copied = new Map<string, number>();
         newEls.forEach(view => {
           const label = INDEPENDENT_COPY_KINDS[view.kind];
           if (label) copied.set(label, (copied.get(label) || 0) + 1);
@@ -311,13 +362,13 @@
 
     function deleteSelection(selectedIds = state.selection) {
       const ids = new Set(selectedIds);
-      selectedIds.map(byId).filter(Boolean).forEach(root => descendantViews(root.id).forEach(child => ids.add(child.id)));
+      selectedIds.map(byId).filter(present).forEach(root => descendantViews(root.id).forEach(child => ids.add(child.id)));
       if (!ids.size) return;
       snapshot();
       const d = dg();
       const removedConnectorIds = new Set(d.relations.filter(r => ids.has(r.id) && r.kind === 'commconnector').map(r => r.id));
-      d.elements = d.elements.filter(e => !ids.has(e.id) && !(e.kind === 'timeconstraint' && ids.has(e.constrainedViewId)));
-      d.relations = d.relations.filter(r => !ids.has(r.id) && !ids.has(r.from) && !ids.has(r.to) && !removedConnectorIds.has(r.connectorId));
+      d.elements = d.elements.filter(e => !ids.has(e.id) && !(e.kind === 'timeconstraint' && ids.has(e.constrainedViewId || '')));
+      d.relations = d.relations.filter(r => !ids.has(r.id) && !ids.has(r.from) && !ids.has(r.to) && !removedConnectorIds.has(r.connectorId || ''));
       setSelection([]);
       render(); renderProps();
     }
@@ -326,26 +377,26 @@
       const selectedViews = state.diagrams
         .flatMap(d => [...d.elements, ...d.relations])
         .filter(v => state.selection.includes(v.id));
-      const modelIds = new Set(selectedViews.map(v => v.modelId).filter(Boolean));
+      const modelIds = new Set(selectedViews.map(v => v.modelId).filter(present));
       if (!modelIds.size) return;
       snapshot();
-      const relationModelIds = new Set();
+      const relationModelIds = new Set<string>();
       state.diagrams.forEach(d => {
-        const removedViewIds = new Set();
-        d.elements.filter(e => modelIds.has(e.modelId)).forEach(root => {
+        const removedViewIds = new Set<string>();
+        d.elements.filter(e => modelIds.has(e.modelId || '')).forEach(root => {
           removedViewIds.add(root.id);
           descendantViews(root.id, d).forEach(child => removedViewIds.add(child.id));
         });
-        d.elements.filter(e => e.kind === 'timeconstraint' && removedViewIds.has(e.constrainedViewId))
+        d.elements.filter(e => e.kind === 'timeconstraint' && removedViewIds.has(e.constrainedViewId || ''))
           .forEach(e => removedViewIds.add(e.id));
         d.elements = d.elements.filter(e => !removedViewIds.has(e.id));
         const removedConnectorIds = new Set(d.relations
-          .filter(r => r.kind === 'commconnector' && (modelIds.has(r.modelId) || removedViewIds.has(r.from) || removedViewIds.has(r.to)))
+          .filter(r => r.kind === 'commconnector' && (modelIds.has(r.modelId || '') || removedViewIds.has(r.from) || removedViewIds.has(r.to)))
           .map(r => r.id));
         d.relations = d.relations.filter(r => {
-          const remove = modelIds.has(r.modelId) || removedViewIds.has(r.from) || removedViewIds.has(r.to)
-            || removedConnectorIds.has(r.connectorId);
-          if (remove) relationModelIds.add(r.modelId);
+          const remove = modelIds.has(r.modelId || '') || removedViewIds.has(r.from) || removedViewIds.has(r.to)
+            || removedConnectorIds.has(r.connectorId || '');
+          if (remove && r.modelId) relationModelIds.add(r.modelId);
           return !remove;
         });
       });
@@ -356,14 +407,14 @@
     }
 
     function autoSizeSelection() {
-      const selected = state.selection.map(byId).filter(Boolean);
+      const selected = state.selection.map(byId).filter(present);
       if (!selected.length) { flashStatus('자동 크기를 적용할 요소를 선택하세요'); return; }
       snapshot();
       selected.forEach(e => { e.w = 0; e.h = 0; });
       render(); renderProps();
     }
 
-    function bindingConnectorStackInfo(relation, diagram = dg()) {
+    function bindingConnectorStackInfo(relation: DiagramRelation | null | undefined, diagram = dg()) {
       const connectors = diagram.relations.filter(item => item.kind === 'bindingconnector');
       return {
         connectors,
@@ -372,7 +423,7 @@
       };
     }
 
-    function reorderBindingConnector(relation, action) {
+    function reorderBindingConnector(relation: DiagramRelation, action: 'backward' | 'forward' | 'back' | 'front') {
       const diagram = dg();
       const { connectors, index, total } = bindingConnectorStackInfo(relation, diagram);
       if (index < 0 || total < 2) return false;
@@ -399,7 +450,7 @@
       return true;
     }
 
-    function canReorderSelection(toFront) {
+    function canReorderSelection(toFront: boolean) {
       if (state.selection.some(byId)) return true;
       const relation = relById(state.selectedId);
       if (relation?.kind !== 'bindingconnector') return false;
@@ -409,7 +460,7 @@
         : stack.index > 0;
     }
 
-    function reorderSelection(toFront) {
+    function reorderSelection(toFront: boolean) {
       const ids = new Set(state.selection);
       const d = dg();
       const selected = d.elements.filter(e => ids.has(e.id));
@@ -462,4 +513,4 @@
     PASTE_OFFSET,
     create,
   });
-});
+}

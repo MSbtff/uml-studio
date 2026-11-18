@@ -1,8 +1,13 @@
-(function initCanvasKeyboardModule<Api>(root: typeof globalThis & { UMLCanvasKeyboard?: Api }, factory: () => Api) {
+type CanvasKeyboardApi = ReturnType<typeof createCanvasKeyboardModule>;
+declare var UMLCanvasKeyboard: CanvasKeyboardApi;
+
+(function initCanvasKeyboardModule(root: typeof globalThis & { UMLCanvasKeyboard?: CanvasKeyboardApi }, factory: () => CanvasKeyboardApi) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLCanvasKeyboard = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createCanvasKeyboardModule() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createCanvasKeyboardModule);
+
+function createCanvasKeyboardModule() {
   'use strict';
 
   const REQUIRED_FUNCTIONS = Object.freeze([
@@ -166,4 +171,4 @@
   }
 
   return Object.freeze({ REQUIRED_FUNCTIONS, REQUIRED_VALUES, create });
-});
+}

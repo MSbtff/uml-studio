@@ -4,11 +4,16 @@
    labels, lifelines, communication connectors, and editable member rows.
    Geometry is injected so this module stays independent from rendering and
    from the application's mutable bootstrap state. */
-(function initHitTestingModule<Api>(root: typeof globalThis & { UMLHitTesting?: Api }, factory: () => Api) {
+type HitTestingApi = ReturnType<typeof createHitTestingModule>;
+declare var UMLHitTesting: HitTestingApi;
+
+(function initHitTestingModule(root: typeof globalThis & { UMLHitTesting?: HitTestingApi }, factory: () => HitTestingApi) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLHitTesting = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createHitTestingModule() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createHitTestingModule);
+
+function createHitTestingModule() {
   const REQUIRED_FUNCTIONS = Object.freeze([
     'bezierPoint',
     'bindingRoute',
@@ -449,4 +454,4 @@
     HIT_TOLERANCES,
     create,
   });
-});
+}

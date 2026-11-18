@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use strict';
 
 /* ═══════════════════════════════════════════════════════════════
@@ -20,7 +19,7 @@ const CANVAS_W = 3000, CANVAS_H = 2000;
    reach a dependency it never declared, and a missing one still fails at init
    with that module's own message. Deps that only exist later in the file are
    registered as arrows so the lookup happens when they are called. */
-const wiring = Object.create(null);
+const wiring: Record<string, unknown> = Object.create(null);
 /* A module that is created before its provider exists is handed an arrow that
    forwards to it; registering that provider later replaces the arrow with the
    real export. Those names are the only ones allowed to be registered twice. */
@@ -33,7 +32,7 @@ const LIFECYCLE_EXPORTS = new Set(['attach', 'detach']);
 /* Object.assign would otherwise let a controller's generic export — `render`,
    `clear`, `attach` — silently replace an unrelated binding, and every module
    wired after that point would quietly receive the wrong function. */
-const register = (...sources) => {
+const register = (...sources: object[]) => {
   sources.forEach(source => Object.entries(source).forEach(([name, value]) => {
     if (LIFECYCLE_EXPORTS.has(name)) return;
     if (name in wiring && wiring[name] !== value && !REPLACEABLE_WIRING.has(name)) {
@@ -43,13 +42,19 @@ const register = (...sources) => {
   }));
   return wiring;
 };
-const provide = mod => {
-  const out = {};
+type WiredModule = {
+  REQUIRED_FUNCTIONS?: readonly string[];
+  REQUIRED_VALUES?: readonly string[];
+  create: (...args: never[]) => unknown;
+};
+function provide<Module extends WiredModule>(mod: Module): NonNullable<Parameters<Module['create']>[0]> {
+  const out: Record<string, unknown> = {};
   [...(mod.REQUIRED_FUNCTIONS || []), ...(mod.REQUIRED_VALUES || [])].forEach(name => {
     if (name in wiring) out[name] = wiring[name];
   });
-  return out;
-};
+  // Each controller validates the dependencies it receives at creation.
+  return out as NonNullable<Parameters<Module['create']>[0]>;
+}
 
 const {
   GRID,
@@ -128,7 +133,7 @@ register({
 /* UML AssociationEnd / LinkEnd and ER RelationshipEnd metadata.  Multiplicity
    remains in sourceLabel/targetLabel so older projects and exporters continue
    to round-trip without a migration. */
-function relationEndAt(p, radius = 26) {
+function relationEndAt(p: DiagramPoint, radius = 26): ReturnType<QuickEditDependencies['relationEndAt']> {
   const rels = dg().relations;
   for (let index = rels.length - 1; index >= 0; index--) {
     const r = rels[index];
@@ -143,22 +148,22 @@ function relationEndAt(p, radius = 26) {
   }
   return null;
 }
-const AUTO_LABEL = {
+const AUTO_LABEL: Partial<Record<string, string>> = {
   include: '«include»', extend: '«extend»', deploy: '«deploy»', 'msg-create': '«create»',
   exceptionhandler: '«exception»', activityinterrupt: '«interrupt»',
   informationflow: '«flow»',
   reqcopy: '«copy»', derivereqt: '«deriveReqt»', verify: '«verify»',
   satisfy: '«satisfy»', refine: '«refine»', trace: '«trace»',
 };
-const isMsg = kind => kind && kind.startsWith('msg-');
-const isCommMsg = kind => kind === 'comm-forward' || kind === 'comm-reverse';
-const isInteractionMsg = kind => isMsg(kind) || isCommMsg(kind);
+const isMsg = (kind?: string) => kind?.startsWith('msg-') === true;
+const isCommMsg = (kind: string) => kind === 'comm-forward' || kind === 'comm-reverse';
+const isInteractionMsg = (kind: string) => isMsg(kind) || isCommMsg(kind);
 
 function assertDiagramRegistryIntegrity() {
   const missingTools = Object.keys(DIAGRAM_META).filter(type => !DIAGRAM_TOOLS[type]);
-  const missingMeta = Object.keys(DIAGRAM_TOOLS).filter(type => !DIAGRAM_META[type]);
-  const unknownElements = registeredElementKinds().filter(kind => !KIND_META[kind]);
-  const unknownRelations = registeredRelationKinds().filter(kind => !REL_STYLE[kind]);
+  const missingMeta = Object.keys(DIAGRAM_TOOLS).filter(type => !Object.hasOwn(DIAGRAM_META, type));
+  const unknownElements = registeredElementKinds().filter(kind => !Object.hasOwn(KIND_META, kind));
+  const unknownRelations = registeredRelationKinds().filter(kind => !Object.hasOwn(REL_STYLE, kind));
   const problems = [
     missingTools.length ? `도구 없음: ${missingTools.join(', ')}` : '',
     missingMeta.length ? `메타데이터 없음: ${missingMeta.join(', ')}` : '',
@@ -240,13 +245,18 @@ const REQUIREMENT_RELATION_KINDS = new Set([
   'reqcontainment', 'reqcopy', 'derivereqt', 'verify', 'satisfy', 'refine', 'trace',
 ]);
 
-function diagramKindLabel(kind, diagramType = dg()?.type) {
+function diagramKindLabel(kind: string, diagramType = activeDiagram()?.type) {
   if ((diagramType === 'bdd' || diagramType === 'ibd') && kind === 'connector') return 'Connector';
-  return KIND_META[kind]?.label || kind;
+  return (Object.hasOwn(KIND_META, kind) && KIND_META[kind as keyof typeof KIND_META].label) || kind;
 }
 
 /* ── State ─────────────────────────────────────────────────── */
-const state = {
+const state: ProjectStoreState & CanvasSelectionState & {
+  activeId: string | null;
+  showMinimap: boolean;
+  validationStale: boolean;
+  runtimeErrors?: { count: number; last: string; at: number };
+} = {
   models: {},      // semantic model repository: modelId -> model
   diagrams: [],   // { id, type, name, elements:[], relations:[] }
   activeId: null,
@@ -266,14 +276,16 @@ const state = {
   showMinimap: false,
   validationStale: false,
 };
-function setSelection(ids) {
+function setSelection(ids: string[]) {
   state.selection = ids;
   state.selectedId = ids.length === 1 ? ids[0] : null;
 }
 let idSeq = 1;
-const counters = {};
+const counters: Record<string, number> = {};
 
-const svg = document.getElementById('canvas');
+const canvas = document.querySelector<SVGSVGElement>('svg#canvas');
+if (!canvas) throw new Error('캔버스 SVG를 찾을 수 없습니다.');
+const svg = canvas;
 const wrap = document.getElementById('canvas-wrap');
 const minimap = document.getElementById('minimap');
 const minimapSvg = document.getElementById('minimap-svg');
@@ -287,9 +299,13 @@ const statusRight = document.getElementById('status-right');
 
 /* ── Utilities ─────────────────────────────────────────────── */
 const meas = document.createElement('canvas').getContext('2d');
-function tw(text, font) { meas.font = font; return meas.measureText(text || '').width; }
+function tw(text: string | undefined, font: string) {
+  if (!meas) return 0;
+  meas.font = font;
+  return meas.measureText(text || '').width;
+}
 const uid = () => {
-  let id;
+  let id: string;
   do {
     id = 'e' + (idSeq++);
   } while (state.diagrams.some(diagram =>
@@ -305,32 +321,37 @@ const modelUid = () => {
   } while (state.models[id]);
   return id;
 };
-const validProjectId = value => typeof value === 'string' && /^[A-Za-z0-9._-]{1,128}$/.test(value);
+const validProjectId = (value: unknown): value is string => typeof value === 'string' && /^[A-Za-z0-9._-]{1,128}$/.test(value);
 const projectUid = () => {
   const random = globalThis.crypto?.randomUUID?.()
     || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
   return `p-${random}`;
 };
-const cleanProjectName = value => String(value || '').trim().slice(0, 200) || 'Untitled Project';
-const dg = () => state.diagrams.find(d => d.id === state.activeId);
-const byId = id => dg().elements.find(e => e.id === id);
-const relById = id => dg().relations.find(r => r.id === id);
-function el(tag, attrs, parent) {
+const cleanProjectName = (value: unknown) => String(value || '').trim().slice(0, 200) || 'Untitled Project';
+const activeDiagram = () => state.diagrams.find(d => d.id === state.activeId);
+function dg(): EditorDiagram {
+  const diagram = activeDiagram();
+  if (!diagram) throw new Error('활성 다이어그램을 찾을 수 없습니다.');
+  return diagram;
+}
+const byId = (id?: string | null) => activeDiagram()?.elements.find(e => e.id === id);
+const relById = (id?: string | null) => activeDiagram()?.relations.find(r => r.id === id);
+function el<Tag extends keyof SVGElementTagNameMap>(tag: Tag, attrs: SvgAttributes, parent?: SVGElement | null): SVGElementTagNameMap[Tag] {
   const n = document.createElementNS(SVGNS, tag);
-  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  for (const k in attrs) n.setAttribute(k, String(attrs[k]));
   if (parent) parent.appendChild(n);
   return n;
 }
 /* ── Semantic model repository / diagram views ───────────── */
-function adoptView(view) {
+function adoptView(view: DiagramElement | DiagramRelation) {
   return hydrateView(view, state.models, modelUid);
 }
-function hydrateCurrentProject(models) {
+function hydrateCurrentProject(models?: DiagramModels) {
   state.models = hydrateProject(state.diagrams, models || {}, modelUid);
   syncAllRelationModels();
 }
-function syncRelationModel(r, diagram = dg()) {
-  const model = state.models[r.modelId];
+function syncRelationModel(r: DiagramRelation, diagram = activeDiagram()) {
+  const model = r.modelId ? state.models[r.modelId] : undefined;
   if (!model || !diagram) return;
   const from = diagram.elements.find(e => e.id === r.from);
   const to = diagram.elements.find(e => e.id === r.to);
@@ -353,7 +374,7 @@ const elementFactory = UMLElementFactory.create(provide(UMLElementFactory));
 register(elementFactory);
 
 /* ── Editable compartment member lists ────────────────────── */
-const memberListsController = UMLMemberLists.create(provide(UMLMemberLists));
+const memberListsController = UMLMemberLists.create();
 register(memberListsController);
 
 /* the kind vocabularies, the shared state and lookups, and every remaining
@@ -381,9 +402,9 @@ register({
   relEndpoints, relLabel, relationEndAt, renderAll, renderProps,
   setErdMode, setSelection, stateSelfTransitionGeom, svgPoint,
   syncRelationModel, syncAllRelationModels,
-  clearValidationResults: (...args) => validationPanelController.clear(...args),
+  clearValidationResults: () => validationPanelController.clear(),
   getIdSeq: () => idSeq,
-  setIdSeq: value => { idSeq = value; },
+  setIdSeq: (value: number) => { idSeq = value; },
 });
 /* names that describe an app-level action rather than one binding */
 register({
@@ -395,7 +416,7 @@ register({
   cancelInteraction: () => cancelActiveInteraction(),
   clearLinking: () => canvasInteraction.setLinking(null),
   getLinking: () => canvasInteraction.getLinking(),
-  confirmAction: message => confirm(message),
+  confirmAction: (message: string) => confirm(message),
   /* command availability, asked for while a menu is being built */
   canBringFront: () => canReorderSelection(true),
   canSendBack: () => canReorderSelection(false),
@@ -404,10 +425,10 @@ register({
   hasClipboard: () => selectionEditing.hasClipboard(),
   isMinimapVisible: () => state.showMinimap,
   isValidationVisible: () => validationPanelController.isVisible(),
-  moveSelection: (...args) => moveSelectionByKey(...args),
-  selectAll: (...args) => selectAllViews(...args),
-  resetHistory: (...args) => historyController.resetHistory(...args),
-  scheduleRecoverySave: (...args) => projectStore.scheduleRecoverySave(...args),
+  moveSelection: (key: string, coarse: boolean) => moveSelectionByKey(key, coarse),
+  selectAll: () => selectAllViews(),
+  resetHistory: () => historyController.resetHistory(),
+  scheduleRecoverySave: (delay?: number) => projectStore.scheduleRecoverySave(delay),
 });
 /* the panels and libraries the modules are handed rather than look up */
 register({
@@ -435,7 +456,7 @@ register({
 const modalFocus = UMLModalFocus.create(provide(UMLModalFocus));
 register({
   modalFocus,
-  closeTopModal: (...args) => modalFocus.closeTop(...args),
+  closeTopModal: () => modalFocus.closeTop(),
 });
 
 /* ── Status bar ────────────────────────────────────────────── */
@@ -509,9 +530,9 @@ register(relationCreation);
 /* ── ERD logical / physical model (eXERD-style) ────────────── */
 const ERD_VIEW_MODES = [
   ['physical', '물리만'], ['logical', '논리만'], ['both', '논리 + 물리'],
-];
+] as const;
 register({ ERD_VIEW_MODES });
-function setErdMode(mode) {
+function setErdMode(mode: string) {
   if (!ERD_VIEW_MODES.some(([value]) => value === mode) || dg().type !== 'erd') return false;
   if (erdMode() === mode) return true;
   snapshot();
@@ -522,7 +543,7 @@ function setErdMode(mode) {
   return true;
 }
 
-function relEndpoints(r) {
+function relEndpoints(r: DiagramRelation) {
   const a = byId(r.from), b = byId(r.to);
   return computeRelationEndpoints(r, a, b);
 }
@@ -543,13 +564,13 @@ register({
 });
 
 /* eXERD-style palette */
-function erdRelationCardinality(r, end) {
+function erdRelationCardinality(r: DiagramRelation, end: RelationEnd) {
   const field = end === 'source' ? 'sourceLabel' : 'targetLabel';
   return normalizeErdCardinality(r[field], erdDefaultCardinality(r.kind, end));
 }
 
 /* curved mindmap branch */
-function branchGeom(r) {
+function branchGeom(r: DiagramRelation) {
   const ep = relEndpoints(r);
   if (!ep) return null;
   return curvedBranchGeometry(ep.p1, ep.p2);
@@ -575,7 +596,7 @@ register({ render });
 
 function renderAll() { renderToolbox(); render(); renderProps(); }
 
-function text(g, str, x, y, opt = {}) {
+function text(g: SVGElement, str: string | null | undefined, x: number, y: number, opt: SvgTextOptions = {}) {
   const t = el('text', {
     x, y, fill: opt.color || TEXT_COLOR,
     'font-family': FONT_FAMILY,
@@ -586,7 +607,7 @@ function text(g, str, x, y, opt = {}) {
     'text-anchor': opt.anchor || 'start',
     'pointer-events': 'none',
   }, g);
-  t.textContent = str;
+  t.textContent = str ?? '';
   return t;
 }
 
@@ -616,11 +637,11 @@ const elementRenderer = UMLElementRenderer.create({
   timingLabelWidth: TIMING_LABEL_WIDTH,
 });
 
-function drawElement(parent, element) {
+function drawElement(parent: SVGElement, element: DiagramElement) {
   return elementRenderer.draw(parent, element);
 }
 
-function relLabel(r) {
+function relLabel(r: DiagramRelation) {
   if (r.kind === 'transition') {
     const trigger = String(r.trigger || '').trim();
     const rawGuard = String(r.guard || '').trim();
@@ -650,12 +671,12 @@ function relLabel(r) {
   return [AUTO_LABEL[r.kind], r.name].filter(Boolean).join(' ');
 }
 
-function stateSelfTransitionGeom(r) {
+function stateSelfTransitionGeom(r: DiagramRelation) {
   return selfTransitionGeometry(r, byId(r.from));
 }
 
 /* user-dragged offset of a relation label (name / sourceLabel / targetLabel) */
-const lblOff = (r, field) => (r.lblOff && r.lblOff[field]) || { dx: 0, dy: 0 };
+const lblOff = (r: DiagramRelation, field: string) => (r.lblOff && r.lblOff[field]) || { dx: 0, dy: 0 };
 register({ lblOff });
 
 const relationRenderer = UMLRelationRenderer.create({
@@ -690,7 +711,7 @@ const relationRenderer = UMLRelationRenderer.create({
   dashRelation: DASH_REL,
 });
 
-function drawRelation(parent, relation) {
+function drawRelation(parent: SVGElement, relation: DiagramRelation) {
   return relationRenderer.draw(parent, relation);
 }
 
@@ -699,7 +720,7 @@ const hitTesting = UMLHitTesting.create(provide(UMLHitTesting));
 register(hitTesting);
 
 /* ── Mouse interaction ─────────────────────────────────────── */
-function svgPoint(ev) {
+function svgPoint(ev: MouseEvent) {
   return UMLCanvasInteraction.canvasPoint(ev, svg, state.zoom);
 }
 
@@ -795,7 +816,7 @@ validationPanelController.attach();
 
 /* ── Properties panel ──────────────────────────────────────── */
 function focusProps() {
-  const first = document.querySelector('#props input[type=text], #props textarea');
+  const first = document.querySelector<HTMLInputElement | HTMLTextAreaElement>('#props input[type=text], #props textarea');
   if (first) { first.focus(); first.select(); }
 }
 /* the ER-only property blocks need the panel's own row and heading helpers, so

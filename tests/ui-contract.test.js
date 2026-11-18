@@ -214,7 +214,7 @@ assert.match(importExport, /MODEL_FIELDS\.forEach\(field => \{ delete target\[fi
   '덮어쓰기는 기존 의미 필드를 제거한 뒤 가져온 모델로 교체해야 합니다');
 assert.match(importExport, /draw\.io 병합 검증에 실패하여 변경을 되돌렸습니다/,
   '병합한 프로젝트가 구조 검증에 실패하면 원래 상태로 롤백해야 합니다');
-assert.match(importExport, /return hydrateView\(view, state\.models, modelUid\)/,
+assert.match(importExport, /hydrateView\(remapView\(view\), state\.models, modelUid\)/,
   '현재 프로젝트로 병합한 draw.io 뷰도 의미 모델에 hydrate해야 합니다');
 assert.match(commandRouter, /Import draw\.io…/);
 assert.match(diagramRegistry, /State Machine Diagram/);
@@ -306,7 +306,7 @@ assert.match(diagramRegistry, /Parametric Diagram/);
 assert.match(sampleDiagrams, /function sampleParametric\(/);
 assert.match(sampleDiagrams, /function linkSampleParametricModels\(/);
 assert.match(relationRules, /function parametricRelationError\(/);
-assert.match(parametricBinding, /function syncConstraintParameters\(container\)/);
+assert.match(parametricBinding, /function syncConstraintParameters\(container\b/);
 assert.match(propertyPanel, /Constraint Parameters 동기화/);
 assert.match(validation, /bindingTypeCompatibility/,
   '타입 호환성 판정은 validation 모듈이 제공하고 app.js는 등록만 합니다');
@@ -381,8 +381,8 @@ assert.match(diagramRegistry, /const DIAGRAM_META/);
 assert.match(diagramRegistry, /const DIAGRAM_TOOLS/);
 assert.match(diagramRegistry, /function diagramAllowsElementKind\(/);
 assert.match(app, /function assertDiagramRegistryIntegrity\(/);
-assert.match(app, /registeredElementKinds\(\)\.filter\(kind => !KIND_META\[kind\]\)/);
-assert.match(app, /registeredRelationKinds\(\)\.filter\(kind => !REL_STYLE\[kind\]\)/);
+assert.match(app, /registeredElementKinds\(\)\.filter\(kind => !Object\.hasOwn\(KIND_META, kind\)\)/);
+assert.match(app, /registeredRelationKinds\(\)\.filter\(kind => !Object\.hasOwn\(REL_STYLE, kind\)\)/);
 assert.match(relationEnd, /RELATION_END_QUICK_EDIT_KINDS/);
 assert.match(relationEnd, /function validRelationEndMultiplicity\(/);
 assert.match(app, /function relationEndAt\(/);
@@ -429,9 +429,9 @@ for (const kind of ['class', 'interface', 'enumeration']) {
     `${kind}는 여러 다이어그램이 공유하는 분류자이므로 복사해도 같은 모델이어야 합니다`);
 }
 assert.match(selectionEditing, /els\.some\(view => view\.kind in INDEPENDENT_COPY_KINDS\)/);
-assert.match(selectionEditing, /state\.models\[oldId\] && \(!clipboard\.cloneModels \|\| viaReference\)/,
+assert.match(selectionEditing, /state\.models\[oldId\] && \(!(?:currentClipboard|clipboard)\.cloneModels \|\| viaReference\)/,
   '독립 복사에서는 기존 modelId를 재사용하면 안 됩니다');
-assert.match(selectionEditing, /targetModelId\(source\[field\], true\)/,
+assert.match(selectionEditing, /targetModelId\((?:source\[field\]|reference), true\)/,
   '복사한 뷰가 가리키기만 하는 분류자 모델까지 복제하면 안 됩니다');
 assert.match(selectionEditing, /copySelection\(\{ cloneModels: false \}\)/,
   '잘라내기는 이동이므로 기존 의미 모델을 유지해야 합니다');
@@ -470,7 +470,7 @@ assert.match(canvasInteraction, /mode: 'erdcolumn'/,
 assert.match(elementRenderer, /data-erd-column-index/,
   '캔버스 컬럼 행에는 드래그 가능한 명시적 히트 영역이 필요합니다');
 assert.match(elementRenderer, /function drawErdColumnBadges\(/);
-assert.match(elementRenderer, /\['PK', 'FK'\]\.filter/,
+assert.match(elementRenderer, /\['PK', 'FK'\](?: as const\))?\.filter/,
   'PK와 FK가 동시에 지정되어도 두 배지를 모두 표시해야 합니다');
 assert.match(erdPropertySections, /erd-column-drag-handle/);
 assert.match(erdPropertySections, /dragHandle\.draggable = true/);
@@ -700,7 +700,7 @@ assert.match(propertyPanel, /function capturePropertyFocus\(/,
   '패널을 다시 그려도 편집 중이던 컨트롤의 포커스를 잃으면 안 됩니다');
 assert.match(propertyPanel, /function restorePropertyFocus\(/);
 assert.match(propertyPanel, /function selectionFingerprint\(/);
-assert.match(propertyPanel, /setSelectionRange\(captured\.start, captured\.end\)/);
+assert.match(propertyPanel, /setSelectionRange\(captured\.start, captured\.end \?\? captured\.start\)/);
 assert.match(propertyPanel, /l\.htmlFor = node\.id/,
   '생성된 입력은 label과 프로그래밍적으로 연결해야 합니다');
 assert.doesNotMatch(propertyPanel, /end cardinality|end ERD column|foreign key owner end/,
@@ -823,7 +823,7 @@ assert.doesNotMatch(app, /UMLExporters\.export(?:Mermaid|Drawio)\b/,
   'Exporter 호출은 app.js에 중복으로 남기지 않아야 합니다');
 
 /* ── ERD DDL Exporter ──────────────────────────────────────── */
-assert.match(exporters, /const ERD_DDL_DIALECTS = Object\.freeze\(\{/);
+assert.match(exporters, /const ERD_DDL_DIALECTS(?:[^=]+)?= Object\.freeze\(\{/);
 assert.match(exporters, /function exportErdDdl\(/);
 assert.match(exporters, /FOREIGN KEY/);
 assert.match(exporters, /function erdDdlType\(/);
@@ -941,8 +941,8 @@ assert.doesNotMatch(app, /function (?:nextName|createElement)\(/,
   '요소 이름·초기 데이터 생성 구현은 app.js에 중복으로 남기지 않아야 합니다');
 
 /* ── Element Measure 모듈 ───────────────────────────────────── */
-assert.match(elementMeasure, /function measure\(e\)/);
-assert.match(elementMeasure, /function normalizeSize\(e\)/);
+assert.match(elementMeasure, /function measure\(e: DiagramElement\)/);
+assert.match(elementMeasure, /function normalizeSize\(e: DiagramElement\)/);
 assert.match(elementMeasure, /function bddCompartments\(/);
 assert.match(elementMeasure, /function wrapRequirementText\(/);
 assert.match(elementMeasure, /function stateBehaviorLines\(/);
@@ -981,7 +981,7 @@ assert.match(memberListsModule, /function memberListByKind\(element: MeasuredEle
 assert.match(memberListsModule, /const MEMBER_FIELDS = Object\.freeze\(\{/);
 assert.match(memberListsModule, /root\.UMLMemberLists = api/);
 assert.match(memberListsModule, /return Object\.freeze\(\{ ensureMemberArray, memberListByKind, memberLists \}\)/);
-assert.match(app, /UMLMemberLists\.create\(provide\(UMLMemberLists\)\)/);
+assert.match(app, /UMLMemberLists\.create\(\)/);
 assert.match(app, /register\(memberListsController\);/);
 assert.doesNotMatch(app, /function (?:ensureMemberArray|memberLists|memberListByKind)\(/,
   '멤버 배열·행 영역 계산 구현은 app.js에 중복으로 남기지 않아야 합니다');
@@ -1014,7 +1014,7 @@ assert.match(modalFocus, /entry\.overlay\.inert = !isTop/);
 assert.match(modalFocus, /aria-hidden/);
 assert.match(modalFocus, /entry\.opener.*focus/);
 assert.match(app, /UMLModalFocus\.create\(provide\(UMLModalFocus\)\)/);
-assert.match(app, /closeTopModal: \(\.\.\.args\) => modalFocus\.closeTop\(\.\.\.args\)/);
+assert.match(app, /closeTopModal: \(\) => modalFocus\.closeTop\(\)/);
 assert.match(projectStore, /modalFocus\.activate/);
 assert.match(modelRepository, /modalFocus\.activate/);
 assert.match(importPreview, /modal\.setRequestCloseHandler/);
@@ -1039,7 +1039,7 @@ assert.match(containmentLayout, /function layoutParametricParameters\(/);
 assert.match(containmentLayout, /function timingConstraintAnchor\(/);
 assert.match(containmentLayout, /Containment Layout 의존성이 없습니다/);
 assert.match(containmentLayout, /root\.UMLContainmentLayout = api/);
-assert.match(containmentLayout, /const regionLayoutCache = new WeakMap\(\)/,
+assert.match(containmentLayout, /const regionLayoutCache = new WeakMap(?:<[^>]+>)?\(\)/,
   'Region 이전 크기는 모듈 내부 캐시로만 추적해야 합니다');
 /* 레이아웃 상수가 바뀌면 캔버스 배치가 달라지므로 계약으로 고정한다 */
 assert.match(containmentLayout, /lifeline\.h = Math\.max\(lifeline\.h, 44 \+ Math\.max\(1, states\.length\) \* TIMING_ROW_HEIGHT\)/);
@@ -1137,11 +1137,11 @@ assert.match(selectionEditing, /function selectAllViews\(/);
 assert.match(selectionEditing, /function hasClipboard\(/);
 assert.match(selectionEditing, /Selection Editing 의존성이 없습니다/);
 assert.match(selectionEditing, /root\.UMLSelectionEditing = api/);
-assert.match(selectionEditing, /let clipboard = null/,
+assert.match(selectionEditing, /let clipboard: Clipboard \| null = null/,
   '클립보드 상태는 모듈 내부에만 있어야 합니다');
 assert.match(selectionEditing, /const PASTE_OFFSET = 24/);
 /* 복사본이 원본과 배열을 공유하면 원본이 함께 바뀐다 */
-assert.match(selectionEditing, /CLONED_MODEL_LIST_FIELDS\.forEach\(k => \{\s*\n\s*if \(state\.models\[nextId\]\[k\]\) state\.models\[nextId\]\[k\] = \[\.\.\.state\.models\[nextId\]\[k\]\];/);
+assert.match(selectionEditing, /CLONED_MODEL_LIST_FIELDS\.forEach\(k => \{\s*const list = state\.models\[nextId\]\[k\];\s*if \(list\) state\.models\[nextId\]\[k\] = \[\.\.\.list\];/);
 assert.match(selectionEditing, /const cloneModels = options\.cloneModels \?\? els\.some\(view => view\.kind in INDEPENDENT_COPY_KINDS\)/,
   'ERD 테이블과 라이프라인은 기본적으로 독립 모델로 복사해야 합니다');
 assert.match(selectionEditing, /관계\(선\)는 단독으로 복사할 수 없습니다/);
@@ -1162,13 +1162,13 @@ assert.doesNotMatch(app, /\blet clipboard\b|\bclipboard\.(?:data|count|cloneMode
   '뷰 클립보드 상태는 app.js에 남기지 않아야 합니다');
 
 /* ── Interaction Layout 모듈 ───────────────────────────────── */
-assert.match(interactionLayout, /function computeSeqNumbers\(diagram\)/);
-assert.match(interactionLayout, /function computeSequenceLayout\(diagram\)/);
-assert.match(interactionLayout, /function msgDisplayLabel\(relation\)/);
-assert.match(interactionLayout, /function msgPoints\(relation\)/);
-assert.match(interactionLayout, /function communicationSelfConnectorGeom\(relation\)/);
-assert.match(interactionLayout, /function communicationMessagePoints\(relation\)/);
-assert.match(interactionLayout, /function syncCommunicationMessages\(connector, diagram = dg\(\)\)/);
+assert.match(interactionLayout, /function computeSeqNumbers\(diagram\b/);
+assert.match(interactionLayout, /function computeSequenceLayout\(diagram\b/);
+assert.match(interactionLayout, /function msgDisplayLabel\(relation\b/);
+assert.match(interactionLayout, /function msgPoints\(relation\b/);
+assert.match(interactionLayout, /function communicationSelfConnectorGeom\(relation\b/);
+assert.match(interactionLayout, /function communicationMessagePoints\(relation\b/);
+assert.match(interactionLayout, /function syncCommunicationMessages\(connector(?::[^,]+)?, diagram = dg\(\)\)/);
 assert.match(interactionLayout, /Interaction Layout 의존성이 없습니다/);
 assert.match(interactionLayout, /root\.UMLInteractionLayout = api/);
 assert.match(interactionLayout, /sequenceBars = Object\.freeze\(assignedBars\.map\(bar => Object\.freeze\(bar\)\)\)/,
@@ -1236,7 +1236,7 @@ assert.match(modelRepository, /function addView\(/);
 assert.match(modelRepository, /function open\(/);
 assert.match(modelRepository, /function close\(/);
 assert.match(modelRepository, /const DERIVED_VIEW_KINDS = Object\.freeze\(/);
-assert.match(modelRepository, /const VIEW_PRESETS = Object\.freeze\(/);
+assert.match(modelRepository, /const VIEW_PRESETS(?:[^=]+)?= Object\.freeze\(/);
 assert.match(modelRepository, /Model Repository 의존성이 없습니다/);
 assert.match(modelRepository, /root\.UMLModelRepository = api/);
 assert.match(modelRepository, /Project Models/);
@@ -1271,7 +1271,7 @@ assert.match(parametricBinding, /function route\(/);
 assert.match(parametricBinding, /const ROUTING = Object\.freeze\(/);
 assert.match(parametricBinding, /Parametric Binding 의존성이 없습니다/);
 assert.match(parametricBinding, /root\.UMLParametricBinding = api/);
-assert.match(parametricBinding, /let routeCache = new Map\(\)/,
+assert.match(parametricBinding, /let routeCache = new Map(?:<[^>]+>)?\(\)/,
   '라우트 캐시는 모듈 내부에만 있어야 합니다');
 assert.match(parametricBinding, /element\.kind !== 'parametricframe'/,
   'Parametric Frame은 장애물이 아닙니다');
@@ -1290,8 +1290,8 @@ assert.doesNotMatch(app, /bindingRouteCache/,
   '라우트 캐시는 app.js에 남기지 않아야 합니다');
 
 /* ── 의존성 레지스트리 배선 ─────────────────────────────────── */
-assert.match(app, /const wiring = Object\.create\(null\);/);
-assert.match(app, /const register = \(\.\.\.sources\) => \{/);
+assert.match(app, /const wiring: Record<string, unknown> = Object\.create\(null\);/);
+assert.match(app, /const register = \(\.\.\.sources: object\[\]\) => \{/);
 assert.match(app, /배선 이름 충돌/,
   '컨트롤러의 흔한 export가 기존 배선을 조용히 덮어쓰면 즉시 실패해야 합니다');
 assert.match(app, /const LIFECYCLE_EXPORTS = new Set\(\['attach', 'detach'\]\)/,
@@ -1300,13 +1300,13 @@ assert.match(app, /const REPLACEABLE_WIRING = new Set\(\[/,
   'TDZ 회피용 자리표시자만 두 번 등록할 수 있어야 합니다');
 assert.doesNotMatch(app, /^register\(validationPanelController\)/m,
   'Validation Panel 컨트롤러는 generic한 render를 내보내므로 registry에 펼치면 안 됩니다');
-assert.match(app, /const provide = mod => \{[\s\S]*REQUIRED_FUNCTIONS[\s\S]*REQUIRED_VALUES[\s\S]*if \(name in wiring\) out\[name\] = wiring\[name\];/,
+assert.match(app, /function provide<Module extends WiredModule>\(mod: Module\)[\s\S]*REQUIRED_FUNCTIONS[\s\S]*REQUIRED_VALUES[\s\S]*if \(name in wiring\) out\[name\] = wiring\[name\];/,
   'provide는 모듈이 선언한 이름만 넘겨야 합니다');
-assert.doesNotMatch(app, /const provide = mod => \{[\s\S]{0,400}Object\.assign\(out, wiring\)/,
+assert.doesNotMatch(app, /function provide<Module extends WiredModule>[\s\S]{0,600}Object\.assign\(out, wiring\)/,
   '레지스트리를 통째로 넘기면 선언하지 않은 의존성에 닿을 수 있습니다');
 /* 배선을 다시 손으로 나열하는 회귀를 막는다 */
 [
-  'UMLContainmentLayout', 'UMLElementFactory', 'UMLElementMeasure', 'UMLMemberLists', 'UMLStatusBar', 'UMLModalFocus', 'UMLRelationRules', 'UMLRelationCreation', 'UMLParametricBinding', 'UMLInteractionLayout',
+  'UMLContainmentLayout', 'UMLElementFactory', 'UMLElementMeasure', 'UMLStatusBar', 'UMLModalFocus', 'UMLRelationRules', 'UMLRelationCreation', 'UMLParametricBinding', 'UMLInteractionLayout',
   'UMLCanvasRenderer', 'UMLHitTesting', 'UMLViewportController', 'UMLToolbox',
   'UMLDiagramTabs', 'UMLQuickEdit', 'UMLCanvasInteraction', 'UMLSelectionEditing',
   'UMLModelRepository', 'UMLModelExplorer', 'UMLErdNameTools', 'UMLValidationPanel', 'UMLProjectDocument', 'UMLHistoryController', 'UMLProjectStore', 'UMLProjectImport',
@@ -1318,7 +1318,7 @@ assert.doesNotMatch(app, /const provide = mod => \{[\s\S]{0,400}Object\.assign\(
 /* 지연이 필요한 배선은 화살표로 등록해야 TDZ에 걸리지 않는다 */
 assert.match(app, /interactionState: \(\) => canvasInteraction\.state\(\),/);
 assert.match(app, /getLinking: \(\) => canvasInteraction\.getLinking\(\),/);
-assert.match(app, /clearValidationResults: \(\.\.\.args\) => validationPanelController\.clear\(\.\.\.args\),/);
+assert.match(app, /clearValidationResults: \(\) => validationPanelController\.clear\(\),/);
 assert.match(app, /renderExplorer: \(\) => modelExplorer\.render\(\),/);
 assert.match(app, /renderMinimap: \(\) => viewportController\.renderMinimap\(\),/);
 assert.match(app, /cancelInteraction: \(\) => cancelActiveInteraction\(\),/,

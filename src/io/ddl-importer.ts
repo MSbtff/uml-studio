@@ -15,9 +15,12 @@ interface DdlSchemaApi {
   normalizeReferentialAction(value: unknown, description?: string): string;
 }
 
-(function initDdlImporter<Api>(
-  root: typeof globalThis & { UMLErdColumn?: DdlColumnApi; UMLErdSchema?: DdlSchemaApi; UMLDdlImporter?: Api },
-  factory: (erdColumn?: DdlColumnApi, erdSchema?: DdlSchemaApi) => Api,
+type DdlImporterApi = ReturnType<typeof createDdlImporter>;
+declare var UMLDdlImporter: DdlImporterApi;
+
+(function initDdlImporter(
+  root: typeof globalThis & { UMLErdColumn?: DdlColumnApi; UMLErdSchema?: DdlSchemaApi; UMLDdlImporter?: DdlImporterApi },
+  factory: (erdColumn?: DdlColumnApi, erdSchema?: DdlSchemaApi) => DdlImporterApi,
 ) {
   const commonJs = typeof module !== 'undefined' && module.exports;
   const erdColumn = commonJs ? require('../model/erd-column.js') : root.UMLErdColumn;
@@ -25,7 +28,9 @@ interface DdlSchemaApi {
   const api = factory(erdColumn, erdSchema);
   if (commonJs) module.exports = api;
   else root.UMLDdlImporter = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createDdlImporter(erdColumn?: DdlColumnApi, erdSchema?: DdlSchemaApi) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createDdlImporter);
+
+function createDdlImporter(erdColumn?: DdlColumnApi, erdSchema?: DdlSchemaApi) {
   if (!erdColumn || typeof erdColumn.formatColumn !== 'function'
     || typeof erdColumn.validateColumn !== 'function') {
     throw new TypeError('DDL Importer에는 UMLErdColumn.formatColumn/validateColumn이 필요합니다.');
@@ -854,4 +859,4 @@ interface DdlSchemaApi {
     sourceLocation,
     parseDdl,
   });
-});
+}

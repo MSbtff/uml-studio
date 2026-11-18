@@ -1,11 +1,16 @@
 'use strict';
 
 /* UML AssociationEnd / LinkEnd and ER RelationshipEnd domain helpers. */
-(function initRelationEnd<Api>(root: typeof globalThis & { UMLRelationEnd?: Api }, factory: () => Api) {
+type RelationEndApi = ReturnType<typeof createRelationEnd>;
+declare var UMLRelationEnd: RelationEndApi;
+
+(function initRelationEnd(root: typeof globalThis & { UMLRelationEnd?: RelationEndApi }, factory: () => RelationEndApi) {
   const api = factory();
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.UMLRelationEnd = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createRelationEnd() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createRelationEnd);
+
+function createRelationEnd() {
   const RELATION_END_QUICK_EDIT_KINDS = new Set([
     'association', 'directed', 'aggregation', 'composition',
     'link', 'directedlink', 'erd-11', 'erd-1n', 'erd-nm',
@@ -92,4 +97,4 @@
     relationEndRoleLabel,
     validRelationEndMultiplicity,
   };
-});
+}

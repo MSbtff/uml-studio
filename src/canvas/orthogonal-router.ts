@@ -1,22 +1,16 @@
 'use strict';
 
-(function initOrthogonalRouter<Api>(root: typeof globalThis & { UMLOrthogonalRouter?: Api }, factory: () => Api) {
+type OrthogonalRouterApi = ReturnType<typeof createOrthogonalRouter>;
+declare var UMLOrthogonalRouter: OrthogonalRouterApi;
+
+(function initOrthogonalRouter(root: typeof globalThis & { UMLOrthogonalRouter?: OrthogonalRouterApi }, factory: () => OrthogonalRouterApi) {
   const api = factory();
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.UMLOrthogonalRouter = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createOrthogonalRouter() {
-  interface RouteOptions {
-    start: DiagramPoint;
-    end: DiagramPoint;
-    clearance?: number;
-    grid?: number;
-    startDirection?: DiagramPoint;
-    endDirection?: DiagramPoint;
-    obstacles?: DiagramBounds[];
-    existingRoutes?: DiagramPoint[][];
-  }
+})(typeof globalThis !== 'undefined' ? globalThis : this, createOrthogonalRouter);
+
+function createOrthogonalRouter() {
   interface Segment { a: DiagramPoint; b: DiagramPoint }
-  interface Crossing { point: DiagramPoint; segmentIndex: number; routeIndex: number }
 
   const EPSILON = 0.001;
 
@@ -143,7 +137,7 @@
   }
 
   function collectPolylineCrossings(points: readonly DiagramPoint[], existingRoutes?: DiagramPoint[][]) {
-    const crossings: Crossing[] = [];
+    const crossings: BindingCrossing[] = [];
     const seen = new Set();
     polylineSegments(points).forEach((segment, segmentIndex) => {
       (Array.isArray(existingRoutes) ? existingRoutes : []).forEach((route, routeIndex) => {
@@ -160,7 +154,7 @@
     return crossings;
   }
 
-  function polylineJumpPath(points: DiagramPoint[], crossings?: Crossing[], options?: { style?: string; radius?: number }) {
+  function polylineJumpPath(points: DiagramPoint[], crossings?: BindingCrossing[], options?: { style?: string; radius?: number }) {
     if (!Array.isArray(points) || !points.length) return '';
     const style = options?.style || 'arc';
     const radius = options?.radius !== undefined && Number.isFinite(options.radius) ? Math.max(2, options.radius) : 6;
@@ -285,7 +279,7 @@
     points.push(target);
   }
 
-  function routeOrthogonal(options: RouteOptions) {
+  function routeOrthogonal(options: BindingRouteOptions): OrthogonalRoute {
     const start = { ...options.start }, end = { ...options.end };
     const clearance = options.clearance !== undefined && Number.isFinite(options.clearance) ? options.clearance : 12;
     const grid = options.grid !== undefined && Number.isFinite(options.grid) && options.grid > 0 ? options.grid : 8;
@@ -363,7 +357,7 @@
     return ranked[0] || routeMetrics([start, end], obstacles, existingRoutes, clearance);
   }
 
-  function routeManualOrthogonal(options: RouteOptions & { waypoints?: DiagramPoint[] }) {
+  function routeManualOrthogonal(options: BindingRouteOptions & { waypoints?: DiagramPoint[] }): OrthogonalRoute {
     const start = { ...options.start }, end = { ...options.end };
     const clearance = options.clearance !== undefined && Number.isFinite(options.clearance) ? options.clearance : 12;
     const startDirection = options.startDirection || { x: Math.sign(end.x - start.x) || 1, y: 0 };
@@ -420,4 +414,4 @@
     collectPolylineCrossings,
     polylineJumpPath,
   };
-});
+}

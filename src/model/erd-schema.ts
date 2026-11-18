@@ -3,11 +3,16 @@
 /* ERD table constraints and indexes shared by editing, DDL import/export,
    persistence validation, and tests. Column names remain the stable join key
    so older projects that only contain the compact `columns` array still load. */
-(function initErdSchema<Api>(root: typeof globalThis & { UMLErdSchema?: Api }, factory: () => Api) {
+type ErdSchemaApi = ReturnType<typeof createErdSchema>;
+declare var UMLErdSchema: ErdSchemaApi;
+
+(function initErdSchema(root: typeof globalThis & { UMLErdSchema?: ErdSchemaApi }, factory: () => ErdSchemaApi) {
   const api = factory();
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.UMLErdSchema = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createErdSchema() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createErdSchema);
+
+function createErdSchema() {
   const MAX_EXPRESSION_LENGTH = 4000;
   const MAX_SCHEMA_ITEMS = 500;
   const MAX_INDEX_COLUMNS = 32;
@@ -29,8 +34,8 @@
   interface RelationSchema {
     kind?: string;
     name?: string;
-    fromModelId?: string;
-    toModelId?: string;
+    fromModelId?: string | null;
+    toModelId?: string | null;
     sourceColumnName?: string;
     targetColumnName?: string;
     foreignKeyEnd?: string;
@@ -334,7 +339,7 @@
     return true;
   }
 
-  function foreignKeyColumnImpacts(models: SchemaModels, entityModelId: string, columnName: string): ForeignKeyImpact[] {
+  function foreignKeyColumnImpacts(models: SchemaModels, entityModelId: string | undefined, columnName: string): ForeignKeyImpact[] {
     if (!models || typeof models !== 'object' || !entityModelId || !columnName) return [];
     const impacts: ForeignKeyImpact[] = [];
     Object.entries(models).forEach(([relationModelId, relation]) => {
@@ -355,7 +360,7 @@
     return impacts;
   }
 
-  function renameForeignKeyColumnReferences(models: SchemaModels, entityModelId: string, oldName: string, newName: string) {
+  function renameForeignKeyColumnReferences(models: SchemaModels, entityModelId: string | undefined, oldName: string, newName: string) {
     const source = String(oldName || '').trim();
     const target = String(newName || '').trim();
     if (!source || !target || source === target) return { references: 0, relations: 0 };
@@ -371,7 +376,7 @@
     return { references, relations: impacts.length };
   }
 
-  function disconnectForeignKeyColumnReferences(models: SchemaModels, entityModelId: string, columnName: string) {
+  function disconnectForeignKeyColumnReferences(models: SchemaModels, entityModelId: string | undefined, columnName: string) {
     const impacts = foreignKeyColumnImpacts(models, entityModelId, columnName);
     impacts.forEach(impact => {
       const relation = models[impact.relationModelId];
@@ -469,4 +474,4 @@
     rewriteIdentifier,
     validateEntitySchema,
   });
-});
+}

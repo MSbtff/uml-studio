@@ -1,15 +1,19 @@
-// @ts-nocheck
 'use strict';
 
 /* ERD property sections — the Entity/relation property blocks that only ER
    diagrams use (표시 방식, Columns, DDL 제약조건과 인덱스, FK 보유 엔티티).
    The property panel owns the panel shell and hands this module its row and
    heading primitives, so the ERD-only markup lives in one place. */
-(function initErdPropertySections(root, factory) {
+type ErdPropertySectionsApi = ReturnType<typeof createErdPropertySectionsModule>;
+declare var UMLErdPropertySections: ErdPropertySectionsApi;
+
+(function initErdPropertySections(root: typeof globalThis, factory: () => ErdPropertySectionsApi) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLErdPropertySections = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createErdPropertySectionsModule() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createErdPropertySectionsModule);
+
+function createErdPropertySectionsModule() {
   const REQUIRED_FUNCTIONS = Object.freeze([
     'byId',
     'copyErdColumn',
@@ -33,16 +37,44 @@
     'sectionHeading',
     'setErdMode',
     'snapshot',
-  ]);
+  ] as const);
   const REQUIRED_VALUES = Object.freeze([
     'document',
     'ERD_REFERENTIAL_ACTION_OPTIONS',
     'ERD_VIEW_MODES',
-  ]);
+  ] as const);
 
-  function create(dependencies) {
-    const deps = dependencies || {};
-    const missing = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
+  interface ErdPropertyDependencies {
+    byId: (id: string) => DiagramElement | null | undefined;
+    copyErdColumn: (entity: DiagramElement, index: number) => boolean;
+    deleteErdColumn: (entity: DiagramElement, index: number) => boolean;
+    ensureMemberArray: (entity: DiagramElement, field: 'columns') => string[];
+    erdMode: () => string;
+    flashStatus: (message: string) => void;
+    getErdColumnClipboard: () => Pick<ErdColumnClipboard, 'raw' | 'sourceIndex' | 'sourceModelId'> | null;
+    moveErdColumn: (entity: DiagramElement, index: number, direction: number) => boolean;
+    moveErdColumnTo: (entity: DiagramElement, from: number, to: number) => boolean;
+    normalizeErdChecks: (checks: unknown, columns: string[]) => ErdSchemaCheck[];
+    normalizeErdIndexes: (indexes: unknown, columns: string[]) => ErdSchemaIndex[];
+    openErdColumnEditor: (entity: DiagramElement, index: number, options?: { insert?: boolean }) => boolean;
+    parseColumn: (raw: string) => ValidationColumn;
+    pasteErdColumn: (entity: DiagramElement, index: number) => boolean;
+    propRow: (label: string, control: HTMLElement, hint: string) => HTMLElement;
+    render: () => void;
+    renderProps: () => void;
+    replaceErdColumns: (entity: DiagramElement, raw: string[]) => boolean;
+    safeSqlFragment: (value: string, label: string) => string;
+    sectionHeading: (text: string) => HTMLElement;
+    setErdMode: (mode: string) => unknown;
+    snapshot: () => void;
+    document: Document;
+    ERD_REFERENTIAL_ACTION_OPTIONS: readonly (readonly [string, string])[];
+    ERD_VIEW_MODES: readonly (readonly [string, string])[];
+  }
+
+  function create(dependencies?: ErdPropertyDependencies) {
+    const deps: Partial<ErdPropertyDependencies> = dependencies || {};
+    const missing: string[] = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
     REQUIRED_VALUES.forEach(name => {
       if (deps[name] == null) missing.push(name);
     });
@@ -79,7 +111,7 @@
       document,
       ERD_REFERENTIAL_ACTION_OPTIONS,
       ERD_VIEW_MODES,
-    } = deps;
+    } = deps as ErdPropertyDependencies;
 
     function erdDisplayModeProperty() {
       const section = document.createElement('section');
@@ -105,7 +137,7 @@
       return section;
     }
 
-    function erdColumnsProperty(entity) {
+    function erdColumnsProperty(entity: DiagramElement) {
       const columns = ensureMemberArray(entity, 'columns');
       const section = document.createElement('section');
       section.className = 'erd-columns-property';
@@ -150,11 +182,11 @@
         columns.forEach((raw, index) => {
           const column = parseColumn(raw);
           const row = document.createElement('div');
-          row.className = 'erd-column-property-row'; row.dataset.columnIndex = index;
+          row.className = 'erd-column-property-row'; row.dataset.columnIndex = String(index);
           row.setAttribute('role', 'listitem');
-          if (getErdColumnClipboard()?.sourceModelId === entity.modelId
-            && getErdColumnClipboard().sourceIndex === index
-            && getErdColumnClipboard().raw === raw) row.classList.add('copied');
+          const copied = getErdColumnClipboard();
+          if (copied && copied.sourceModelId === entity.modelId
+            && copied.sourceIndex === index && copied.raw === raw) row.classList.add('copied');
           const dragHandle = document.createElement('span');
           dragHandle.className = 'erd-column-drag-handle';
           dragHandle.textContent = '⋮⋮'; dragHandle.draggable = true;
@@ -164,8 +196,10 @@
           dragHandle.addEventListener('dragstart', event => {
             propertyDragIndex = index;
             row.classList.add('dragging');
-            event.dataTransfer.effectAllowed = 'move';
-            event.dataTransfer.setData('text/plain', String(index));
+            if (event.dataTransfer) {
+              event.dataTransfer.effectAllowed = 'move';
+              event.dataTransfer.setData('text/plain', String(index));
+            }
           });
           dragHandle.addEventListener('dragend', clearPropertyDrag);
           dragHandle.addEventListener('keydown', event => {
@@ -175,12 +209,13 @@
           });
           row.addEventListener('dragover', event => {
             if (propertyDragIndex < 0 || propertyDragIndex === index) return;
-            event.preventDefault(); event.dataTransfer.dropEffect = 'move';
+            event.preventDefault();
+            if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
             list.querySelectorAll('.drag-target').forEach(node => node.classList.remove('drag-target'));
             row.classList.add('drag-target');
           });
           row.addEventListener('dragleave', event => {
-            if (!row.contains(event.relatedTarget)) row.classList.remove('drag-target');
+            if (!row.contains(event.relatedTarget as Node | null)) row.classList.remove('drag-target');
           });
           row.addEventListener('drop', event => {
             if (propertyDragIndex < 0) return;
@@ -205,7 +240,7 @@
           main.addEventListener('click', () => openErdColumnEditor(entity, index));
     
           const controls = document.createElement('span'); controls.className = 'erd-column-property-controls';
-          const actionButton = (text, label, disabled, handler) => {
+          const actionButton = (text: string, label: string, disabled: boolean, handler: () => unknown) => {
             const button = document.createElement('button');
             button.type = 'button'; button.textContent = text; button.title = label;
             button.setAttribute('aria-label', `${column.phys || '컬럼'} ${label}`);
@@ -223,10 +258,11 @@
       }
       section.appendChild(list);
     
-      if (getErdColumnClipboard()) {
+      const clipboard = getErdColumnClipboard();
+      if (clipboard) {
         const clipboardHint = document.createElement('div');
         clipboardHint.className = 'erd-column-clipboard-hint';
-        clipboardHint.textContent = `복사됨: ${parseColumn(getErdColumnClipboard().raw).phys} · 다른 테이블을 선택해 붙여넣을 수 있습니다.`;
+        clipboardHint.textContent = `복사됨: ${parseColumn(clipboard.raw).phys} · 다른 테이블을 선택해 붙여넣을 수 있습니다.`;
         section.appendChild(clipboardHint);
       }
     
@@ -252,7 +288,7 @@
       return section;
     }
 
-    function erdSchemaProperty(entity) {
+    function erdSchemaProperty(entity: DiagramElement) {
       const columnNames = ensureMemberArray(entity, 'columns')
         .map(raw => parseColumn(raw).phys).filter(Boolean);
       const section = document.createElement('section');
@@ -265,18 +301,18 @@
       const error = document.createElement('div');
       error.className = 'erd-schema-error';
       error.setAttribute('aria-live', 'polite');
-      const reportError = (input, problem) => {
+      const reportError = (input: HTMLInputElement | HTMLSelectElement, problem: unknown) => {
         const message = problem instanceof Error ? problem.message : String(problem);
         input?.setCustomValidity?.(message);
         input?.reportValidity?.();
         error.textContent = message;
         flashStatus(`ERD 스키마 오류: ${message}`);
       };
-      const clearError = input => {
+      const clearError = (input: HTMLInputElement | HTMLSelectElement) => {
         input?.setCustomValidity?.('');
         error.textContent = '';
       };
-      const changeInput = (value, onChange, ariaLabel) => {
+      const changeInput = (value: string, onChange: (input: HTMLInputElement) => void, ariaLabel: string) => {
         const input = document.createElement('input');
         input.type = 'text'; input.value = value || '';
         input.setAttribute('aria-label', ariaLabel);
@@ -291,7 +327,7 @@
         checks = normalizeErdChecks(entity.erdChecks, columnNames);
         indexes = normalizeErdIndexes(entity.erdIndexes, columnNames);
       } catch (problem) {
-        error.textContent = problem.message;
+        error.textContent = problem instanceof Error ? problem.message : String(problem);
         section.appendChild(error);
         return section;
       }
@@ -379,7 +415,7 @@
       indexHeader.append(indexTitle, addIndex); section.appendChild(indexHeader);
 
       const indexList = document.createElement('div'); indexList.className = 'erd-schema-list';
-      const commitIndex = (index, nextValue, input) => {
+      const commitIndex = (index: number, nextValue: Partial<ErdSchemaIndex>, input: HTMLInputElement | HTMLSelectElement) => {
         try {
           const next = normalizeErdIndexes(entity.erdIndexes, columnNames)
             .map((value, itemIndex) => itemIndex === index ? { ...value, ...nextValue } : value);
@@ -398,7 +434,8 @@
         kind.value = schemaIndex.kind;
         kind.addEventListener('change', () => {
           snapshot();
-          commitIndex(index, { kind: kind.value, unique: kind.value === 'unique' || schemaIndex.unique }, kind);
+          const selected = kind.value === 'unique' ? 'unique' : 'index';
+          commitIndex(index, { kind: selected, unique: selected === 'unique' || schemaIndex.unique }, kind);
           renderProps();
         });
         const name = changeInput(schemaIndex.name, input =>
@@ -406,9 +443,10 @@
         name.placeholder = schemaIndex.kind === 'unique' ? '선택 제약 이름' : '비우면 자동 생성';
         const columns = changeInput(schemaIndex.columns.map(column =>
           `${column.name}${column.order ? ` ${column.order}` : ''}`).join(', '), input => {
-          const parsed = input.value.split(',').map(value => value.trim()).filter(Boolean).map(value => {
+          const parsed: ErdSchemaIndex['columns'] = input.value.split(',').map(value => value.trim()).filter(Boolean).map(value => {
             const match = value.match(/^(.*?)(?:\s+(ASC|DESC))?$/i);
-            return { name: match[1].trim(), order: (match[2] || '').toUpperCase() };
+            const order = match?.[2]?.toUpperCase();
+            return { name: (match?.[1] ?? value).trim(), order: order === 'ASC' || order === 'DESC' ? order : '' };
           });
           commitIndex(index, { columns: parsed }, input);
         }, `인덱스 ${index + 1} 컬럼`);
@@ -447,7 +485,7 @@
       return section;
     }
 
-    function erdForeignKeyProperty(box, r) {
+    function erdForeignKeyProperty(box: HTMLElement, r: DiagramRelation) {
       const source = byId(r.from);
       const target = byId(r.to);
       const owner = document.createElement('select');
@@ -477,7 +515,7 @@
       box.appendChild(propRow('FK 보유 엔티티', owner,
         'FK 컬럼이 있는 쪽을 선택한 뒤, 아래 양끝에서 FK 컬럼과 참조 컬럼을 각각 지정하세요.'));
 
-      const actionSelect = (field, label) => {
+      const actionSelect = (field: 'foreignKeyOnDelete' | 'foreignKeyOnUpdate', label: string) => {
         const select = document.createElement('select');
         select.className = `erd-foreign-key-${field === 'foreignKeyOnDelete' ? 'on-delete' : 'on-update'}-select`;
         ERD_REFERENTIAL_ACTION_OPTIONS.forEach(([value, text]) => {
@@ -508,4 +546,4 @@
   }
 
   return Object.freeze({ REQUIRED_FUNCTIONS, REQUIRED_VALUES, create });
-});
+}

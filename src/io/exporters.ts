@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use strict';
 
 /*
@@ -9,7 +8,27 @@
  * draw.io output is uncompressed mxGraph XML: every view and relationship is
  * emitted as a native mxCell so the result remains individually editable.
  */
-(function initExporters(root, factory) {
+interface ExportCardinalityApi {
+  erdDefaultCardinality(kind: string, side: 'source' | 'target'): string;
+  erdMermaidMarker(value: unknown, fallback: string, side: 'left' | 'right'): string;
+  erdDrawioArrow(value: unknown, fallback: string): string;
+}
+interface ExportErdSchemaApi extends ValidationSchemaApi {
+  safeSqlFragment(value: unknown, description?: string, allowEmpty?: boolean): string;
+}
+
+type ExportersApi = ReturnType<typeof createExporters>;
+declare var UMLExporters: ExportersApi;
+
+(function initExporters(
+  root: typeof globalThis & {
+    UMLErdCardinality?: ExportCardinalityApi;
+    UMLErdColumn?: ValidationColumnApi;
+    UMLErdSchema?: ExportErdSchemaApi;
+    UMLExporters?: ExportersApi;
+  },
+  factory: (cardinality: ExportCardinalityApi, column: ValidationColumnApi, schema: ExportErdSchemaApi) => ExportersApi,
+) {
   const commonJs = typeof module !== 'undefined' && module.exports;
   const api = factory(
     commonJs ? require('../model/erd-cardinality.js') : root.UMLErdCardinality,
@@ -18,13 +37,43 @@
   );
   if (commonJs) module.exports = api;
   else root.UMLExporters = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createExporters(erdCardinalityApi, erdColumnApi, erdSchemaApi) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createExporters);
+
+function createExporters(erdCardinalityApi: ExportCardinalityApi, erdColumnApi: ValidationColumnApi, erdSchemaApi: ExportErdSchemaApi) {
+  type RelationEnd = 'source' | 'target';
+  type ExportView = DiagramElement | DiagramRelation;
+  interface DdlDialect { id: 'postgresql' | 'mysql' | 'sqlite'; label: string; fileTag: string; quote: string }
+  interface ExportColumn {
+    name: string;
+    logicalName: string;
+    type: string;
+    columnIndex: number;
+    isForeignKey: boolean;
+    isNotNull: boolean;
+    isPrimaryKey: boolean;
+    isUnique: boolean;
+    details: ErdColumnDetails;
+    definition: string;
+  }
+  interface ExportTable {
+    columns: ExportColumn[];
+    columnByName: Map<string, ExportColumn>;
+    foreignKeys: { referencedTable: ExportTable; text: string }[];
+    key: string;
+    linkedForeignKeyColumns: Set<string>;
+    logicalName?: string;
+    quotedTable: string;
+    schema: ReturnType<ExportErdSchemaApi['validateEntitySchema']>;
+    tableName: string;
+  }
+  const getById = <Value>(index: ReadonlyMap<string, Value>, id: string | null | undefined): Value | undefined =>
+    id == null ? undefined : index.get(id);
   const {
     erdDefaultCardinality, erdMermaidMarker, erdDrawioArrow,
   } = erdCardinalityApi;
   const { parseColumn: parseErdColumn } = erdColumnApi;
   const { validateEntitySchema, validateReferentialActions, safeSqlFragment } = erdSchemaApi;
-  const ERD_DDL_DIALECTS = Object.freeze({
+  const ERD_DDL_DIALECTS: Readonly<Partial<Record<string, DdlDialect>>> = Object.freeze({
     postgresql: Object.freeze({ id: 'postgresql', label: 'PostgreSQL', fileTag: 'postgresql', quote: '"' }),
     mysql: Object.freeze({ id: 'mysql', label: 'MySQL', fileTag: 'mysql', quote: '`' }),
     sqlite: Object.freeze({ id: 'sqlite', label: 'SQLite', fileTag: 'sqlite', quote: '"' }),
@@ -34,32 +83,32 @@
     'comm-forward', 'comm-reverse', 'timingmessage',
   ]);
 
-  const xmlEscape = value => String(value == null ? '' : value)
+  const xmlEscape = (value: unknown) => String(value == null ? '' : value)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;');
 
-  const htmlEscape = value => String(value == null ? '' : value)
+  const htmlEscape = (value: unknown) => String(value == null ? '' : value)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
-  const mermaidText = value => String(value == null ? '' : value)
+  const mermaidText = (value: unknown) => String(value == null ? '' : value)
     .replace(/&/g, '&amp;')
     .replace(/"/g, '&quot;')
     .replace(/\r?\n/g, '<br/>');
 
-  const mermaidLineText = value => mermaidText(value)
+  const mermaidLineText = (value: unknown) => mermaidText(value)
     .replace(/\|/g, '/')
     .replace(/:/g, '：');
 
-  function makeIdMap(views, prefix) {
+  function makeIdMap(views: readonly { id: string }[], prefix: string) {
     const used = new Set();
-    const map = new Map();
+    const map = new Map<string, string>();
     views.forEach((view, index) => {
       let id = `${prefix}_${String(view.id || index + 1).replace(/[^A-Za-z0-9_]/g, '_')}`;
       if (!/^[A-Za-z_]/.test(id)) id = `${prefix}_${id}`;
@@ -72,12 +121,12 @@
     return map;
   }
 
-  function classifierName(view, models) {
+  function classifierName(view: ExportView | null | undefined, models: DiagramModels) {
     const classifier = view && view.classifierModelId && models && models[view.classifierModelId];
     return classifier && classifier.name ? classifier.name : '';
   }
 
-  function displayName(view, models) {
+  function displayName(view: ExportView | null | undefined, models: DiagramModels) {
     if (!view) return '?';
     const name = String(view.name || '').trim();
     if (['package', 'model', 'subsystem'].includes(view.kind)) {
@@ -123,7 +172,7 @@
     return name || view.text || view.logicalName || view.kind || 'Element';
   }
 
-  function relationLabel(relation, models) {
+  function relationLabel(relation: DiagramRelation, models: DiagramModels) {
     const base = String(relation.name || '').trim();
     const sequence = String(relation.seqNo || '').trim();
     if (messageKinds.has(relation.kind)) return [sequence, base].filter(Boolean).join(' ');
@@ -161,25 +210,25 @@
   ]);
   const ER_RELATION_KINDS = new Set(['erd-11', 'erd-1n', 'erd-nm']);
 
-  function exportEndAggregation(relation, end) {
-    const field = `${end}Aggregation`;
+  function exportEndAggregation(relation: DiagramRelation, end: RelationEnd) {
+    const field = `${end}Aggregation` as const;
     if (relation[field] !== undefined) return relation[field] || 'none';
     if (end === 'target' && relation.kind === 'aggregation') return 'shared';
     if (end === 'target' && relation.kind === 'composition') return 'composite';
     return 'none';
   }
 
-  function exportEndNavigability(relation, end) {
-    const field = `${end}Navigability`;
+  function exportEndNavigability(relation: DiagramRelation, end: RelationEnd) {
+    const field = `${end}Navigability` as const;
     if (relation[field] !== undefined) return relation[field] || 'unspecified';
     return end === 'target' && ['directed', 'directedlink'].includes(relation.kind)
       ? 'navigable' : 'unspecified';
   }
 
-  function exportEndExpression(relation, end) {
+  function exportEndExpression(relation: DiagramRelation, end: RelationEnd) {
     const stereotype = relation[`${end}EndStereotype`];
     const visibility = ({ public: '+', protected: '#', private: '-', package: '~' })[
-      relation[`${end}EndVisibility`]
+      relation[`${end}EndVisibility`] ?? ''
     ] || '';
     const name = relation[`${end}EndName`] || '';
     const qualifiers = relation[`${end}Qualifiers`];
@@ -187,7 +236,7 @@
     return [stereotype ? `«${stereotype}»` : '', visibility, name, qualifierText].filter(Boolean).join(' ');
   }
 
-  function relationLabelWithEnds(relation, models) {
+  function relationLabelWithEnds(relation: DiagramRelation, models: DiagramModels) {
     const base = relationLabel(relation, models);
     if (!RELATION_END_KINDS.has(relation.kind)) return base;
     const source = exportEndExpression(relation, 'source');
@@ -196,7 +245,7 @@
     return [base, ends].filter(Boolean).join(' · ');
   }
 
-  function classRelationArrow(relation) {
+  function classRelationArrow(relation: DiagramRelation | string) {
     const kind = typeof relation === 'string' ? relation : relation.kind;
     if (typeof relation === 'object' && relation && RELATION_END_KINDS.has(kind)
       && !ER_RELATION_KINDS.has(kind)) {
@@ -224,7 +273,7 @@
     })[kind] || '..>';
   }
 
-  function normalizeClassMember(value) {
+  function normalizeClassMember(value: unknown) {
     const member = String(value).replace(/[{}\r\n]/g, ' ').trim();
     const operation = member.match(/^([+#~-]?)\s*([^(:]+)\s*\((.*)\)\s*(?::\s*(.+))?$/);
     if (operation) {
@@ -239,7 +288,7 @@
     return member;
   }
 
-  function exportClassMermaid(diagram, models) {
+  function exportClassMermaid(diagram: EditorDiagram, models: DiagramModels) {
     const elements = diagram.elements.filter(element =>
       ['class', 'interface', 'enumeration', 'package', 'component', 'artifact', 'node'].includes(element.kind));
     const ids = makeIdMap(elements, 'c');
@@ -276,17 +325,17 @@
     return lines.join('\n') + '\n';
   }
 
-  function exportBlockDefinitionMermaid(diagram, models) {
+  function exportBlockDefinitionMermaid(diagram: EditorDiagram, models: DiagramModels) {
     const elements = diagram.elements.filter(element => element.kind !== 'note');
     const ids = makeIdMap(elements, 'b');
-    const safeMember = (category, value) => {
+    const safeMember = (category: string, value: unknown) => {
       const clean = String(value || '')
         .replace(/[{}<>\r\n]/g, ' ')
         .replace(/^\s*[+\-#~]\s*/, '')
         .replace(/\s+/g, ' ')
         .trim();
       if (!clean) return '';
-      const token = input => String(input || '')
+      const token = (input: unknown) => String(input || '')
         .replace(/[^A-Za-z0-9_]/g, '_')
         .replace(/_+/g, '_')
         .replace(/^_+|_+$/g, '') || 'value';
@@ -309,12 +358,13 @@
       })[element.kind] || element.kind;
       const members = [];
       if (element.kind === 'block' || element.kind === 'interfaceblock') {
-        [
+        const fields: [string, string[] | undefined][] = [
           ['constraint', element.constraints], ['part', element.parts],
           ['reference', element.references], ['value', element.values],
           ['flow', element.flowProperties], ['constraintProperty', element.constraintProperties],
           ['property', element.properties],
-        ].forEach(([category, values]) =>
+        ];
+        fields.forEach(([category, values]) =>
           (values || []).forEach(value => members.push(safeMember(category, value))));
         (element.operations || []).forEach(value => members.push(normalizeClassMember(value)));
         (element.receptions || []).forEach(value => members.push(safeMember('reception', value)));
@@ -359,7 +409,7 @@
     return lines.join('\n') + '\n';
   }
 
-  function sequenceArrow(kind) {
+  function sequenceArrow(kind: string) {
     return ({
       'msg-sync': '->>',
       'msg-async': '-)',
@@ -369,7 +419,7 @@
     })[kind] || '->>';
   }
 
-  function exportSequenceMermaid(diagram, models) {
+  function exportSequenceMermaid(diagram: EditorDiagram, models: DiagramModels) {
     const participants = diagram.elements.filter(element => ['lifeline', 'seqactor'].includes(element.kind));
     const ids = makeIdMap(participants, 'p');
     const lines = [`%% ${String(diagram.name || 'Sequence Diagram').replace(/\r?\n/g, ' ')}`, 'sequenceDiagram'];
@@ -392,7 +442,7 @@
     return lines.join('\n') + '\n';
   }
 
-  function stateTransitionLabel(relation) {
+  function stateTransitionLabel(relation: DiagramRelation) {
     if (relation.name) return relation.name;
     const trigger = String(relation.trigger || '').trim();
     const guard = String(relation.guard || '').trim();
@@ -400,7 +450,7 @@
     return `${trigger}${guard ? ` [${guard}]` : ''}${effect ? ` / ${effect}` : ''}`.trim();
   }
 
-  function exportStateMermaid(diagram, models) {
+  function exportStateMermaid(diagram: EditorDiagram, models: DiagramModels) {
     const states = diagram.elements.filter(element =>
       !['stateinitial', 'statefinal', 'note', 'region', 'connectionpointref'].includes(element.kind));
     const ids = makeIdMap(states, 's');
@@ -433,14 +483,14 @@
     return lines.join('\n') + '\n';
   }
 
-  const mermaidRequirementValue = value => `"${String(value == null ? '' : value)
+  const mermaidRequirementValue = (value: unknown) => `"${String(value == null ? '' : value)
     .replace(/\\/g, '/')
     .replace(/"/g, "'")
     .replace(/\r?\n/g, ' ')}"`;
 
-  function makeRequirementNameMap(elements) {
+  function makeRequirementNameMap(elements: DiagramElement[]) {
     const used = new Set();
-    const map = new Map();
+    const map = new Map<string, string>();
     elements.forEach((element, index) => {
       const source = String(element.name || `${element.kind}_${index + 1}`)
         .normalize('NFKD')
@@ -460,7 +510,7 @@
   /* every export*Mermaid takes (diagram, models) so exportMermaid can dispatch
      uniformly; requirement fields are MODEL_FIELDS, so the hydrated view's
      getters already read them from the model and the map itself is unused */
-  function exportRequirementMermaid(diagram, _models) {
+  function exportRequirementMermaid(diagram: EditorDiagram, _models: DiagramModels) {
     const elements = diagram.elements.filter(element => element.kind !== 'note');
     const ids = makeRequirementNameMap(elements);
     const lines = [
@@ -474,9 +524,9 @@
         const type = [
           'requirement', 'functionalRequirement', 'interfaceRequirement',
           'performanceRequirement', 'physicalRequirement', 'designConstraint',
-        ].includes(element.requirementType) ? element.requirementType : 'requirement';
-        const risk = ['Low', 'Medium', 'High'].includes(element.risk) ? element.risk : 'Medium';
-        const method = ['Analysis', 'Inspection', 'Test', 'Demonstration'].includes(element.verificationMethod)
+        ].includes(element.requirementType ?? '') ? element.requirementType : 'requirement';
+        const risk = ['Low', 'Medium', 'High'].includes(element.risk ?? '') ? element.risk : 'Medium';
+        const method = ['Analysis', 'Inspection', 'Test', 'Demonstration'].includes(element.verificationMethod ?? '')
           ? element.verificationMethod : 'Analysis';
         lines.push(
           `  ${type} ${id} {`,
@@ -495,7 +545,7 @@
         );
       }
     });
-    const relationType = {
+    const relationType: Partial<Record<string, string>> = {
       reqcontainment: 'contains',
       reqcopy: 'copies',
       derivereqt: 'derives',
@@ -517,7 +567,7 @@
     return lines.join('\n') + '\n';
   }
 
-  function flowNode(id, element, models) {
+  function flowNode(id: string, element: DiagramElement, models: DiagramModels) {
     const label = mermaidText(displayName(element, models));
     if (element.kind === 'informationitem') {
       const members = [
@@ -552,7 +602,7 @@
     return `${id}["${label}"]`;
   }
 
-  function flowArrow(kind) {
+  function flowArrow(kind: string) {
     if (['association', 'aggregation', 'composition', 'link', 'commconnector', 'csconnector', 'commpath'].includes(kind)) return '---';
     if (['dependency', 'realization', 'include', 'extend', 'notelink', 'rolebinding', 'deploy', 'msg-reply', 'exceptionhandler', 'informationflow'].includes(kind)) return '-.->';
     if (kind === 'extension') return '-->';
@@ -560,24 +610,27 @@
     return '-->';
   }
 
-  function exportFlowchartMermaid(diagram, models) {
+  function exportFlowchartMermaid(diagram: EditorDiagram, models: DiagramModels) {
     const elements = diagram.elements.slice();
     const ids = makeIdMap(elements, 'n');
     const lines = [`%% ${String(diagram.name || 'Diagram').replace(/\r?\n/g, ' ')}`, 'flowchart LR'];
-    const byParent = new Map();
+    const byParent = new Map<string, DiagramElement[]>();
     elements.forEach(element => {
       const parent = element.parentId || '';
-      if (!byParent.has(parent)) byParent.set(parent, []);
-      byParent.get(parent).push(element);
+      const children = byParent.get(parent);
+      if (children) children.push(element);
+      else byParent.set(parent, [element]);
     });
     const activityContainers = new Set(['swimlanev', 'swimlaneh', 'interruptibleregion', 'structuredactivity', 'expansionregion']);
     const packageContainers = new Set(['package', 'model', 'subsystem']);
-    const isContainer = element =>
+    const isContainer = (element: DiagramElement) =>
       (diagram.type === 'activity' && activityContainers.has(element.kind))
       || (diagram.type === 'package' && packageContainers.has(element.kind));
     const emitted = new Set();
-    const emitElement = (element, depth) => {
+    const emitElement = (element: DiagramElement, depth: number) => {
       if (emitted.has(element.id)) return;
+      const id = ids.get(element.id);
+      if (!id) return;
       emitted.add(element.id);
       const indent = '  '.repeat(depth);
       if (isContainer(element)) {
@@ -592,13 +645,13 @@
         lines.push(`${indent}subgraph ${clusterId}["${mermaidText(prefix + displayName(element, models))}"]`);
         lines.push(`${indent}  direction TB`);
         if (element.kind === 'structuredactivity' || diagram.type === 'package') {
-          lines.push(`${indent}  ${flowNode(ids.get(element.id), element, models)}`);
+          lines.push(`${indent}  ${flowNode(id, element, models)}`);
         }
         (byParent.get(element.id) || []).forEach(child => emitElement(child, depth + 1));
         lines.push(`${indent}end`);
         return;
       }
-      lines.push(`${indent}${flowNode(ids.get(element.id), element, models)}`);
+      lines.push(`${indent}${flowNode(id, element, models)}`);
       (byParent.get(element.id) || []).forEach(child => emitElement(child, depth));
     };
     elements.filter(element => !element.parentId || !elements.some(parent => parent.id === element.parentId))
@@ -624,7 +677,7 @@
     return lines.join('\n') + '\n';
   }
 
-  function exportInternalBlockMermaid(diagram, models) {
+  function exportInternalBlockMermaid(diagram: EditorDiagram, models: DiagramModels) {
     const elements = diagram.elements.slice();
     const ids = makeIdMap(elements, 'ibd');
     const frame = elements.find(element => element.kind === 'ibdframe');
@@ -665,7 +718,7 @@
     return lines.join('\n') + '\n';
   }
 
-  function exportParametricMermaid(diagram, models) {
+  function exportParametricMermaid(diagram: EditorDiagram, models: DiagramModels) {
     const elements = diagram.elements.slice();
     const ids = makeIdMap(elements, 'par');
     const frame = elements.find(element => element.kind === 'parametricframe');
@@ -713,15 +766,15 @@
     return lines.join('\n') + '\n';
   }
 
-  function exportErdMermaid(diagram, models) {
+  function exportErdMermaid(diagram: EditorDiagram, models: DiagramModels) {
     const entities = diagram.elements.filter(element => element.kind === 'entity');
     const ids = makeIdMap(entities, 'e');
-    const safeToken = (value, fallback) => {
+    const safeToken = (value: unknown, fallback: string) => {
       let token = String(value || fallback || '').trim().replace(/[^A-Za-z0-9_()\[\]-]/g, '_');
       if (!/^[A-Za-z]/.test(token)) token = `T_${token}`;
       return token || fallback;
     };
-    const safeComment = value => String(value || '').replace(/"/g, "'").replace(/\r?\n/g, ' ').trim();
+    const safeComment = (value: unknown) => String(value || '').replace(/"/g, "'").replace(/\r?\n/g, ' ').trim();
     const lines = [
       `%% ${String(diagram.name || 'ER Diagram').replace(/\r?\n/g, ' ')}`,
       'erDiagram',
@@ -760,7 +813,7 @@
     return lines.join('\n') + '\n';
   }
 
-  function ddlIdentifier(value, dialect, description) {
+  function ddlIdentifier(value: unknown, dialect: DdlDialect, description: string) {
     const identifier = String(value || '').trim();
     if (!identifier) throw new Error(`${description} 물리명이 없습니다.`);
     if (/[\0\r\n]/.test(identifier)) throw new Error(`${description} 물리명에 제어 문자를 사용할 수 없습니다.`);
@@ -768,11 +821,11 @@
     return `${quote}${identifier.replaceAll(quote, quote + quote)}${quote}`;
   }
 
-  function ddlComment(value) {
+  function ddlComment(value: unknown) {
     return String(value || '').replace(/[\0\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
   }
 
-  function erdDdlType(rawType, dialect) {
+  function erdDdlType(rawType: unknown, dialect: DdlDialect) {
     const source = String(rawType || '').trim() || 'TEXT';
     if (/[;\0\r\n]|--|\/\*|\*\//.test(source)) {
       throw new Error(`데이터 타입에 SQL 문장 구분자나 주석을 사용할 수 없습니다: ${source}`);
@@ -781,7 +834,7 @@
     if (!simple) return source;
     const base = simple[1].toUpperCase();
     const args = simple[2] || '';
-    const mapped = {
+    const mappings: Record<DdlDialect['id'], Partial<Record<string, string>>> = {
       postgresql: {
         BLOB: 'BYTEA', CLOB: 'TEXT', NCLOB: 'TEXT', NUMBER: 'NUMERIC',
         NVARCHAR2: 'VARCHAR', RAW: 'BYTEA', VARCHAR2: 'VARCHAR',
@@ -794,32 +847,36 @@
         CLOB: 'TEXT', NCLOB: 'TEXT', NUMBER: 'NUMERIC', NVARCHAR2: 'TEXT',
         RAW: 'BLOB', VARCHAR2: 'TEXT',
       },
-    }[dialect.id][base];
+    };
+    const mapped = mappings[dialect.id][base];
     if (!mapped) return source;
     if ((mapped === 'BYTEA' || mapped === 'BLOB' || mapped === 'TEXT' || mapped === 'LONGTEXT')
       && !['NUMBER', 'VARCHAR2', 'NVARCHAR2'].includes(base)) return mapped;
     return `${mapped}${mapped === 'TEXT' ? '' : args}`;
   }
 
-  function exportErdDdl(diagram, models, dialectId = 'postgresql') {
+  function exportErdDdl(diagram: EditorDiagram, models: DiagramModels, dialectId = 'postgresql') {
     if (!diagram || diagram.type !== 'erd' || !Array.isArray(diagram.elements)) {
       throw new Error('ER Diagram만 DDL로 내보낼 수 있습니다.');
     }
     const dialect = ERD_DDL_DIALECTS[dialectId];
     if (!dialect) throw new Error(`지원하지 않는 DDL 방언입니다: ${dialectId}`);
-    const modelOf = view => view?.modelId && models && models[view.modelId];
-    const valueOf = (view, field) => view?.[field] !== undefined ? view[field] : modelOf(view)?.[field];
+    const modelOf = (view?: ExportView) => view?.modelId ? models?.[view.modelId] : undefined;
+    type ModelValues = ModelFields & { kind: string };
+    const valueOf = <Key extends keyof ModelValues>(view: ExportView | undefined, field: Key): ModelValues[Key] | undefined =>
+      view?.[field] !== undefined ? view[field] : modelOf(view)?.[field];
     const entityViews = diagram.elements.filter(element => (valueOf(element, 'kind')) === 'entity');
     if (!entityViews.length) throw new Error('DDL로 내보낼 Entity가 없습니다.');
 
-    const tableByModel = new Map();
-    const tableByViewId = new Map();
+    const tableByModel = new Map<string, ExportTable>();
+    const tableByViewId = new Map<string, ExportTable>();
     const seenTables = new Set();
-    const tables = [];
+    const tables: ExportTable[] = [];
     entityViews.forEach((entity, entityIndex) => {
       const modelKey = entity.modelId || entity.id;
-      if (tableByModel.has(modelKey)) {
-        tableByViewId.set(entity.id, tableByModel.get(modelKey));
+      const existing = tableByModel.get(modelKey);
+      if (existing) {
+        tableByViewId.set(entity.id, existing);
         return;
       }
       const tableName = String(valueOf(entity, 'name') || '').trim();
@@ -827,10 +884,11 @@
       if (seenTables.has(tableKey)) throw new Error(`중복된 Entity 물리명이 있습니다: ${tableName}`);
       seenTables.add(tableKey);
       const quotedTable = ddlIdentifier(tableName, dialect, `Entity ${entityIndex + 1}`);
-      const rawColumns = Array.isArray(valueOf(entity, 'columns')) ? valueOf(entity, 'columns') : [];
+      const columnValues = valueOf(entity, 'columns');
+      const rawColumns = Array.isArray(columnValues) ? columnValues : [];
       if (!rawColumns.length) throw new Error(`'${tableName}' Entity에 내보낼 컬럼이 없습니다.`);
       const seenColumns = new Set();
-      const columns = rawColumns.map((raw, columnIndex) => {
+      const columns: ExportColumn[] = rawColumns.map((raw, columnIndex) => {
         const column = parseErdColumn(raw);
         const columnName = String(column.phys || '').trim();
         const columnKey = columnName.toLocaleLowerCase();
@@ -848,6 +906,8 @@
           logicalName: column.logical,
           type: column.type,
           columnIndex,
+          details: {},
+          definition: '',
         };
       });
       const schema = validateEntitySchema({
@@ -866,7 +926,7 @@
           + `${details.defaultValue ? ` DEFAULT ${safeSqlFragment(details.defaultValue, `'${tableName}.${column.name}' DEFAULT`)}` : ''}`
           + `${column.isUnique && !details.uniqueName ? ' UNIQUE' : ''}`;
       });
-      const table = {
+      const table: ExportTable = {
         columns,
         columnByName: new Map(columns.map(column => [column.name.toLocaleLowerCase(), column])),
         foreignKeys: [],
@@ -885,7 +945,7 @@
     const seenRelationModels = new Set();
     const seenConstraints = new Map();
     (diagram.relations || []).forEach(relation => {
-      if (!ER_RELATION_KINDS.has(valueOf(relation, 'kind'))) return;
+      if (!ER_RELATION_KINDS.has(valueOf(relation, 'kind') ?? '')) return;
       const relationKey = relation.modelId || relation.id;
       if (seenRelationModels.has(relationKey)) return;
       seenRelationModels.add(relationKey);
@@ -946,7 +1006,7 @@
       });
     });
 
-    const tableSource = table => {
+    const tableSource = (table: ExportTable) => {
       const definitions = table.columns.map(column => {
         const notes = [];
         if (column.logicalName) notes.push(`logical: ${ddlComment(column.logicalName)}`);
@@ -996,7 +1056,7 @@
     };
 
     const emittedIndexNames = new Set();
-    const indexSources = [];
+    const indexSources: string[] = [];
     tables.forEach(table => {
       table.schema.indexes.filter(index => index.kind === 'index' || index.where).forEach((index, position) => {
         if (dialect.id === 'mysql' && index.where) {
@@ -1048,7 +1108,7 @@
     return lines.join('\n') + '\n';
   }
 
-  function exportMermaid(diagram, models) {
+  function exportMermaid(diagram: EditorDiagram, models: DiagramModels) {
     if (!diagram || !Array.isArray(diagram.elements) || !Array.isArray(diagram.relations)) {
       throw new Error('내보낼 다이어그램 데이터가 올바르지 않습니다.');
     }
@@ -1063,7 +1123,7 @@
     return exportFlowchartMermaid(diagram, models);
   }
 
-  function drawioElementHtml(element, models) {
+  function drawioElementHtml(element: DiagramElement, models: DiagramModels) {
     const name = htmlEscape(displayName(element, models));
     const implicitStereotype = ({
       model: 'model', subsystem: 'subsystem', metaclass: 'metaclass', stereotype: 'stereotype',
@@ -1102,7 +1162,7 @@
           : '');
     }
     if (element.kind === 'requirement') {
-      const property = (label, value) =>
+      const property = (label: string, value: unknown) =>
         `<div style="text-align:left"><b>${label}</b> = ${htmlEscape(value == null ? '' : value).replace(/\r?\n/g, '<br/>')}</div>`;
       return `${stereotype}<div><b>${name}</b></div><hr/>`
         + property('id', element.requirementId)
@@ -1111,8 +1171,8 @@
         + property('verifyMethod', element.verificationMethod || 'Analysis');
     }
     if (['block', 'valuetype', 'interfaceblock', 'constraintblock'].includes(element.kind)) {
-      const sections = [];
-      const section = (label, values) => {
+      const sections: string[] = [];
+      const section = (label: string, values?: string[]) => {
         const items = (values || []).filter(value => String(value).trim());
         if (!items.length) return;
         sections.push(
@@ -1153,7 +1213,7 @@
     return `${stereotype}<div><b>${name}</b></div>${memberHtml}`;
   }
 
-  function drawioVertexStyle(element, hasChildren) {
+  function drawioVertexStyle(element: DiagramElement, hasChildren: boolean) {
     const base = ['whiteSpace=wrap', 'html=1', 'rounded=0', 'strokeColor=#3f4148', 'fontColor=#202124'];
     const fill = element.fill === 'transparent' ? 'none' : (element.fill || '#fffbd8');
     base.push(`fillColor=${fill}`);
@@ -1235,7 +1295,7 @@
     return [...base, ...additions].join(';') + ';';
   }
 
-  function drawioEdgeStyle(relation, from, to) {
+  function drawioEdgeStyle(relation: DiagramRelation, from: DiagramElement | null | undefined, to: DiagramElement | null | undefined) {
     const style = ['edgeStyle=orthogonalEdgeStyle', 'rounded=0', 'html=1', 'strokeColor=#3f4148'];
     const kind = relation.kind;
     if (kind === 'bindingconnector') {
@@ -1275,7 +1335,7 @@
       style.push('endArrow=block', 'endFill=1');
     }
     if (RELATION_END_KINDS.has(kind) && !ER_RELATION_KINDS.has(kind)) {
-      const appendEnd = (end, mxPrefix) => {
+      const appendEnd = (end: RelationEnd, mxPrefix: string) => {
         const aggregation = exportEndAggregation(relation, end);
         const navigability = exportEndNavigability(relation, end);
         if (aggregation !== 'none') {
@@ -1297,7 +1357,7 @@
         'startFill=1', 'endFill=1',
       );
     }
-    if (Number.isFinite(relation.y) && from && to) {
+    if (relation.y !== undefined && Number.isFinite(relation.y) && from && to) {
       const fromRatio = Math.max(0, Math.min(1, (relation.y - from.y) / Math.max(1, from.h)));
       const toRatio = Math.max(0, Math.min(1, (relation.y - to.y) / Math.max(1, to.h)));
       style.push('exitX=0.5', `exitY=${fromRatio.toFixed(4)}`, 'entryX=0.5', `entryY=${toRatio.toFixed(4)}`);
@@ -1305,19 +1365,19 @@
     return style.join(';') + ';';
   }
 
-  function elementDepth(element, byId) {
+  function elementDepth(element: DiagramElement, byId: ReadonlyMap<string, DiagramElement>) {
     let depth = 0;
-    let current = element;
+    let current: DiagramElement | undefined = element;
     const seen = new Set();
     while (current && current.parentId && !seen.has(current.parentId)) {
       seen.add(current.parentId);
-      current = byId.get(current.parentId);
+      current = getById(byId, current.parentId);
       if (current) depth++;
     }
     return depth;
   }
 
-  function exportDrawio(diagram, models) {
+  function exportDrawio(diagram: EditorDiagram, models: DiagramModels) {
     if (!diagram || !Array.isArray(diagram.elements) || !Array.isArray(diagram.relations)) {
       throw new Error('내보낼 다이어그램 데이터가 올바르지 않습니다.');
     }
@@ -1325,9 +1385,9 @@
     const ids = makeIdMap(allViews, 'cell');
     const byId = new Map(diagram.elements.map(element => [element.id, element]));
     const childParents = new Set(diagram.elements.map(element => element.parentId).filter(Boolean));
-    const cells = [];
+    const cells: string[] = [];
     diagram.elements.slice().sort((a, b) => elementDepth(a, byId) - elementDepth(b, byId)).forEach(element => {
-      const parent = element.parentId && byId.has(element.parentId) ? byId.get(element.parentId) : null;
+      const parent = element.parentId && byId.has(element.parentId) ? getById(byId, element.parentId) : null;
       const x = Number.isFinite(element.x) ? element.x - (parent ? parent.x : 0) : 0;
       const y = Number.isFinite(element.y) ? element.y - (parent ? parent.y : 0) : 0;
       const width = Math.max(8, Number.isFinite(element.w) ? element.w : 120);
@@ -1486,4 +1546,4 @@
     exportFlowchartMermaid,
     xmlEscape,
   };
-});
+}

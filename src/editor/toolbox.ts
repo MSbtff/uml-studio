@@ -1,8 +1,13 @@
-(function initToolboxModule<Api>(root: typeof globalThis & { UMLToolbox?: Api }, factory: () => Api) {
+type ToolboxApi = ReturnType<typeof createToolboxModule>;
+declare var UMLToolbox: ToolboxApi;
+
+(function initToolboxModule(root: typeof globalThis & { UMLToolbox?: ToolboxApi }, factory: () => ToolboxApi) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLToolbox = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createToolboxModule() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createToolboxModule);
+
+function createToolboxModule() {
   'use strict';
 
   const REQUIRED_FUNCTIONS = Object.freeze(['clearLinking', 'dg', 'diagramKindLabel', 'renderCanvas'] as const);
@@ -201,4 +206,4 @@
   }
 
   return Object.freeze({ REQUIRED_FUNCTIONS, REQUIRED_VALUES, create, toolIcon });
-});
+}

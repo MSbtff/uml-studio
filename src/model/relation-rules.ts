@@ -4,11 +4,16 @@
    the user is drawing may exist.  Every rule is pure: it takes the relation
    kind and the two endpoint views and returns a Korean message, or '' when the
    link is allowed. */
-(function initRelationRulesModule<Api>(root: typeof globalThis & { UMLRelationRules?: Api }, factory: () => Api) {
+type RelationRulesApi = ReturnType<typeof createRelationRulesModule>;
+declare var UMLRelationRules: RelationRulesApi;
+
+(function initRelationRulesModule(root: typeof globalThis & { UMLRelationRules?: RelationRulesApi }, factory: () => RelationRulesApi) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLRelationRules = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createRelationRulesModule() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createRelationRulesModule);
+
+function createRelationRulesModule() {
   const REQUIRED_FUNCTIONS = Object.freeze([
     'activityAncestor',
     'bindingTypeCompatibility',
@@ -365,4 +370,4 @@
   }
 
   return Object.freeze({ REQUIRED_FUNCTIONS, REQUIRED_VALUES, KIND_SETS, create });
-});
+}

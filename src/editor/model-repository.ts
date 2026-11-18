@@ -1,15 +1,19 @@
-// @ts-nocheck
 'use strict';
 
 /* Project model repository — the browser over every semantic model in the
    project, and the placement rules that turn a model into a view on the
    active diagram. Diagram state, the element factory and the render passes
    are injected so this module only owns the dialog and the view presets. */
-(function initModelRepositoryModule(root, factory) {
+type ModelRepositoryApi = ReturnType<typeof createModelRepositoryModule>;
+declare var UMLModelRepository: ModelRepositoryApi;
+
+(function initModelRepositoryModule(root: typeof globalThis & { UMLModelRepository?: ModelRepositoryApi }, factory: () => ModelRepositoryApi) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLModelRepository = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createModelRepositoryModule() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createModelRepositoryModule);
+
+function createModelRepositoryModule() {
   const REQUIRED_FUNCTIONS = Object.freeze([
     'adoptView',
     'createElement',
@@ -23,7 +27,7 @@
     'snap',
     'snapshot',
     'uid',
-  ]);
+  ] as const);
   const REQUIRED_VALUES = Object.freeze([
     'BDD_CLASSIFIER_KINDS',
     'FILL_DEFAULT',
@@ -34,13 +38,13 @@
     'modalFocus',
     'state',
     'wrap',
-  ]);
+  ] as const);
   /* kinds that only ever exist as a child of another view — the owning
      element creates and positions them, so they cannot be placed on their own */
   const DERIVED_VIEW_KINDS = Object.freeze(['region', 'connectionpointref', 'ibdframe', 'parametricframe',
     'part', 'reference', 'value', 'port', 'constraintproperty', 'constraintparameter', 'collaborationuse']);
   /* starting geometry and fill for kinds that should not use the default box */
-  const VIEW_PRESETS = Object.freeze({
+  const VIEW_PRESETS: Readonly<Partial<Record<string, { w?: number; h?: number; fill?: string }>>> = Object.freeze({
     fragment: Object.freeze({ w: 240, h: 160 }),
     frame: Object.freeze({ w: 520, h: 360, fill: '#ffffff' }),
     interactionuse: Object.freeze({ w: 200, h: 60 }),
@@ -63,21 +67,56 @@
   const MODAL_ID = 'model-repository-modal';
   const DEFAULT_VIEW_SIZE = Object.freeze({ halfWidth: 60, halfHeight: 30, margin: 8 });
 
-  function create(dependencies) {
-    const deps = dependencies || {};
-    const missing = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
+  interface RepositoryModal {
+    close: (options?: { restoreFocus?: boolean }) => boolean;
+    requestClose: (reason: string) => void;
+    focusInitial: (element: HTMLElement) => void;
+  }
+
+  type UnhydratedView = Omit<DiagramElement, 'kind'> & { modelId: string };
+
+  interface ModelRepositoryDependencies {
+    adoptView: (view: DiagramElement | UnhydratedView) => DiagramElement;
+    createElement: (kind: string, x: number, y: number) => DiagramElement;
+    diagramAllowsElementKind: (type: string, kind: string) => boolean;
+    dg: () => EditorDiagram;
+    render: () => void;
+    renderAll: () => void;
+    renderProps: () => void;
+    sequenceLifelineTop: (diagram: EditorDiagram) => number;
+    setSelection: (ids: string[]) => void;
+    snap: (value: number) => number;
+    snapshot: () => void;
+    uid: () => string;
+    BDD_CLASSIFIER_KINDS: ReadonlySet<string>;
+    FILL_DEFAULT: string;
+    KIND_META: Record<string, { label: string; icon: string; color: string }>;
+    REL_STYLE: Partial<Record<string, object>>;
+    TIMING_INTERNAL_KINDS: ReadonlySet<string>;
+    document: Document;
+    modalFocus: {
+      activate: (options: { overlay: HTMLElement; dialog: HTMLElement; initialFocus: HTMLElement }) => RepositoryModal;
+      closeOverlay: (overlay: HTMLElement, options: { restoreFocus: boolean }) => boolean;
+    };
+    state: { zoom: number; models: DiagramModels; diagrams: EditorDiagram[] };
+    wrap: HTMLElement;
+  }
+
+  function create(dependencies?: ModelRepositoryDependencies) {
+    const deps: Partial<ModelRepositoryDependencies> = dependencies || {};
+    const missing: string[] = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
     REQUIRED_VALUES.forEach(name => {
       if (deps[name] == null) missing.push(name);
     });
-    ['BDD_CLASSIFIER_KINDS', 'TIMING_INTERNAL_KINDS'].forEach(name => {
+    (['BDD_CLASSIFIER_KINDS', 'TIMING_INTERNAL_KINDS'] as const).forEach(name => {
       if (deps[name] != null && typeof deps[name].has !== 'function') missing.push(`${name}.has`);
     });
     if (deps.document != null && typeof deps.document.createElement !== 'function') {
       missing.push('document.createElement');
     }
     if (deps.modalFocus != null) {
-      ['activate', 'closeOverlay'].forEach(name => {
-        if (typeof deps.modalFocus[name] !== 'function') missing.push(`modalFocus.${name}`);
+      (['activate', 'closeOverlay'] as const).forEach(name => {
+        if (typeof deps.modalFocus?.[name] !== 'function') missing.push(`modalFocus.${name}`);
       });
     }
     if (missing.length) {
@@ -106,13 +145,13 @@
       modalFocus,
       state,
       wrap,
-    } = deps;
+    } = deps as ModelRepositoryDependencies;
 
     /* ── Placement rules ─────────────────────────────────────── */
 
     /* a model can get a view here when the diagram accepts its kind and the
        kind is not one the owning element manages for us */
-    function canPlaceKind(kind) {
+    function canPlaceKind(kind: string) {
       return diagramAllowsElementKind(dg().type, kind)
         && !DERIVED_VIEW_KINDS.includes(kind)
         && !TIMING_INTERNAL_KINDS.has(kind);
@@ -126,7 +165,7 @@
       };
     }
 
-    function createViewForModel(modelId) {
+    function createViewForModel(modelId: string) {
       const model = state.models[modelId];
       if (!model) return null;
       if (model.kind === 'execution' || !canPlaceKind(model.kind)) return null;
@@ -148,7 +187,7 @@
 
     /* ── Repository dialog ───────────────────────────────────── */
 
-    let activeModal = null;
+    let activeModal: RepositoryModal | null = null;
 
     function close(restoreFocus = true) {
       const overlay = document.getElementById(MODAL_ID);
@@ -161,7 +200,7 @@
 
     /* models that can be browsed: real element kinds only, never relations,
        and never the Execution bars a lifeline owns */
-    function browsableModels(query) {
+    function browsableModels(query: string) {
       const q = String(query || '').trim().toLowerCase();
       return Object.values(state.models)
         .filter(m => KIND_META[m.kind] && !REL_STYLE[m.kind] && m.kind !== 'execution')
@@ -169,7 +208,7 @@
         .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
     }
 
-    function viewCount(modelId) {
+    function viewCount(modelId: string) {
       return state.diagrams.reduce((n, d) => n + d.elements.filter(v => v.modelId === modelId).length, 0);
     }
 
@@ -186,7 +225,7 @@
 
     /* place the model on the active diagram; composite states arrive with the
        one region they must always have */
-    function addView(modelId, modal) {
+    function addView(modelId: string, modal: RepositoryModal) {
       snapshot();
       const view = createViewForModel(modelId);
       if (!view) return;
@@ -204,7 +243,7 @@
        (WCAG 2.5.3) and the row is no longer ambiguous out of context */
     let rowNameSequence = 0;
 
-    function buildRow(model, modal) {
+    function buildRow(model: DiagramModel, modal: RepositoryModal) {
       const row = document.createElement('div'); row.className = 'model-repository-row';
       row.setAttribute('role', 'listitem');
       const icon = document.createElement('span');
@@ -301,4 +340,4 @@
     MODAL_ID,
     create,
   });
-});
+}

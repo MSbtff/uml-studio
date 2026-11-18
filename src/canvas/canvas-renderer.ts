@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use strict';
 
 /* Canvas rendering orchestration — decides paint order per diagram type,
@@ -6,11 +5,76 @@
    handles, and refreshes the toolbar toggles that belong to the canvas.
    Element and relation painting, layout passes and hit geometry are injected
    so this module only owns the sequencing of a frame. */
-(function initCanvasRendererModule(root, factory) {
+interface CanvasRendererDependencies {
+  assignTemporalDepths<T extends { el: string | undefined; y0: number; y1: number }>(items: T[]): (T & { depth: number })[];
+  bindingRoute: RelationRendererDependencies['bindingRoute'];
+  bindingWaypoints(relation: DiagramRelation): DiagramPoint[];
+  branchGeom: RelationRendererDependencies['branchGeometry'];
+  byId(id: string | undefined): DiagramElement | null | undefined;
+  center(view: DiagramBounds): DiagramPoint;
+  childViews(id: string): DiagramElement[];
+  clearSequenceBars(): void;
+  clearSequenceNumbers(): void;
+  communicationMessagePoints: RelationRendererDependencies['communicationMessagePoints'];
+  communicationSelfConnectorGeom: RelationRendererDependencies['communicationSelfConnectorGeometry'];
+  computeBindingRoutes(diagram: EditorDiagram): void;
+  computeSeqNumbers(diagram: EditorDiagram): void;
+  computeSequenceLayout(diagram: EditorDiagram): void;
+  containmentDepth(view: DiagramElement, diagram: EditorDiagram): number;
+  dg(): EditorDiagram;
+  drawElement(parent: SVGElement, element: DiagramElement): SVGGElement | undefined;
+  drawRelation(parent: SVGElement, relation: DiagramRelation): unknown;
+  edgePoint(view: DiagramBounds, point: DiagramPoint): DiagramPoint;
+  el: SvgElementFactory;
+  erdMode(): string;
+  fragmentOperandLayout: CanvasInteractionDependencies['fragmentOperandLayout'];
+  getSequenceBars(): readonly { manual?: boolean; el?: string; depth: number; y0: number; y1: number }[];
+  interactionState(): CanvasInteractionFrame;
+  isCommMsg(kind: string): boolean;
+  isMsg(kind: string): boolean;
+  layoutActivityAttachments(diagram: EditorDiagram): void;
+  layoutCompositePorts(diagram: EditorDiagram): void;
+  layoutCompositeRegions(diagram: EditorDiagram): void;
+  layoutConnectionPointRefs(diagram: EditorDiagram): void;
+  layoutParametricParameters(diagram: EditorDiagram): void;
+  layoutTimingDiagram(diagram: EditorDiagram): void;
+  measure(view: DiagramElement): ElementMeasurement;
+  msgPoints: RelationRendererDependencies['messagePoints'];
+  normalizeSize(view: DiagramElement): void;
+  polylineJumpPath: RelationRendererDependencies['polylineJumpPath'];
+  relById(id: string): DiagramRelation | null | undefined;
+  relEndpoints: RelationRendererDependencies['relationEndpoints'];
+  renderExplorer(): void;
+  renderMinimap(): void;
+  renderStatus(): void;
+  renderTabs(): void;
+  setErdMode(mode: string): void;
+  snapshot(): void;
+  stateSelfTransitionGeom: RelationRendererDependencies['stateSelfTransitionGeometry'];
+  ACTIVITY_PIN_KINDS: ReadonlySet<string>;
+  CANVAS_H: number;
+  CANVAS_W: number;
+  DASH_SELECT: string;
+  ERD_VIEW_MODES: readonly (readonly [string, string])[];
+  EXEC_NEST_OFFSET: number;
+  EXEC_WIDTH: number;
+  FILL_DEFAULT: string;
+  STROKE: string;
+  document: Document;
+  state: CanvasSelectionState;
+  svg: SVGSVGElement;
+}
+
+type CanvasRendererApi = ReturnType<typeof createCanvasRendererModule>;
+declare var UMLCanvasRenderer: CanvasRendererApi;
+
+(function initCanvasRendererModule(root: typeof globalThis, factory: () => CanvasRendererApi) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLCanvasRenderer = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createCanvasRendererModule() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createCanvasRendererModule);
+
+function createCanvasRendererModule() {
   const REQUIRED_FUNCTIONS = Object.freeze([
     'assignTemporalDepths',
     'bindingRoute',
@@ -57,7 +121,7 @@
     'setErdMode',
     'snapshot',
     'stateSelfTransitionGeom',
-  ]);
+  ] as const);
   const REQUIRED_VALUES = Object.freeze([
     'ACTIVITY_PIN_KINDS',
     'CANVAS_H',
@@ -71,7 +135,7 @@
     'document',
     'state',
     'svg',
-  ]);
+  ] as const);
   /* selection overlay look — the visual handles and the wider transparent
      areas that make them easy to grab */
   const RENDER_STYLE = Object.freeze({
@@ -93,9 +157,9 @@
   const SEQ_OPTS_HOLDER_ID = 'seqopts';
   const ERD_MODE_HOLDER_ID = 'erdmode';
 
-  function create(dependencies) {
-    const deps = dependencies || {};
-    const missing = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
+  function create(dependencies?: CanvasRendererDependencies) {
+    const deps: Partial<CanvasRendererDependencies> = dependencies || {};
+    const missing: string[] = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
     REQUIRED_VALUES.forEach(name => {
       if (deps[name] == null) missing.push(name);
     });
@@ -167,11 +231,11 @@
       document,
       state,
       svg,
-    } = deps;
+    } = deps as CanvasRendererDependencies;
 
     /* ── Paint order ─────────────────────────────────────────── */
 
-    function drawOrder(kind) {
+    function drawOrder(kind: string) {
       if (kind === 'frame') return -3;      // behind everything
       if (kind === 'compositestate') return -2;
       if (kind === 'region') return -1;
@@ -181,7 +245,7 @@
       return 2;
     }
 
-    function timingDrawOrder(kind) {
+    function timingDrawOrder(kind: string) {
       if (kind === 'lifeline') return -3;
       if (kind === 'timingstate') return -2;
       if (kind === 'timetick') return -1;
@@ -190,7 +254,7 @@
       return 0;
     }
 
-    function activityDrawOrder(kind) {
+    function activityDrawOrder(kind: string) {
       if (kind === 'swimlanev' || kind === 'swimlaneh') return -4;
       if (kind === 'interruptibleregion') return -3;
       if (kind === 'structuredactivity' || kind === 'expansionregion') return -2;
@@ -198,7 +262,7 @@
       return 0;
     }
 
-    function orderedElements(d) {
+    function orderedElements(d: EditorDiagram) {
       if (d.type === 'sequence' || d.type === 'state') {
         return d.elements.slice().sort((a, b) => {
           const order = drawOrder(a.kind) - drawOrder(b.kind);
@@ -227,7 +291,7 @@
 
     /* ── Layout passes run before a frame is painted ─────────── */
 
-    function runLayoutPasses(d) {
+    function runLayoutPasses(d: EditorDiagram) {
       d.elements.forEach(normalizeSize);
       if (d.type === 'state') {
         layoutCompositeRegions(d);
@@ -262,8 +326,8 @@
 
     function buildCanvasRoot() {
       svg.setAttribute('viewBox', `0 0 ${CANVAS_W} ${CANVAS_H}`);
-      svg.setAttribute('width', CANVAS_W * state.zoom);
-      svg.setAttribute('height', CANVAS_H * state.zoom);
+      svg.setAttribute('width', String(CANVAS_W * state.zoom));
+      svg.setAttribute('height', String(CANVAS_H * state.zoom));
       svg.textContent = '';
 
       const defs = el('defs', {}, svg);
@@ -280,7 +344,7 @@
 
     /* activation bars above lifelines, below messages — follow the
        owning lifeline's fill colour so recolouring a lifeline is consistent */
-    function drawActivationBars(gRel) {
+    function drawActivationBars(gRel: SVGGElement) {
       getSequenceBars().forEach(b => {
         if (b.manual) return; // manual Execution elements were already rendered above
         const life = byId(b.el);
@@ -296,7 +360,7 @@
 
     /* ── In-progress interaction feedback ────────────────────── */
 
-    function drawLinkingPreview(root, linking) {
+    function drawLinkingPreview(root: SVGElement, linking: CanvasLinking) {
       const from = byId(linking.fromId);
       if (!from) return;
       const p = edgePoint(from, linking);
@@ -306,7 +370,7 @@
       }, root);
     }
 
-    function drawMarquee(root, marquee) {
+    function drawMarquee(root: SVGElement, marquee: CanvasMarquee) {
       el('rect', {
         x: Math.min(marquee.x0, marquee.x1), y: Math.min(marquee.y0, marquee.y1),
         width: Math.abs(marquee.x1 - marquee.x0), height: Math.abs(marquee.y1 - marquee.y0),
@@ -315,9 +379,10 @@
       }, root);
     }
 
-    function drawColumnDropIndicator(root, drag) {
+    function drawColumnDropIndicator(root: SVGElement, drag: CanvasColumnDrag) {
       const entity = drag.entity;
       const metrics = entity._m || measure(entity);
+      if (metrics.headH === undefined || metrics.RH === undefined) return;
       const bodyTop = entity.y + metrics.headH;
       const rowTop = bodyTop + drag.targetIndex * metrics.RH;
       const insertY = rowTop + (drag.targetIndex > drag.fromIndex ? metrics.RH : 0);
@@ -334,7 +399,7 @@
     }
 
     /* 끝점 드래그 중: 현재 연결점 링 + 재연결 대상 하이라이트 */
-    function drawEndpointDragFeedback(root, drag) {
+    function drawEndpointDragFeedback(root: SVGElement, drag: CanvasEndpointDrag) {
       const rr = drag.rel;
       const ep2 = rr.kind === 'mindbranch' ? branchGeom(rr) : relEndpoints(rr);
       if (ep2) {
@@ -407,6 +472,7 @@
     /* logical / physical / both view toggle for ER diagrams */
     function renderErdMode() {
       const holder = document.getElementById(ERD_MODE_HOLDER_ID);
+      if (!holder) return;
       const d = dg();
       if (d.type !== 'erd') { holder.innerHTML = ''; holder.style.display = 'none'; return; }
       holder.style.display = 'inline-flex';
@@ -426,7 +492,7 @@
 
     /* ── Selection overlay ───────────────────────────────────── */
 
-    function handlePositions(e) {
+    function handlePositions(e: DiagramBounds) {
       const midx = e.x + e.w / 2, midy = e.y + e.h / 2;
       return [
         { dir: 'nw', x: e.x - 3, y: e.y - 3, cursor: 'nwse-resize' },
@@ -445,31 +511,31 @@
     const UNRESIZABLE_KINDS = ['region', 'connectionpointref', 'port', 'inputpin', 'outputpin',
       'expansioninput', 'expansionoutput', 'timingstate', 'timetick', 'timeconstraint'];
 
-    function outlineRect(g, view) {
+    function outlineRect(g: SVGElement, view: DiagramBounds) {
       el('rect', {
         x: view.x - 3, y: view.y - 3, width: view.w + 6, height: view.h + 6,
         fill: 'none', stroke: RENDER_STYLE.accent, 'stroke-width': 1, 'stroke-dasharray': DASH_SELECT,
       }, g);
     }
 
-    function highlightLine(g, p1, p2) {
+    function highlightLine(g: SVGElement, p1: DiagramPoint, p2: DiagramPoint) {
       el('line', {
         x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y,
         stroke: RENDER_STYLE.accent, 'stroke-width': RENDER_STYLE.highlightWidth, opacity: RENDER_STYLE.highlightOpacity,
       }, g);
     }
 
-    function highlightPath(g, d) {
+    function highlightPath(g: SVGElement, d: string) {
       el('path', {
         d, fill: 'none', stroke: RENDER_STYLE.accent,
         'stroke-width': RENDER_STYLE.curveHighlightWidth, opacity: RENDER_STYLE.highlightOpacity,
       }, g);
     }
 
-    const cubicPath = curve =>
+    const cubicPath = (curve: DiagramCubicCurve) =>
       `M ${curve.p1.x} ${curve.p1.y} C ${curve.c1.x} ${curve.c1.y}, ${curve.c2.x} ${curve.c2.y}, ${curve.p2.x} ${curve.p2.y}`;
 
-    function elementHandles(g, e) {
+    function elementHandles(g: SVGElement, e: DiagramElement) {
       let handles = UNRESIZABLE_KINDS.includes(e.kind) ? [] : handlePositions(e);
       if (e.kind === 'timesegment') handles = handles.filter(handle => handle.dir === 'e' || handle.dir === 'w');
       if (e.kind === 'submachinestate') {
@@ -490,7 +556,7 @@
       if (state.tool === 'select' && e.kind === 'fragment') drawOperandDividers(g, e, true);
     }
 
-    function drawOperandDividers(g, e, showGrip = false) {
+    function drawOperandDividers(g: SVGElement, e: DiagramElement, showGrip = false) {
       const { boundaries, minHeight } = fragmentOperandLayout(e);
       boundaries.slice(1, -1).forEach((y, offset) => {
         const index = offset + 1;
@@ -509,7 +575,7 @@
       });
     }
 
-    function endpointHandle(g, pt, which) {
+    function endpointHandle(g: SVGElement, pt: DiagramPoint, which: 'src' | 'dst') {
       /* 넉넉한 투명 히트 영역 (20px) — 시각적 핸들은 9px 유지 */
       const hit = RENDER_STYLE.endpointHitSize;
       const size = RENDER_STYLE.endpointHandleSize;
@@ -524,7 +590,7 @@
       }, g);
     }
 
-    function routePointHandles(g, r) {
+    function routePointHandles(g: SVGElement, r: DiagramRelation) {
       const hit = RENDER_STYLE.routePointHitSize;
       const size = RENDER_STYLE.routePointSize;
       bindingWaypoints(r).forEach((point, index) => {
@@ -541,7 +607,7 @@
       });
     }
 
-    function drawMessageSelection(g, r, showHandles = true) {
+    function drawMessageSelection(g: SVGElement, r: DiagramRelation, showHandles = true) {
       if (isCommMsg(r.kind)) {
         const pts = communicationMessagePoints(r);
         if (!pts) return true;
@@ -561,7 +627,7 @@
         if (pts.self) {
           const sx = Math.min(pts.startX, pts.endX) - 4;
           el('rect', {
-            x: sx, y: r.y - 8, width: pts.width + 12 + Math.abs(pts.endX - pts.startX), height: pts.height + 14,
+            x: sx, y: (r.y ?? pts.y) - 8, width: pts.width + 12 + Math.abs(pts.endX - pts.startX), height: pts.height + 14,
             fill: 'none', stroke: RENDER_STYLE.accent, 'stroke-width': 1, 'stroke-dasharray': DASH_SELECT,
           }, g);
         } else {
@@ -578,7 +644,7 @@
       return false;
     }
 
-    function drawSelection(g) {
+    function drawSelection(g: SVGElement) {
       /* multi-selection: dashed outlines only (no resize handles) */
       if (state.selection.length > 1) {
         state.selection.forEach(sid => {
@@ -664,4 +730,4 @@
     RENDER_STYLE,
     create,
   });
-});
+}

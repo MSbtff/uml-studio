@@ -1,23 +1,55 @@
-// @ts-nocheck
-(function initViewportControllerModule(root, factory) {
+type ViewportControllerApi = ReturnType<typeof createViewportControllerModule>;
+declare var UMLViewportController: ViewportControllerApi;
+
+(function initViewportControllerModule(root: typeof globalThis & { UMLViewportController?: ViewportControllerApi }, factory: () => ViewportControllerApi) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLViewportController = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createViewportControllerModule() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createViewportControllerModule);
+
+function createViewportControllerModule() {
   'use strict';
 
   const REQUIRED_FUNCTIONS = Object.freeze([
     'bindingRoute', 'branchGeom', 'communicationMessagePoints', 'contentBBox', 'dg', 'el',
     'flashStatus', 'isCommMsg', 'isMsg', 'msgPoints', 'polylinePath', 'relEndpoints', 'renderCanvas',
-  ]);
+  ] as const);
   const REQUIRED_VALUES = Object.freeze([
     'document', 'eventRoot', 'state', 'minimap', 'minimapSvg', 'svg', 'wrap',
     'KIND_META', 'CANVAS_W', 'CANVAS_H',
-  ]);
+  ] as const);
   const SCROLL_OPTIONS = Object.freeze({ passive: true });
   const WHEEL_OPTIONS = Object.freeze({ passive: false });
 
-  function create(deps = {}) {
+  type MinimapEndpoints = DiagramEndpoints | { self: true };
+
+  interface ViewportDependencies {
+    bindingRoute: (relation: DiagramRelation) => { points: DiagramPoint[] } | null;
+    branchGeom: (relation: DiagramRelation) => DiagramEndpoints | null;
+    communicationMessagePoints: (relation: DiagramRelation) => MinimapEndpoints | null;
+    contentBBox: () => DiagramBounds | null;
+    dg: () => EditorDiagram;
+    el: (tag: string, attrs: Record<string, string | number>, parent: SVGElement) => SVGElement;
+    flashStatus: (message: string) => void;
+    isCommMsg: (kind: string) => boolean;
+    isMsg: (kind: string) => boolean;
+    msgPoints: (relation: DiagramRelation) => MinimapEndpoints | null;
+    polylinePath: (points: DiagramPoint[]) => string;
+    relEndpoints: (relation: DiagramRelation) => DiagramEndpoints | null;
+    renderCanvas: () => void;
+    document: Document;
+    eventRoot: Window;
+    state: { zoom: number; showMinimap: boolean };
+    minimap: HTMLElement;
+    minimapSvg: SVGSVGElement;
+    svg: SVGSVGElement;
+    wrap: HTMLElement;
+    KIND_META: Partial<Record<string, { color: string }>>;
+    CANVAS_W: number;
+    CANVAS_H: number;
+  }
+
+  function create(deps: Partial<ViewportDependencies> = {}) {
     REQUIRED_FUNCTIONS.forEach(name => {
       if (typeof deps[name] !== 'function') throw new Error(`UMLViewportController requires ${name}()`);
     });
@@ -30,12 +62,12 @@
       flashStatus, isCommMsg, isMsg, msgPoints, polylinePath, relEndpoints, renderCanvas,
       document, eventRoot, state, minimap, minimapSvg, svg, wrap,
       KIND_META, CANVAS_W, CANVAS_H,
-    } = deps;
-    let minimapMap = null;
-    let pan = null;
+    } = deps as ViewportDependencies;
+    let minimapMap: { bounds: DiagramBounds; scale: number; ox: number; oy: number } | null = null;
+    let pan: (DiagramPoint & { scrollLeft: number; scrollTop: number }) | null = null;
     let attached = false;
 
-    function setZoom(zoom) {
+    function setZoom(zoom: number) {
       state.zoom = Math.min(3, Math.max(0.25, zoom));
       const label = document.getElementById('zoomLabel');
       if (label) label.textContent = Math.round(state.zoom * 100) + '%';
@@ -99,7 +131,7 @@
           : (isMsg(relation.kind)
             ? msgPoints(relation)
             : (relation.kind === 'mindbranch' ? branchGeom(relation) : relEndpoints(relation)));
-        if (!endpoints || endpoints.self) return;
+        if (!endpoints || 'self' in endpoints) return;
         el('line', {
           x1: ox + endpoints.p1.x * scale,
           y1: oy + endpoints.p1.y * scale,
@@ -134,18 +166,18 @@
       const y = wrap.scrollTop / state.zoom;
       const width = wrap.clientWidth / state.zoom;
       const height = wrap.clientHeight / state.zoom;
-      viewport.setAttribute('x', ox + x * scale);
-      viewport.setAttribute('y', oy + y * scale);
-      viewport.setAttribute('width', Math.max(4, width * scale));
-      viewport.setAttribute('height', Math.max(4, height * scale));
+      viewport.setAttribute('x', String(ox + x * scale));
+      viewport.setAttribute('y', String(oy + y * scale));
+      viewport.setAttribute('width', String(Math.max(4, width * scale)));
+      viewport.setAttribute('height', String(Math.max(4, height * scale)));
     }
 
-    function toggleMinimap(force) {
+    function toggleMinimap(force?: boolean | null) {
       state.showMinimap = force == null ? !state.showMinimap : !!force;
       renderMinimap();
     }
 
-    function handleMinimapMouseDown(event) {
+    function handleMinimapMouseDown(event: MouseEvent) {
       if (!minimapMap) return;
       event.preventDefault();
       const rect = minimapSvg.getBoundingClientRect();
@@ -158,13 +190,13 @@
       updateMinimapViewport();
     }
 
-    function handleWheel(event) {
+    function handleWheel(event: WheelEvent) {
       if (!(event.ctrlKey || event.metaKey)) return;
       event.preventDefault();
       setZoom(state.zoom * (event.deltaY < 0 ? 1.1 : 0.9));
     }
 
-    function handlePanStart(event) {
+    function handlePanStart(event: MouseEvent) {
       if (event.button !== 1) return;
       event.preventDefault();
       pan = {
@@ -175,17 +207,17 @@
       };
     }
 
-    function handlePanMove(event) {
+    function handlePanMove(event: MouseEvent) {
       if (!pan) return;
       wrap.scrollLeft = pan.scrollLeft - (event.clientX - pan.x);
       wrap.scrollTop = pan.scrollTop - (event.clientY - pan.y);
     }
 
-    function handlePanEnd(event) {
+    function handlePanEnd(event: MouseEvent) {
       if (event.button === 1) pan = null;
     }
 
-    function handleAuxClick(event) {
+    function handleAuxClick(event: MouseEvent) {
       if (event.button === 1) event.preventDefault();
     }
 
@@ -206,8 +238,8 @@
       attached = false;
       pan = null;
       minimap.removeEventListener('mousedown', handleMinimapMouseDown);
-      wrap.removeEventListener('scroll', updateMinimapViewport, SCROLL_OPTIONS);
-      wrap.removeEventListener('wheel', handleWheel, WHEEL_OPTIONS);
+      wrap.removeEventListener('scroll', updateMinimapViewport);
+      wrap.removeEventListener('wheel', handleWheel);
       svg.removeEventListener('mousedown', handlePanStart);
       svg.removeEventListener('auxclick', handleAuxClick);
       eventRoot.removeEventListener('mousemove', handlePanMove);
@@ -226,4 +258,4 @@
   }
 
   return Object.freeze({ REQUIRED_FUNCTIONS, REQUIRED_VALUES, create });
-});
+}

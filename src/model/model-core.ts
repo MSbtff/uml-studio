@@ -12,16 +12,21 @@ interface ModelSchemaValidation {
   validateReferentialActions(relation: Record<string, unknown>): unknown;
 }
 
-(function initModelCore<Api>(
-  root: typeof globalThis & { UMLErdSchema?: ModelSchemaValidation; UMLModelCore?: Api },
-  factory: (erdSchema?: ModelSchemaValidation) => Api,
+type ModelCoreApi = ReturnType<typeof createModelCore>;
+declare var UMLModelCore: ModelCoreApi;
+
+(function initModelCore(
+  root: typeof globalThis & { UMLErdSchema?: ModelSchemaValidation; UMLModelCore?: ModelCoreApi },
+  factory: (erdSchema?: ModelSchemaValidation) => ModelCoreApi,
 ) {
   const commonJs = typeof module !== 'undefined' && module.exports;
   const erdSchema = commonJs ? require('./erd-schema.js') : root.UMLErdSchema;
   const api = factory(erdSchema);
   if (commonJs) module.exports = api;
   else root.UMLModelCore = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createModelCore(erdSchema?: ModelSchemaValidation) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createModelCore);
+
+function createModelCore(erdSchema?: ModelSchemaValidation) {
   if (!erdSchema || typeof erdSchema.validateEntitySchema !== 'function'
     || typeof erdSchema.validateReferentialActions !== 'function') {
     throw new TypeError('Model Core에는 UMLErdSchema 스키마·FK 검증 API가 필요합니다.');
@@ -63,7 +68,9 @@ interface ModelSchemaValidation {
   const isObject = (value: unknown): value is ProjectObject => value !== null && typeof value === 'object' && !Array.isArray(value);
   const own = (value: object, key: PropertyKey) => Object.prototype.hasOwnProperty.call(value, key);
 
-  function hydrateView(view: ProjectObject, models: Models, idFactory: () => string) {
+  function hydrateView<View extends DiagramElement | DiagramRelation>(view: View, models: DiagramModels, idFactory: () => string): View & { modelId: string };
+  function hydrateView(view: unknown, models: Record<string, object>, idFactory: () => string): ProjectObject & { modelId: string };
+  function hydrateView(view: unknown, models: Record<string, object>, idFactory: () => string) {
     if (!isObject(view)) throw new Error('뷰 데이터가 객체가 아닙니다.');
     let modelId = typeof view.modelId === 'string' && view.modelId ? view.modelId : '';
     let model = modelId ? models[modelId] : null;
@@ -74,7 +81,7 @@ interface ModelSchemaValidation {
     }
     view.modelId = modelId;
 
-    const targetModel = model;
+    const targetModel = model as ProjectObject;
     MODEL_FIELDS.forEach(field => {
       if (own(view, field)) {
         if (targetModel[field] === undefined) targetModel[field] = view[field];
@@ -83,11 +90,11 @@ interface ModelSchemaValidation {
       Object.defineProperty(view, field, {
         configurable: true,
         enumerable: false,
-        get(this: { modelId: string }) { return models[this.modelId] ? models[this.modelId][field] : undefined; },
+        get(this: { modelId: string }) { return (models[this.modelId] as ProjectObject | undefined)?.[field]; },
         set(this: { modelId: string }, value: unknown) {
           const target = models[this.modelId];
           if (!target) throw new Error(`모델을 찾을 수 없습니다: ${this.modelId}`);
-          target[field] = value;
+          (target as ProjectObject)[field] = value;
         },
       });
     });
@@ -96,8 +103,10 @@ interface ModelSchemaValidation {
     return view as ProjectObject & { modelId: string };
   }
 
-  function hydrateProject(diagrams: { elements?: ProjectObject[]; relations?: ProjectObject[] }[], sourceModels: Models | null | undefined, idFactory: () => string) {
-    const models = isObject(sourceModels) ? sourceModels : {};
+  function hydrateProject(diagrams: EditorDiagram[], sourceModels: DiagramModels, idFactory: () => string): DiagramModels;
+  function hydrateProject(diagrams: { elements?: unknown[]; relations?: unknown[] }[], sourceModels: unknown, idFactory: () => string): Models;
+  function hydrateProject(diagrams: { elements?: unknown[]; relations?: unknown[] }[], sourceModels: unknown, idFactory: () => string): Models | DiagramModels {
+    const models = (isObject(sourceModels) ? sourceModels : {}) as Models;
     if (!Array.isArray(diagrams)) throw new Error('다이어그램 목록이 없습니다.');
     diagrams.forEach(diagram => {
       const fragmentModels = new Set();
@@ -373,4 +382,4 @@ interface ModelSchemaValidation {
   }
 
   return { MODEL_FIELDS, hydrateView, hydrateProject, validateProjectData, stringifyProject };
-});
+}

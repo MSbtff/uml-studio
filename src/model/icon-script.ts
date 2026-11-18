@@ -6,11 +6,16 @@
  * The language is intentionally data-only: commands are normalized into a
  * bounded drawing list and are never evaluated as JavaScript.
  */
-(function initIconScript<Api>(root: typeof globalThis & { UMLIconScript?: Api }, factory: () => Api) {
+type IconScriptApi = ReturnType<typeof createIconScript>;
+declare var UMLIconScript: IconScriptApi;
+
+(function initIconScript(root: typeof globalThis, factory: () => IconScriptApi) {
   const api = factory();
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.UMLIconScript = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createIconScript() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createIconScript);
+
+function createIconScript() {
   const MAX_LINES = 240;
   const MAX_COMMANDS = 200;
   const COLOR_NAMES = new Set([
@@ -144,4 +149,4 @@
   }
 
   return { parseIconScript, validColor, MAX_LINES, MAX_COMMANDS };
-});
+}

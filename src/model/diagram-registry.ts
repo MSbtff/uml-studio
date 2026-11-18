@@ -1,11 +1,16 @@
 'use strict';
 
 /* Diagram metadata and palette registry shared by the editor and tests. */
-(function initDiagramRegistry<Api>(root: typeof globalThis & { UMLDiagramRegistry?: Api }, factory: () => Api) {
+type DiagramRegistryApi = ReturnType<typeof createDiagramRegistry>;
+declare var UMLDiagramRegistry: DiagramRegistryApi;
+
+(function initDiagramRegistry(root: typeof globalThis & { UMLDiagramRegistry?: DiagramRegistryApi }, factory: () => DiagramRegistryApi) {
   const api = factory();
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.UMLDiagramRegistry = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createDiagramRegistry() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createDiagramRegistry);
+
+function createDiagramRegistry() {
   const DIAGRAM_META = {
     class:      { label: 'Class Diagram',      code: 'CL', color: '#c98f2c' },
     package:    { label: 'Package Diagram',    code: 'PK', color: '#b0763a' },
@@ -175,4 +180,4 @@
     registeredElementKinds,
     registeredRelationKinds,
   };
-});
+}

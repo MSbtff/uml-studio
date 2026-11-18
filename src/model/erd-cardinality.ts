@@ -2,11 +2,16 @@
 
 /* ERD cardinality helpers shared by canvas rendering, editors and exporters.
    Existing sourceLabel/targetLabel values remain valid for project compatibility. */
-(function initErdCardinality<Api>(root: typeof globalThis & { UMLErdCardinality?: Api }, factory: () => Api) {
+type ErdCardinalityApi = ReturnType<typeof createErdCardinality>;
+declare var UMLErdCardinality: ErdCardinalityApi;
+
+(function initErdCardinality(root: typeof globalThis & { UMLErdCardinality?: ErdCardinalityApi }, factory: () => ErdCardinalityApi) {
   const api = factory();
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.UMLErdCardinality = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createErdCardinality() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createErdCardinality);
+
+function createErdCardinality() {
   const ERD_CARDINALITY_OPTIONS = [
     ['0..1', '0..1 · 선택 한 개'],
     ['1', '1 · 필수 한 개'],
@@ -84,4 +89,4 @@
     erdMermaidMarker,
     erdDrawioArrow,
   };
-});
+}

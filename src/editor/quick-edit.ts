@@ -1,11 +1,84 @@
-// @ts-nocheck
 'use strict';
 
-(function initQuickEdit(root, factory) {
+type QuickEditMemberKind = 'attribute' | 'operation' | 'literal' | 'reception' | 'column' | 'slot';
+interface QuickEditLabelHit {
+  r: DiagramRelation;
+  field: 'name' | 'sourceLabel' | 'targetLabel' | 'sourceEndName' | 'targetEndName';
+  bx: number;
+  by: number;
+  bw: number;
+}
+interface AnyParsedExpression {
+  valid: true;
+  normalized: string;
+  name?: string;
+  stereotype?: string;
+  visibility?: string;
+  selector?: string;
+  type?: string;
+}
+type InvalidExpression = { valid: false; error: string };
+type PreparedExpression = { valid: true; value: string } | InvalidExpression;
+interface InlineEditorOptions {
+  align?: 'left' | 'center';
+  ariaLabel?: string;
+  height?: number;
+  multiline?: boolean;
+  size?: number;
+  prepare?(value: string): PreparedExpression;
+  onAddBelow?(value: string): void;
+  onDelete?(): void;
+  onMove?(direction: number, value: string): void;
+}
+type QuickEditChildDependencies = 'closeOtherQuickEditors' | 'selectQuickEditTarget' | 'nextFieldSequence';
+type QuickEditDependencies = Omit<ErdColumnEditorDependencies, QuickEditChildDependencies | 'state'>
+  & Omit<NonNullable<Parameters<RelationEndEditorApi['create']>[0]>, QuickEditChildDependencies | 'state'>
+  & {
+    addBindingWaypoint(relation: DiagramRelation, point: DiagramPoint): void;
+    bindingRoute(relation: DiagramRelation): BindingRoute | null;
+    bindingWaypoints(relation: DiagramRelation): DiagramPoint[];
+    byId(id: string | null): DiagramElement | null | undefined;
+    communicationMessagePoints(relation: DiagramRelation): CommunicationMessagePoints | null;
+    dg(): EditorDiagram;
+    elementAt(point: DiagramPoint): DiagramElement | null | undefined;
+    focusProps(): void;
+    isCommMsg(kind: string): boolean;
+    isInteractionMsg(kind: string): boolean;
+    isMsg(kind: string): boolean;
+    memberListByKind(element: DiagramElement, kind: QuickEditMemberKind): { top: number; arr: string[] } | null;
+    memberRowAt(element: DiagramElement, point: DiagramPoint): { kind: QuickEditMemberKind; index: number } | null;
+    msgPoints(relation: DiagramRelation): MessagePoints | null;
+    parseQuickEditExpression(kind: string, value: string): AnyParsedExpression | InvalidExpression;
+    polylineMidpoint(points: DiagramPoint[]): DiagramPoint;
+    referencedInteraction(element: DiagramElement): EditorDiagram | null;
+    relById(id: string | null): DiagramRelation | null | undefined;
+    relationAt(point: DiagramPoint): DiagramRelation | null | undefined;
+    relationEndAt(point: DiagramPoint): { r: DiagramRelation; end: RelationEnd } | null;
+    relationLabelAt(point: DiagramPoint): QuickEditLabelHit | null;
+    setSelection(ids: string[]): void;
+    svgPoint(event: MouseEvent): DiagramPoint;
+    switchDiagram(id: string): void;
+    tw(text: string, font: string): number;
+    state: ErdColumnEditorDependencies['state'] & { selection: string[]; selectedId: string | null };
+    erdColumnEditor: ErdColumnEditorApi;
+    relationEndEditor: RelationEndEditorApi;
+    FONT13B: string;
+    LINE_H: number;
+    PACKAGE_CONTAINER_KINDS: ReadonlySet<string>;
+    PAD: number;
+    VISIBILITY_SYMBOL: Partial<Record<string, string>>;
+  };
+
+type QuickEditApi = ReturnType<typeof createQuickEditModule>;
+declare var UMLQuickEdit: QuickEditApi;
+
+(function initQuickEdit(root: typeof globalThis, factory: () => QuickEditApi) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLQuickEdit = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createQuickEditModule() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createQuickEditModule);
+
+function createQuickEditModule() {
   /* every field caption needs a stable id so its control can point at it */
   let fieldSequence = 0;
   const REQUIRED_FUNCTIONS = Object.freeze([
@@ -64,7 +137,7 @@
     'tw',
     'validRelationEndMultiplicity',
     'validateColumn',
-  ]);
+  ] as const);
   const REQUIRED_VALUES = Object.freeze([
     'document',
     'erdColumnEditor',
@@ -80,14 +153,14 @@
     'PAD',
     'VISIBILITY_SYMBOL',
     'VISIBILITY_VALUE',
-  ]);
+  ] as const);
 
-  function create(deps) {
+  function create(deps: QuickEditDependencies) {
     if (!deps || typeof deps !== 'object') {
       throw new TypeError('QuickEdit dependencies are required');
     }
 
-    const missing = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
+    const missing: string[] = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
     REQUIRED_VALUES.forEach(name => {
       if (deps[name] == null) missing.push(name);
     });
@@ -153,7 +226,7 @@
       reception: 'Reception', column: 'Column', slot: 'Slot',
     };
 
-    function prepareQuickEditExpression(kind, value) {
+    function prepareQuickEditExpression(kind: string, value: string): PreparedExpression {
       if (!value || kind === 'column') return { valid: true, value: value || '' };
       const result = parseQuickEditExpression(kind, value);
       if (!result.valid) {
@@ -163,31 +236,31 @@
       return { valid: true, value: result.normalized };
     }
 
-    function expressionPrefixFor(e) {
-      return [e.stereotype ? `«${e.stereotype}»` : '', VISIBILITY_SYMBOL[e.visibility] || '']
+    function expressionPrefixFor(e: DiagramElement) {
+      return [e.stereotype ? `«${e.stereotype}»` : '', VISIBILITY_SYMBOL[e.visibility || ''] || '']
         .filter(Boolean).join(' ');
     }
 
-    function nameExpressionValue(e) {
+    function nameExpressionValue(e: DiagramElement) {
       return [expressionPrefixFor(e), e.name || ''].filter(Boolean).join(' ');
     }
 
-    function lifelineExpressionValue(e) {
+    function lifelineExpressionValue(e: DiagramElement) {
       return [expressionPrefixFor(e), e.name || ''].filter(Boolean).join(' ');
     }
 
-    function applyExpressionPrefix(e, parsed) {
+    function applyExpressionPrefix(e: DiagramElement, parsed: Pick<AnyParsedExpression, 'visibility' | 'stereotype'>) {
       if (parsed.stereotype || e.stereotype !== undefined) e.stereotype = parsed.stereotype;
       if (parsed.visibility || e.visibility !== undefined) {
-        e.visibility = VISIBILITY_VALUE[parsed.visibility] || 'public';
+        e.visibility = VISIBILITY_VALUE[parsed.visibility || ''] || 'public';
       }
     }
 
-    function lifelineExpressionCore(parsed) {
+    function lifelineExpressionCore(parsed: AnyParsedExpression) {
       return `${parsed.name || ''}${parsed.selector ? `[${parsed.selector}]` : ''}${parsed.type ? `: ${parsed.type}` : ''}`;
     }
 
-    function openMemberRowQuickEdit(e, listKind, requestedIndex) {
+    function openMemberRowQuickEdit(e: DiagramElement, listKind: QuickEditMemberKind, requestedIndex: number): boolean {
       const list = memberListByKind(e, listKind);
       if (!list) return false;
       if (e.kind === 'entity' && listKind === 'column') {
@@ -200,7 +273,7 @@
       const rh = e.kind === 'entity' ? ((e._m && e._m.RH) || 17) : LINE_H;
       const rowY = e.y + list.top + Math.min(index, list.arr.length) * rh + 2;
       const label = MEMBER_QUICK_EDIT_LABELS[listKind] || 'Member';
-      const reopen = nextIndex => openMemberRowQuickEdit(e, listKind, nextIndex);
+      const reopen = (nextIndex: number) => openMemberRowQuickEdit(e, listKind, nextIndex);
 
       openInlineEditor(e.x * state.zoom + 4, rowY * state.zoom, (e.w - 8) * state.zoom, old, value => {
         if (value === old) return;
@@ -253,8 +326,7 @@
       return true;
     }
 
-    function memberKindForShortcut(e, operation) {
-      if (!e) return null;
+    function memberKindForShortcut(e: DiagramElement, operation: boolean): QuickEditMemberKind | null {
       if (operation) {
         return ['class', 'interface', 'enumeration', 'stereotype', 'informationitem'].includes(e.kind)
           ? 'operation' : null;
@@ -269,13 +341,14 @@
     function openSelectedMemberQuickEdit(operation = false) {
       if (state.selection.length !== 1) return false;
       const e = byId(state.selectedId);
+      if (!e) return false;
       const listKind = memberKindForShortcut(e, operation);
       if (!listKind) return false;
       const list = memberListByKind(e, listKind);
       return list ? openMemberRowQuickEdit(e, listKind, list.arr.length) : false;
     }
 
-    function selectQuickEditTarget(id) {
+    function selectQuickEditTarget(id: string) {
       if (state.selection.length === 1 && state.selectedId === id) return;
       setSelection([id]);
       render(); renderProps();
@@ -315,7 +388,7 @@
       selectQuickEditTarget,
     });
 
-    function openRelationQuickEdit(r, labelHit = null) {
+    function openRelationQuickEdit(r: DiagramRelation, labelHit: QuickEditLabelHit | null = null) {
       if (!r) return false;
       selectQuickEditTarget(r.id);
       if (r.kind === 'transition') {
@@ -363,10 +436,10 @@
         if (!points) return false;
         if (points.self) {
           lx = points.startX + 8;
-          ly = r.y - 24;
+          ly = points.y - 24;
         } else {
           lx = (points.p1.x + points.p2.x) / 2 - 70;
-          ly = r.y - 24;
+          ly = points.p1.y - 24;
         }
       } else if (r.kind === 'bindingconnector') {
         const route = bindingRoute(r);
@@ -400,7 +473,7 @@
       'timetick', 'timeconstraint', 'durationconstraint',
     ]);
 
-    function elementNameEditorY(e) {
+    function elementNameEditorY(e: DiagramElement) {
       let nameY = e.y + PAD;
       if (dg().type === 'package' && PACKAGE_CONTAINER_KINDS.has(e.kind)) {
         nameY = e.y + (e.kind === 'subsystem' ? 22 : 30);
@@ -424,10 +497,10 @@
       return nameY;
     }
 
-    function openElementQuickEdit(e, point = null, options = {}) {
+    function openElementQuickEdit(e: DiagramElement, point: DiagramPoint | null = null, options: { keyboard?: boolean } = {}) {
       if (!e) return false;
       selectQuickEditTarget(e.id);
-      if ((e.kind === 'interactioninline' || e.kind === 'interactionuse') && referencedInteraction(e)) {
+      if ((e.kind === 'interactioninline' || e.kind === 'interactionuse') && e.interactionDiagramId && referencedInteraction(e)) {
         switchDiagram(e.interactionDiagramId);
         flashStatus(`Sequence Diagram '${dg().name}'을 열었습니다`);
         return true;
@@ -487,12 +560,12 @@
       return true;
     }
 
-    function handleCanvasQuickEdit(ev, p = svgPoint(ev)) {
-      const routePointIndex = ev.target.getAttribute && ev.target.getAttribute('data-route-point');
+    function handleCanvasQuickEdit(ev: MouseEvent, p = svgPoint(ev)) {
+      const routePointIndex = (ev.target as Element | null)?.getAttribute?.('data-route-point');
       if (routePointIndex != null && state.selectedId) {
         const r = relById(state.selectedId);
         const index = Number(routePointIndex);
-        const waypoints = bindingWaypoints(r || {});
+        const waypoints = r ? bindingWaypoints(r) : [];
         if (r?.kind === 'bindingconnector' && r.routeMode === 'manual'
           && Number.isInteger(index) && waypoints[index]) {
           snapshot();
@@ -548,8 +621,8 @@
       return r ? openRelationQuickEdit(r) : false;
     }
 
-    let inlineEditor = null;
-    function openLifelineNameEditor(lifeline) {
+    let inlineEditor: HTMLInputElement | HTMLTextAreaElement | null = null;
+    function openLifelineNameEditor(lifeline: DiagramElement) {
       const z = state.zoom;
       const expression = lifelineExpressionValue(lifeline);
       const nameY = lifeline.isActor
@@ -572,14 +645,14 @@
       });
     }
 
-    function openInlineEditor(x, y, w, value, commit, opts = {}) {
+    function openInlineEditor(x: number, y: number, w: number, value: string | undefined, commit: (value: string) => void, opts: InlineEditorOptions = {}) {
       closeRelationEndEditor();
       closeErdColumnEditor();
       closeInlineEditor();
-      const input = document.createElement(opts.multiline ? 'textarea' : 'input');
+      const input: HTMLInputElement | HTMLTextAreaElement = document.createElement(opts.multiline ? 'textarea' : 'input');
       input.className = 'inline-editor';
       input.setAttribute('aria-label', opts.ariaLabel || 'QuickEdit');
-      input.value = value;
+      input.value = value ?? '';
       input.style.left = (x + 2) + 'px';
       input.style.top = y + 'px';
       input.style.width = Math.max(80, w - 4) + 'px';
@@ -589,7 +662,7 @@
       wrap.appendChild(input);
       input.focus(); input.select();
       let done = false;
-      const finish = (ok, validate = true) => {
+      const finish = (ok: boolean, validate = true) => {
         if (done) return false; done = true;
         let v = input.value.trim();
         if (ok && validate && opts.prepare) {
@@ -609,7 +682,8 @@
         return { value: v };
       };
       input.addEventListener('input', () => input.setCustomValidity(''));
-      input.addEventListener('keydown', e => {
+      input.addEventListener('keydown', (event: Event) => {
+        const e = event as KeyboardEvent;
         const mod = e.ctrlKey || e.metaKey;
         if (mod && !e.altKey && !e.shiftKey && e.key === 'Enter' && opts.onAddBelow) {
           e.preventDefault();
@@ -659,4 +733,4 @@
   }
 
   return Object.freeze({ REQUIRED_FUNCTIONS, REQUIRED_VALUES, create });
-});
+}

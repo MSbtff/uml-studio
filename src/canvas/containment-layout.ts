@@ -1,15 +1,19 @@
-// @ts-nocheck
 'use strict';
 
 /* Containment & layout — the parent/child tree of views, the hit tests that
    decide which container a dropped view belongs to, and the layout passes that
    pin ports, pins, regions, constraint parameters and timing rows to their
    owner's geometry before every render. */
-(function initContainmentLayoutModule(root, factory) {
+type ContainmentLayoutApi = ReturnType<typeof createContainmentLayoutModule>;
+declare var UMLContainmentLayout: ContainmentLayoutApi;
+
+(function initContainmentLayoutModule(root: typeof globalThis & { UMLContainmentLayout?: ContainmentLayoutApi }, factory: () => ContainmentLayoutApi) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLContainmentLayout = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createContainmentLayoutModule() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createContainmentLayoutModule);
+
+function createContainmentLayoutModule() {
   const REQUIRED_FUNCTIONS = Object.freeze([
     'anchorPoint',
     'byId',
@@ -19,7 +23,7 @@
     'relEndpoints',
     'snap',
     'syncRelationModel',
-  ]);
+  ] as const);
   const REQUIRED_VALUES = Object.freeze([
     'ACTIVITY_ACTION_KINDS',
     'ACTIVITY_CONTAINER_KINDS',
@@ -33,17 +37,33 @@
     'STATE_VERTEX_KINDS',
     'TIMING_LABEL_WIDTH',
     'TIMING_ROW_HEIGHT',
-  ]);
-  const KIND_SETS = Object.freeze(REQUIRED_VALUES.filter(name => name.endsWith('_KINDS')));
+  ] as const);
+  const KIND_SETS = Object.freeze(REQUIRED_VALUES.filter((name): name is KindSet => name.endsWith('_KINDS')));
 
-  function create(dependencies) {
-    const deps = dependencies || {};
-    const missing = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
+  type KindSet = Extract<typeof REQUIRED_VALUES[number], `${string}_KINDS`>;
+
+  type ContainmentDependencies = Record<KindSet, ReadonlySet<string>> & {
+    anchorPoint: (view: DiagramBounds, anchor: DiagramAnchor) => DiagramPoint;
+    byId: (id?: string | null) => DiagramElement | undefined | null;
+    center: (view: DiagramBounds) => DiagramPoint;
+    dg: () => EditorDiagram;
+    pointInside: (view: DiagramBounds, point: DiagramPoint, margin?: number) => boolean;
+    relEndpoints: (relation: DiagramRelation) => DiagramEndpoints | null;
+    snap: (value: number, grid?: number) => number;
+    syncRelationModel: (relation: DiagramRelation) => void;
+    TIMING_LABEL_WIDTH: number;
+    TIMING_ROW_HEIGHT: number;
+  };
+
+  function create(dependencies?: ContainmentDependencies) {
+    const deps: Partial<ContainmentDependencies> = dependencies || {};
+    const missing: string[] = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
     REQUIRED_VALUES.forEach(name => {
       if (deps[name] == null) missing.push(name);
     });
     KIND_SETS.forEach(name => {
-      if (deps[name] != null && typeof deps[name].has !== 'function') missing.push(`${name}.has`);
+      const value = deps[name];
+      if (value != null && typeof value.has !== 'function') missing.push(`${name}.has`);
     });
     if (missing.length) {
       throw new TypeError(`Containment Layout 의존성이 없습니다: ${[...new Set(missing)].join(', ')}`);
@@ -70,33 +90,35 @@
       STATE_VERTEX_KINDS,
       TIMING_LABEL_WIDTH,
       TIMING_ROW_HEIGHT,
-    } = deps;
+    } = deps as ContainmentDependencies;
 
-    function childViews(parentId, diagram = dg()) {
+    function childViews(parentId: string, diagram = dg()) {
       return diagram.elements.filter(e => e.parentId === parentId);
     }
 
-    function descendantViews(parentId, diagram = dg()) {
-      const out = [];
-      const visit = id => childViews(id, diagram).forEach(child => { out.push(child); visit(child.id); });
+    function descendantViews(parentId: string, diagram = dg()) {
+      const out: DiagramElement[] = [];
+      const visit = (id: string): void => childViews(id, diagram).forEach(child => { out.push(child); visit(child.id); });
       visit(parentId);
       return out;
     }
 
-    function containmentDepth(view, diagram) {
-      let depth = 0, current = view;
+    function containmentDepth(view: DiagramElement, diagram: EditorDiagram) {
+      let depth = 0;
+      let current: DiagramElement | undefined = view;
       const seen = new Set([view.id]);
       while (current.parentId) {
-        current = diagram.elements.find(e => e.id === current.parentId);
+        current = diagram.elements.find(e => e.id === current?.parentId);
         if (!current || seen.has(current.id)) break;
         seen.add(current.id); depth++;
       }
       return depth;
     }
 
-    function containmentOrder(diagram) {
-      const out = [], seen = new Set();
-      const visit = view => {
+    function containmentOrder(diagram: EditorDiagram) {
+      const out: DiagramElement[] = [];
+      const seen = new Set<string>();
+      const visit = (view: DiagramElement) => {
         if (!view || seen.has(view.id)) return;
         seen.add(view.id); out.push(view);
         diagram.elements.filter(child => child.parentId === view.id).forEach(visit);
@@ -106,27 +128,27 @@
       return out;
     }
 
-    function rootViews(views, diagram = dg()) {
+    function rootViews(views: DiagramElement[], diagram = dg()) {
       const selected = new Set(views.map(e => e.id));
       return views.filter(view => {
         let parent = diagram.elements.find(e => e.id === view.parentId);
         while (parent) {
           if (selected.has(parent.id)) return false;
-          parent = diagram.elements.find(e => e.id === parent.parentId);
+          parent = diagram.elements.find(e => e.id === parent?.parentId);
         }
         return true;
       });
     }
 
-    const regionLayoutCache = new WeakMap();
+    const regionLayoutCache = new WeakMap<DiagramElement, DiagramBounds>();
 
-    function regionAtPoint(p, excludeIds = new Set()) {
+    function regionAtPoint(p: DiagramPoint, excludeIds = new Set<string>()) {
       return dg().elements
         .filter(e => e.kind === 'region' && !excludeIds.has(e.id) && pointInside(e, p, 2))
         .sort((a, b) => (a.w * a.h) - (b.w * b.h))[0] || null;
     }
 
-    function compositeAtPoint(p) {
+    function compositeAtPoint(p: DiagramPoint) {
       const direct = dg().elements
         .filter(e => e.kind === 'compositestate' && pointInside(e, p))
         .sort((a, b) => (a.w * a.h) - (b.w * b.h))[0];
@@ -135,7 +157,7 @@
       return region ? byId(region.parentId) : null;
     }
 
-    function layoutCompositeRegions(diagram) {
+    function layoutCompositeRegions(diagram: EditorDiagram) {
       diagram.elements.filter(e => e.kind === 'compositestate').forEach(owner => {
         const regions = diagram.elements
           .filter(e => e.kind === 'region' && e.parentId === owner.id)
@@ -167,7 +189,7 @@
       });
     }
 
-    function layoutConnectionPointRefs(diagram) {
+    function layoutConnectionPointRefs(diagram: EditorDiagram) {
       diagram.elements.filter(e => e.kind === 'connectionpointref').forEach(ref => {
         const owner = diagram.elements.find(e => e.id === ref.parentId);
         if (!owner || owner.kind !== 'submachinestate') return;
@@ -178,25 +200,25 @@
       });
     }
 
-    function compositeContainerAtPoint(p, excludeIds = new Set()) {
+    function compositeContainerAtPoint(p: DiagramPoint, excludeIds = new Set<string>()) {
       return dg().elements
         .filter(e => COMPOSITE_CONTAINER_KINDS.has(e.kind) && !excludeIds.has(e.id) && pointInside(e, p, 4))
         .sort((a, b) => (a.w * a.h) - (b.w * b.h))[0] || null;
     }
 
-    function compositePortOwnerAtPoint(p, excludeIds = new Set()) {
+    function compositePortOwnerAtPoint(p: DiagramPoint, excludeIds = new Set<string>()) {
       return dg().elements
         .filter(e => isPortOwner(e) && !excludeIds.has(e.id) && pointInside(e, p))
         .sort((a, b) => (a.w * a.h) - (b.w * b.h))[0] || null;
     }
 
-    function isPortOwner(view, diagram = dg()) {
+    function isPortOwner(view: DiagramElement, diagram = dg()) {
       return COMPOSITE_CONTAINER_KINDS.has(view.kind) || view.kind === 'part'
         || (diagram?.type === 'ibd' && IBD_CONTAINER_KINDS.has(view.kind))
         || (diagram?.type === 'parametric' && PARAMETRIC_CONTAINER_KINDS.has(view.kind));
     }
 
-    function layoutCompositePorts(diagram) {
+    function layoutCompositePorts(diagram: EditorDiagram) {
       diagram.elements.filter(e => e.kind === 'port').forEach(port => {
         const owner = diagram.elements.find(e => e.id === port.parentId);
         if (!owner || !isPortOwner(owner, diagram)) return;
@@ -207,13 +229,13 @@
       });
     }
 
-    function activityContainerAtPoint(p, excludeIds = new Set()) {
+    function activityContainerAtPoint(p: DiagramPoint, excludeIds = new Set<string>()) {
       return dg().elements
         .filter(e => ACTIVITY_CONTAINER_KINDS.has(e.kind) && !excludeIds.has(e.id) && pointInside(e, p, 4))
         .sort((a, b) => (a.w * a.h) - (b.w * b.h))[0] || null;
     }
 
-    function activityAttachmentOwnerAtPoint(kind, p) {
+    function activityAttachmentOwnerAtPoint(kind: string, p: DiagramPoint) {
       const allowed = (kind === 'expansioninput' || kind === 'expansionoutput')
         ? new Set(['expansionregion'])
         : ACTIVITY_ACTION_KINDS;
@@ -222,7 +244,7 @@
         .sort((a, b) => (a.w * a.h) - (b.w * b.h))[0] || null;
     }
 
-    function layoutActivityAttachments(diagram) {
+    function layoutActivityAttachments(diagram: EditorDiagram) {
       diagram.elements.filter(e => ACTIVITY_PIN_KINDS.has(e.kind)).forEach(pin => {
         const owner = diagram.elements.find(e => e.id === pin.parentId);
         if (!owner) return;
@@ -233,44 +255,44 @@
       });
     }
 
-    function activityAncestor(view, kind, diagram = dg()) {
-      let current = view;
+    function activityAncestor(view: DiagramElement, kind: string, diagram = dg()) {
+      let current: DiagramElement | undefined = view;
       const seen = new Set();
       while (current && current.parentId && !seen.has(current.parentId)) {
-        seen.add(current.parentId);
-        current = diagram.elements.find(e => e.id === current.parentId);
+        seen.add(current?.parentId);
+        current = diagram.elements.find(e => e.id === current?.parentId);
         if (current && current.kind === kind) return current;
       }
       return null;
     }
 
-    function attachToActivityContainer(view) {
+    function attachToActivityContainer(view: DiagramElement) {
       if (dg().type !== 'activity' || ACTIVITY_PIN_KINDS.has(view.kind)) return;
       if (!ACTIVITY_VERTEX_KINDS.has(view.kind) && !ACTIVITY_CONTAINER_KINDS.has(view.kind)) return;
       const excluded = new Set([view.id, ...descendantViews(view.id).map(child => child.id)]);
       const target = activityContainerAtPoint(center(view), excluded);
       if (target) view.parentId = target.id;
-      else if (view.parentId && ACTIVITY_CONTAINER_KINDS.has((byId(view.parentId) || {}).kind)) delete view.parentId;
+      else if (view.parentId && ACTIVITY_CONTAINER_KINDS.has(byId(view.parentId)?.kind || '')) delete view.parentId;
     }
 
-    function packageContainerAtPoint(p, excludeIds = new Set()) {
+    function packageContainerAtPoint(p: DiagramPoint, excludeIds = new Set<string>()) {
       return dg().elements
         .filter(e => PACKAGE_CONTAINER_KINDS.has(e.kind) && !excludeIds.has(e.id) && pointInside(e, p, 6))
         .sort((a, b) => (a.w * a.h) - (b.w * b.h))[0] || null;
     }
 
-    function isViewAncestor(ancestor, view, diagram = dg()) {
-      let current = view;
+    function isViewAncestor(ancestor: DiagramElement, view: DiagramElement, diagram = dg()) {
+      let current: DiagramElement | undefined = view;
       const seen = new Set();
       while (current && current.parentId && !seen.has(current.parentId)) {
-        seen.add(current.parentId);
-        current = diagram.elements.find(element => element.id === current.parentId);
+        seen.add(current?.parentId);
+        current = diagram.elements.find(element => element.id === current?.parentId);
         if (current && current.id === ancestor.id) return true;
       }
       return false;
     }
 
-    function attachToPackageContainer(view) {
+    function attachToPackageContainer(view: DiagramElement) {
       if (dg().type !== 'package' || !PACKAGE_CONTAINER_KINDS.has(view.kind)) return;
       const excluded = new Set([view.id, ...descendantViews(view.id).map(child => child.id)]);
       const target = packageContainerAtPoint(center(view), excluded);
@@ -282,13 +304,13 @@
           delete containment.srcAnchor; delete containment.dstAnchor;
           syncRelationModel(containment);
         }
-      } else if (view.parentId && PACKAGE_CONTAINER_KINDS.has((byId(view.parentId) || {}).kind)) {
+      } else if (view.parentId && PACKAGE_CONTAINER_KINDS.has(byId(view.parentId)?.kind || '')) {
         delete view.parentId;
         if (containment) dg().relations = dg().relations.filter(relation => relation.id !== containment.id);
       }
     }
 
-    function compositePortDirection(port) {
+    function compositePortDirection(port: DiagramElement) {
       const anchor = port.borderAnchor || { fx: 1, fy: 0.5 };
       if (anchor.fx === 0) return { x: -1, y: 0 };
       if (anchor.fx === 1) return { x: 1, y: 0 };
@@ -296,7 +318,7 @@
       return { x: 0, y: 1 };
     }
 
-    function attachPartToCompositeContainer(part) {
+    function attachPartToCompositeContainer(part: DiagramElement) {
       if (dg().type !== 'composite' || !['part', 'collaborationuse'].includes(part.kind)) return;
       const excluded = new Set([part.id, ...descendantViews(part.id).map(x => x.id)]);
       const target = compositeContainerAtPoint(center(part), excluded);
@@ -310,13 +332,13 @@
       part.y = snap(Math.min(Math.max(part.y, owner.y + 48), owner.y + owner.h - part.h - 12));
     }
 
-    function ibdContainerAtPoint(p, excludeIds = new Set()) {
+    function ibdContainerAtPoint(p: DiagramPoint, excludeIds = new Set<string>()) {
       return dg().elements
         .filter(e => IBD_CONTAINER_KINDS.has(e.kind) && !excludeIds.has(e.id) && pointInside(e, p, 4))
         .sort((a, b) => (a.w * a.h) - (b.w * b.h))[0] || null;
     }
 
-    function attachToInternalBlockContainer(view) {
+    function attachToInternalBlockContainer(view: DiagramElement) {
       if (dg().type !== 'ibd' || !IBD_TYPED_KINDS.has(view.kind)) return;
       const excluded = new Set([view.id, ...descendantViews(view.id).map(child => child.id)]);
       const target = ibdContainerAtPoint(center(view), excluded);
@@ -328,13 +350,13 @@
       view.y = snap(Math.min(Math.max(view.y, owner.y + topInset), owner.y + owner.h - view.h - 12));
     }
 
-    function parametricContainerAtPoint(p, excludeIds = new Set()) {
+    function parametricContainerAtPoint(p: DiagramPoint, excludeIds = new Set<string>()) {
       return dg().elements
         .filter(e => PARAMETRIC_CONTAINER_KINDS.has(e.kind) && !excludeIds.has(e.id) && pointInside(e, p, 4))
         .sort((a, b) => (a.w * a.h) - (b.w * b.h))[0] || null;
     }
 
-    function attachToParametricContainer(view) {
+    function attachToParametricContainer(view: DiagramElement) {
       if (dg().type !== 'parametric' || !['constraintproperty', 'value'].includes(view.kind)) return;
       const excluded = new Set([view.id, ...descendantViews(view.id).map(child => child.id)]);
       const target = parametricContainerAtPoint(center(view), excluded);
@@ -345,7 +367,7 @@
       view.y = snap(Math.min(Math.max(view.y, owner.y + 44), owner.y + owner.h - view.h - 12));
     }
 
-    function layoutParametricParameters(diagram) {
+    function layoutParametricParameters(diagram: EditorDiagram) {
       diagram.elements.filter(e => e.kind === 'constraintparameter').forEach(parameter => {
         const owner = diagram.elements.find(e => e.id === parameter.parentId);
         if (!owner || !PARAMETRIC_CONTAINER_KINDS.has(owner.kind)) return;
@@ -356,19 +378,19 @@
       });
     }
 
-    function timingLifelineAtPoint(p) {
+    function timingLifelineAtPoint(p: DiagramPoint) {
       return dg().elements
         .filter(e => e.kind === 'lifeline' && pointInside(e, p))
         .sort((a, b) => (a.w * a.h) - (b.w * b.h))[0] || null;
     }
 
-    function timingStateAtPoint(p) {
+    function timingStateAtPoint(p: DiagramPoint) {
       return dg().elements
         .filter(e => e.kind === 'timingstate' && pointInside(e, p))
         .sort((a, b) => (a.w * a.h) - (b.w * b.h))[0] || null;
     }
 
-    function timingConstraintAnchor(targetId, diagram, ratio = 0.5) {
+    function timingConstraintAnchor(targetId: string | undefined, diagram: EditorDiagram, ratio = 0.5) {
       const element = diagram.elements.find(e => e.id === targetId);
       if (element) {
         const position = Math.max(0, Math.min(1, Number.isFinite(ratio) ? ratio : 0.5));
@@ -379,7 +401,7 @@
       return ep ? { x: (ep.p1.x + ep.p2.x) / 2, y: (ep.p1.y + ep.p2.y) / 2 } : null;
     }
 
-    function layoutTimingDiagram(diagram) {
+    function layoutTimingDiagram(diagram: EditorDiagram) {
       const lifelines = diagram.elements.filter(e => e.kind === 'lifeline').sort((a, b) => a.y - b.y || a.x - b.x);
       lifelines.forEach(lifeline => {
         const states = diagram.elements
@@ -415,7 +437,7 @@
       });
     }
 
-    function attachToContainingRegion(e) {
+    function attachToContainingRegion(e: DiagramElement) {
       if (dg().type !== 'state' || e.kind === 'region' || !STATE_VERTEX_KINDS.has(e.kind)) return;
       const excluded = new Set([e.id, ...descendantViews(e.id).map(x => x.id)]);
       const target = regionAtPoint(center(e), excluded);
@@ -426,7 +448,7 @@
     /* `grid` lets a caller move finer than the drawing grid — keyboard nudging
        asks for 1px steps, which snapping to GRID would round away entirely.
        Omitted, snap() applies the usual GRID, so drag behaviour is unchanged. */
-    function moveViewTree(e, dx, dy, origins, grid) {
+    function moveViewTree(e: DiagramElement, dx: number, dy: number, origins?: ReadonlyMap<string, DiagramPoint>, grid?: number) {
       const all = [e, ...descendantViews(e.id)];
       all.forEach(view => {
         const origin = origins && origins.get(view.id);
@@ -477,4 +499,4 @@
   }
 
   return Object.freeze({ REQUIRED_FUNCTIONS, REQUIRED_VALUES, KIND_SETS, create });
-});
+}

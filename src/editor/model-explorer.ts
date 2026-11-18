@@ -1,11 +1,15 @@
-// @ts-nocheck
 'use strict';
 
-(function initModelExplorer(root, factory) {
+type ModelExplorerApi = ReturnType<typeof createModelExplorerModule>;
+declare var UMLModelExplorer: ModelExplorerApi;
+
+(function initModelExplorer(root: typeof globalThis & { UMLModelExplorer?: ModelExplorerApi }, factory: () => ModelExplorerApi) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLModelExplorer = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createModelExplorerModule() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createModelExplorerModule);
+
+function createModelExplorerModule() {
   const REQUIRED_FUNCTIONS = Object.freeze([
     'clearLinking',
     'containmentDepth',
@@ -17,7 +21,7 @@
     'renderProps',
     'setSelection',
     'switchDiagram',
-  ]);
+  ] as const);
   const REQUIRED_VALUES = Object.freeze([
     'document',
     'explorer',
@@ -25,11 +29,55 @@
     'state',
     'DIAGRAM_META',
     'KIND_META',
-  ]);
+  ] as const);
 
-  function create(dependencies) {
-    const deps = dependencies || {};
-    const missing = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
+  interface SearchColumn { phys: string; logical: string }
+
+  interface ExplorerItem {
+    id: string;
+    modelId?: string;
+    kind: string;
+    label: string;
+    searchText: string;
+    searchColumns?: SearchColumn[];
+    depth?: number;
+  }
+
+  interface RowLayout {
+    diagram: EditorDiagram;
+    typeaheadLabel: string;
+    level: number;
+    posinset?: number;
+    setsize?: number;
+    activate: () => void;
+  }
+
+  type RootRow = RowLayout & { type: 'root'; expandable: boolean; expanded: boolean };
+  type ItemRow = RowLayout & ExplorerItem & { type: 'item' };
+  type ExplorerRow = RootRow | ItemRow;
+
+  interface ModelExplorerDependencies {
+    clearLinking: () => void;
+    containmentDepth: (element: DiagramElement, diagram: EditorDiagram) => number;
+    containmentOrder: (diagram: EditorDiagram) => DiagramElement[];
+    diagramKindLabel: (kind: string, type: string) => string;
+    parseColumn: (raw: string) => SearchColumn;
+    renderAll: () => void;
+    renderCanvas: () => void;
+    renderProps: () => void;
+    setSelection: (ids: string[]) => void;
+    switchDiagram: (id: string) => unknown;
+    document: Document;
+    explorer: HTMLElement;
+    searchInput: HTMLInputElement;
+    state: { diagrams: EditorDiagram[]; models: DiagramModels; activeId: string; tool: string; selection: string[] };
+    DIAGRAM_META: Record<string, { color: string; code: string }>;
+    KIND_META: Record<string, { label: string; color: string; icon: string }>;
+  }
+
+  function create(dependencies?: ModelExplorerDependencies) {
+    const deps: Partial<ModelExplorerDependencies> = dependencies || {};
+    const missing: string[] = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
     REQUIRED_VALUES.forEach(name => {
       if (deps[name] == null) missing.push(name);
     });
@@ -62,34 +110,34 @@
       state,
       DIAGRAM_META,
       KIND_META,
-    } = deps;
+    } = deps as ModelExplorerDependencies;
 
     /* the rendered tree, flattened: the DOM is a list, so ARIA carries the shape */
-    let rowNodes = [];
-    let renderedRows = [];
-    let focusKey = null;
+    let rowNodes: HTMLDivElement[] = [];
+    let renderedRows: ExplorerRow[] = [];
+    let focusKey: string | null = null;
 
-    function rowKey(row) {
+    function rowKey(row: ExplorerRow) {
       return row.type === 'root' ? `diagram:${row.diagram.id}` : `view:${row.id}`;
     }
 
     function explorerHasFocus() {
       const active = document.activeElement;
-      return Boolean(active) && rowNodes.includes(active);
+      return Boolean(active) && rowNodes.some(node => node === active);
     }
 
     /* aria-posinset/aria-setsize per sibling group, derived from the level sequence */
-    function annotatePositions(rows) {
-      const groupKeys = [];
-      const ancestors = [];
+    function annotatePositions(rows: ExplorerRow[]) {
+      const groupKeys: string[] = [];
+      const ancestors: number[] = [];
       rows.forEach((row, index) => {
         while (ancestors.length && rows[ancestors[ancestors.length - 1]].level >= row.level) ancestors.pop();
         groupKeys[index] = `${ancestors.length ? ancestors[ancestors.length - 1] : -1}:${row.level}`;
         ancestors.push(index);
       });
-      const totals = new Map();
+      const totals = new Map<string, number>();
       groupKeys.forEach(key => totals.set(key, (totals.get(key) || 0) + 1));
-      const seen = new Map();
+      const seen = new Map<string, number>();
       rows.forEach((row, index) => {
         const key = groupKeys[index];
         const position = (seen.get(key) || 0) + 1;
@@ -99,7 +147,7 @@
       });
     }
 
-    function focusRow(target) {
+    function focusRow(target: number) {
       if (!rowNodes.length) return false;
       const index = Math.max(0, Math.min(target, rowNodes.length - 1));
       rowNodes.forEach((node, position) => { node.tabIndex = position === index ? 0 : -1; });
@@ -108,7 +156,7 @@
       return true;
     }
 
-    function focusMatchingRow(character, from) {
+    function focusMatchingRow(character: string, from: number) {
       const needle = character.toLowerCase();
       for (let step = 1; step <= renderedRows.length; step += 1) {
         const candidate = (from + step) % renderedRows.length;
@@ -120,7 +168,7 @@
       return false;
     }
 
-    function handleRowKeydown(event, index) {
+    function handleRowKeydown(event: KeyboardEvent, index: number) {
       const row = renderedRows[index];
       if (!row) return;
       const consume = () => { event.preventDefault?.(); event.stopPropagation?.(); };
@@ -155,13 +203,13 @@
         && focusMatchingRow(event.key, index)) consume();
     }
 
-    function handleSearchKeydown(event) {
+    function handleSearchKeydown(event: KeyboardEvent) {
       if (event.key !== 'ArrowDown' || !rowNodes.length) return;
       event.preventDefault?.();
       focusRow(0);
     }
 
-    function applyTreeAttributes(node, row, next) {
+    function applyTreeAttributes(node: HTMLElement, row: ExplorerRow, next?: ExplorerRow) {
       node.setAttribute('role', 'treeitem');
       node.setAttribute('aria-level', String(row.level));
       node.setAttribute('aria-posinset', String(row.posinset));
@@ -182,12 +230,12 @@
       rowNodes = [];
       renderedRows = [];
       const query = (searchInput.value || '').trim().toLowerCase();
-      const rows = [];
+      const rows: ExplorerRow[] = [];
       state.diagrams.forEach(diagram => {
-        const items = [];
-        const erdSearchInfo = element => {
+        const items: ExplorerItem[] = [];
+        const erdSearchInfo = (element: DiagramElement) => {
           if (diagram.type !== 'erd' || element.kind !== 'entity') return null;
-          const model = state.models?.[element.modelId] || element;
+          const model = (element.modelId && state.models?.[element.modelId]) || element;
           const physical = String(model.name || element.name || '').trim();
           const logical = String(model.logicalName || element.logicalName || '').trim();
           const columns = (Array.isArray(model.columns) ? model.columns : [])
@@ -201,7 +249,7 @@
               .join(' '),
           };
         };
-        const endpointLabel = view => {
+        const endpointLabel = (view?: DiagramElement) => {
           if (!view) return '?';
           if (view.name) return view.name;
           if (view.kind === 'timesegment') {
@@ -279,7 +327,7 @@
       annotatePositions(rows);
       renderedRows = rows;
 
-      const buildRoot = row => {
+      const buildRoot = (row: RootRow) => {
         const meta = DIAGRAM_META[row.diagram.type];
         const rootItem = document.createElement('div');
         rootItem.className = 'ex-item root';
@@ -292,12 +340,12 @@
         rootItem.append(rootIcon, document.createTextNode(row.diagram.name));
         return rootItem;
       };
-      const buildItem = row => {
+      const buildItem = (row: ItemRow) => {
         const kindMeta = KIND_META[row.kind];
         const item = document.createElement('div');
         item.className = 'ex-item' + (state.selection.includes(row.id) ? ' selected' : '');
         item.dataset.viewId = row.id;
-        item.dataset.modelId = row.modelId;
+        item.dataset.modelId = String(row.modelId);
         if (row.depth) item.style.paddingLeft = `${10 + row.depth * 14}px`;
         const itemIcon = document.createElement('span');
         itemIcon.className = 'ex-icon';
@@ -370,4 +418,4 @@
   }
 
   return Object.freeze({ REQUIRED_FUNCTIONS, REQUIRED_VALUES, create });
-});
+}

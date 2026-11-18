@@ -1,14 +1,18 @@
-// @ts-nocheck
 'use strict';
 
 /* Sample project diagrams — the built-in examples, the model
    links that let one sample reuse another sample's model, and the layout
    upgrades that repair samples saved by older project versions. */
-(function initSampleDiagramsModule(root, factory) {
+type SampleDiagramsApi = ReturnType<typeof createSampleDiagramsModule>;
+declare var UMLSampleDiagrams: SampleDiagramsApi;
+
+(function initSampleDiagramsModule(root: typeof globalThis & { UMLSampleDiagrams?: SampleDiagramsApi }, factory: () => SampleDiagramsApi) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLSampleDiagrams = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createSampleDiagramsModule() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createSampleDiagramsModule);
+
+function createSampleDiagramsModule() {
   const REQUIRED_FUNCTIONS = Object.freeze([
     'cleanProjectName',
     'hydrateCurrentProject',
@@ -16,16 +20,34 @@
     'setSelection',
     'syncRelationModel',
     'uid',
-  ]);
+  ] as const);
   const REQUIRED_VALUES = Object.freeze([
     'state',
     'BDD_CLASSIFIER_KINDS',
     'FILL_DEFAULT',
-  ]);
+  ] as const);
 
-  function create(dependencies) {
-    const deps = dependencies || {};
-    const missing = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
+  interface SampleRelation extends DiagramRelation {
+    conveyedNames?: string[];
+    itemFlowNames?: string[];
+  }
+  interface SampleDiagram extends EditorDiagram { relations: SampleRelation[] }
+  type SampleElementInput = Omit<DiagramElement, 'id' | 'w' | 'h'> & Partial<Pick<DiagramElement, 'w' | 'h'>>;
+  interface SampleDependencies {
+    cleanProjectName(value: string): string;
+    hydrateCurrentProject(models: DiagramModels): void;
+    projectUid(): string;
+    setSelection(ids: string[]): void;
+    syncRelationModel(relation: DiagramRelation, diagram: EditorDiagram): void;
+    uid(): string;
+    state: { projectId: string; projectName: string; activeId: string | null; diagrams: SampleDiagram[]; models: DiagramModels };
+    BDD_CLASSIFIER_KINDS: ReadonlySet<string>;
+    FILL_DEFAULT: string;
+  }
+
+  function create(dependencies?: SampleDependencies) {
+    const deps: Partial<SampleDependencies> = dependencies || {};
+    const missing: string[] = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
     REQUIRED_VALUES.forEach(name => {
       if (deps[name] == null) missing.push(name);
     });
@@ -47,10 +69,10 @@
       state,
       BDD_CLASSIFIER_KINDS,
       FILL_DEFAULT,
-    } = deps;
+    } = deps as SampleDependencies;
 
-    const NE = props => ({ id: uid(), fill: FILL_DEFAULT, w: 0, h: 0, ...props });
-    const NR = (kind, from, to, extra) => ({ id: uid(), kind, from: from.id, to: to.id, name: '', sourceLabel: '', targetLabel: '', ...extra });
+    const NE = (props: SampleElementInput): DiagramElement => ({ id: uid(), fill: FILL_DEFAULT, w: 0, h: 0, ...props });
+    const NR = (kind: string, from: { id: string }, to: { id: string }, extra?: Partial<SampleRelation>): SampleRelation => ({ id: uid(), kind, from: from.id, to: to.id, name: '', sourceLabel: '', targetLabel: '', ...extra });
 
     function sampleClass() {
       const drawable = NE({ kind: 'interface', name: 'Drawable', x: 520, y: 64, operations: ['+ draw(ctx: Context): void'] });
@@ -218,7 +240,7 @@
       };
     }
 
-    function sampleInteractionOverviewPair(referencedSequence) {
+    function sampleInteractionOverviewPair(referencedSequence?: EditorDiagram) {
       const client = NE({ kind: 'lifeline', isActor: true, name: 'Client', x: 80, y: 32 });
       const controller = NE({ kind: 'lifeline', name: ':CheckoutController', x: 336, y: 32 });
       const gateway = NE({ kind: 'lifeline', name: ':PaymentGateway', x: 608, y: 32 });
@@ -565,13 +587,13 @@
       const sample = state.diagrams.find(diagram =>
         diagram.type === 'informationflow' && diagram.name === 'Rendering Information Flow');
       if (!sample) return;
-      const anchors = {
+      const anchors: Record<string, [DiagramAnchor, DiagramAnchor]> = {
         load: [{ fx: 1, fy: 0.3 }, { fx: 0, fy: 0.3 }],
         render: [{ fx: 1, fy: 0.25 }, { fx: 0, fy: 0.25 }],
         frame: [{ fx: 0, fy: 0.75 }, { fx: 1, fy: 0.75 }],
       };
       sample.relations.filter(relation => relation.kind === 'informationflow').forEach(relation => {
-        const pair = anchors[relation.name];
+        const pair = anchors[relation.name ?? ''];
         if (!pair || relation.srcAnchor || relation.dstAnchor) return;
         [relation.srcAnchor, relation.dstAnchor] = pair;
       });
@@ -594,7 +616,7 @@
         const oldStillUsed = state.diagrams.some(diagram =>
           diagram.elements.some(view => view.modelId === oldModelId)
           || diagram.relations.some(view => view.modelId === oldModelId));
-        if (!oldStillUsed) delete state.models[oldModelId];
+        if (oldModelId && !oldStillUsed) delete state.models[oldModelId];
       });
 
       const conveyedByName = new Map(sample.elements
@@ -602,7 +624,7 @@
         .map(element => [element.name, element.modelId]));
       sample.relations.filter(relation => relation.kind === 'informationflow').forEach(relation => {
         if (Array.isArray(relation.conveyedNames)) {
-          relation.conveyedModelIds = relation.conveyedNames.map(name => conveyedByName.get(name)).filter(Boolean);
+          relation.conveyedModelIds = relation.conveyedNames.map(name => conveyedByName.get(name)).filter((id): id is string => !!id);
           delete relation.conveyedNames;
         }
         if (!Array.isArray(relation.conveyedModelIds)) relation.conveyedModelIds = [];
@@ -611,7 +633,7 @@
     }
 
     function sampleRequirement() {
-      const makeRequirement = (name, requirementId, requirementText, requirementType, x, y, risk, verificationMethod) =>
+      const makeRequirement = (name: string, requirementId: string, requirementText: string, requirementType: string, x: number, y: number, risk: string, verificationMethod: string) =>
         NE({
           kind: 'requirement', name, requirementId, requirementText, requirementType,
           x, y, w: 320, h: 160, fill: '#edf4fa', visibility: 'public',
@@ -719,7 +741,7 @@
         const oldStillUsed = state.diagrams.some(diagram =>
           diagram.elements.some(view => view.modelId === oldModelId)
           || diagram.relations.some(view => view.modelId === oldModelId));
-        if (!oldStillUsed) delete state.models[oldModelId];
+        if (oldModelId && !oldStillUsed) delete state.models[oldModelId];
       });
       sample.relations.forEach(relation => syncRelationModel(relation, sample));
     }
@@ -857,7 +879,8 @@
       const systemPort = byName.get('render');
       const apiPort = byName.get('api');
       if (interfaceBlock) {
-        [systemPort, apiPort].filter(Boolean).forEach(port => {
+        [systemPort, apiPort].forEach(port => {
+          if (!port) return;
           port.classifierModelId = interfaceBlock.modelId;
         });
         if (systemPort) systemPort.requiredInterfaceModelId = interfaceBlock.modelId;
@@ -983,7 +1006,7 @@
       sample.relations.filter(relation => relation.kind === 'connector').forEach(relation => {
         relation.itemFlowModelIds = (relation.itemFlowNames || [])
           .map(name => itemModels.get(name))
-          .filter(Boolean);
+          .filter((id): id is string => !!id);
         delete relation.itemFlowNames;
         syncRelationModel(relation, sample);
       });
@@ -1073,7 +1096,7 @@
       const reusable = new Set(['class', 'component', 'usecase', 'artifact']);
       samples.forEach(sample => {
         sample.elements.forEach(element => {
-          const current = state.models[element.modelId];
+          const current = element.modelId === undefined ? undefined : state.models[element.modelId];
           if (!current || !reusable.has(current.kind)) return;
           const candidates = Object.values(state.models)
             .filter(model => model.id !== current.id && model.kind === current.kind && model.name === current.name)
@@ -1092,7 +1115,7 @@
           const oldStillUsed = state.diagrams.some(diagram =>
             diagram.elements.some(view => view.modelId === oldModelId)
             || diagram.relations.some(view => view.modelId === oldModelId));
-          if (!oldStillUsed) delete state.models[oldModelId];
+          if (oldModelId && !oldStillUsed) delete state.models[oldModelId];
         });
         sample.relations.forEach(relation => syncRelationModel(relation, sample));
       });
@@ -1130,13 +1153,13 @@
     function linkSampleObjectClassifiers() {
       const sample = state.diagrams.find(diagram => diagram.type === 'object' && diagram.name === 'Runtime Object Snapshot');
       if (!sample) return;
-      const targets = {
+      const targets: Record<string, [string, string]> = {
         canvasView: ['class', 'CanvasView'], mainLayer: ['class', 'Layer'], circle1: ['class', 'Circle'],
         renderer: ['component', 'RenderEngine'], webServer: ['node', 'Web Server'], bundle: ['artifact', 'uml-studio.js'],
       };
       sample.elements.forEach(instance => {
-        if (instance.classifierModelId || !targets[instance.name]) return;
-        const [kind, name] = targets[instance.name];
+        if (instance.classifierModelId || !targets[instance.name ?? '']) return;
+        const [kind, name] = targets[instance.name ?? ''];
         const classifier = Object.values(state.models).find(model => model.kind === kind && model.name === name);
         if (classifier) instance.classifierModelId = classifier.id;
       });
@@ -1169,15 +1192,15 @@
     function linkSampleCommunicationClassifiers() {
       const sample = state.diagrams.find(diagram => diagram.type === 'communication' && diagram.name === 'Diagram Rendering Communication');
       if (!sample) return;
-      const targets = {
+      const targets: Record<string, [string, string]> = {
         editor: ['component', 'DiagramEditor'],
         canvas: ['class', 'CanvasView'],
         renderer: ['component', 'RenderEngine'],
         layer: ['class', 'Layer'],
       };
       sample.elements.forEach(lifeline => {
-        if (lifeline.classifierModelId || !targets[lifeline.name]) return;
-        const [kind, name] = targets[lifeline.name];
+        if (lifeline.classifierModelId || !targets[lifeline.name ?? '']) return;
+        const [kind, name] = targets[lifeline.name ?? ''];
         const classifier = Object.values(state.models).find(model => model.kind === kind && model.name === name);
         if (classifier) lifeline.classifierModelId = classifier.id;
       });
@@ -1222,10 +1245,11 @@
         fill: '#8b8f97', startTime: '60 ms', endTime: '80 ms',
       });
 
-      const ticks = [
+      const tickPositions: [string, string, number][] = [
         ['tick0', '0 ms', 312], ['tick10', '10 ms', 456], ['tick20', '20 ms', 544],
         ['tick40', '40 ms', 728], ['tick60', '60 ms', 840], ['tick80', '80 ms', 1056],
-      ].map(([name, timeValue, x]) => NE({
+      ];
+      const ticks = tickPositions.map(([name, timeValue, x]) => NE({
         kind: 'timetick', name, timeValue, x: x - 4, y: 0, w: 8, h: 0, fill: 'transparent',
       }));
       const atRender = NE({
@@ -1260,10 +1284,10 @@
     function linkSampleTimingClassifiers() {
       const sample = state.diagrams.find(diagram => diagram.type === 'timing' && diagram.name === 'Frame Rendering Timing');
       if (!sample) return;
-      const targets = { editor: ['component', 'DiagramEditor'], renderer: ['component', 'RenderEngine'] };
+      const targets: Record<string, [string, string]> = { editor: ['component', 'DiagramEditor'], renderer: ['component', 'RenderEngine'] };
       sample.elements.filter(element => element.kind === 'lifeline').forEach(lifeline => {
-        if (lifeline.classifierModelId || !targets[lifeline.name]) return;
-        const [kind, name] = targets[lifeline.name];
+        if (lifeline.classifierModelId || !targets[lifeline.name ?? '']) return;
+        const [kind, name] = targets[lifeline.name ?? ''];
         const classifier = Object.values(state.models).find(model => model.kind === kind && model.name === name);
         if (classifier) lifeline.classifierModelId = classifier.id;
       });
@@ -1346,15 +1370,15 @@
     function linkSampleCompositeStructureReferences() {
       const sample = state.diagrams.find(diagram => diagram.type === 'composite' && diagram.name === 'Rendering Composite Structure');
       if (!sample) return;
-      const modelByKindAndName = (kind, name) => Object.values(state.models)
+      const modelByKindAndName = (kind: string, name: string) => Object.values(state.models)
         .find(model => model.kind === kind && model.name === name);
-      const typeTargets = {
+      const typeTargets: Record<string, [string, string]> = {
         canvas: ['class', 'CanvasView'],
         renderer: ['component', 'RenderEngine'],
         layer: ['class', 'Layer'],
       };
       sample.elements.filter(element => element.kind === 'part').forEach(part => {
-        const target = typeTargets[part.name];
+        const target = typeTargets[part.name ?? ''];
         if (!part.classifierModelId && target) {
           const classifier = modelByKindAndName(target[0], target[1]);
           if (classifier) part.classifierModelId = classifier.id;
@@ -1396,7 +1420,7 @@
       const layer = sample.elements.find(element => element.name === 'layer');
       if (layer && layer.x === 440 && layer.y === 432) layer.x = 280;
       const oldLabels = new Set(['commands', 'contents', 'refresh loop']);
-      sample.relations.filter(relation => relation.kind === 'commconnector' && oldLabels.has(relation.name)).forEach(relation => {
+      sample.relations.filter(relation => relation.kind === 'commconnector' && oldLabels.has(relation.name ?? '')).forEach(relation => {
         relation.name = '';
       });
     }
@@ -1551,4 +1575,4 @@
   }
 
   return Object.freeze({ REQUIRED_FUNCTIONS, REQUIRED_VALUES, create });
-});
+}

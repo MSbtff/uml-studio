@@ -7,11 +7,16 @@
    those into a status-bar notice and a per-session error count. It never
    swallows the event: the console entry, and Playwright's pageerror, still
    fire exactly as before. */
-(function initRuntimeErrors<Api>(root: typeof globalThis & { UMLRuntimeErrors?: Api }, factory: () => Api) {
+type RuntimeErrorsApi = ReturnType<typeof createRuntimeErrorsModule>;
+declare var UMLRuntimeErrors: RuntimeErrorsApi;
+
+(function initRuntimeErrors(root: typeof globalThis & { UMLRuntimeErrors?: RuntimeErrorsApi }, factory: () => RuntimeErrorsApi) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLRuntimeErrors = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createRuntimeErrorsModule() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createRuntimeErrorsModule);
+
+function createRuntimeErrorsModule() {
   const REQUIRED_FUNCTIONS = Object.freeze([
     'flashStatus',
     'now',
@@ -92,4 +97,4 @@
   }
 
   return Object.freeze({ REQUIRED_FUNCTIONS, REQUIRED_VALUES, REPEAT_WINDOW_MS, describe, create });
-});
+}

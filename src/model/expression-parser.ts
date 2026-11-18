@@ -1,11 +1,16 @@
 'use strict';
 
 /* StarUML-compatible QuickEdit expression parser/normalizer. */
-(function initExpressionParser<Api>(root: typeof globalThis & { UMLExpressionParser?: Api }, factory: () => Api) {
+type ExpressionParserApi = ReturnType<typeof createExpressionParser>;
+declare var UMLExpressionParser: ExpressionParserApi;
+
+(function initExpressionParser(root: typeof globalThis & { UMLExpressionParser?: ExpressionParserApi }, factory: () => ExpressionParserApi) {
   const api = factory();
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.UMLExpressionParser = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createExpressionParser() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createExpressionParser);
+
+function createExpressionParser() {
   const VISIBILITY = new Set(['+', '#', '-', '~']);
 
   const ok = <Fields extends object>(fields: Fields, normalized: string) => ({ valid: true as const, ...fields, normalized });
@@ -264,4 +269,4 @@
     parseLifeline,
     parseMessage,
   };
-});
+}

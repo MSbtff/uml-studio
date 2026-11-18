@@ -1,10 +1,25 @@
-// @ts-nocheck
 'use strict';
 
 /* Project-wide ERD logical/physical name search and safe bulk replacement.
    The pure preview step validates every candidate before the controller takes
    one Undo snapshot and applies the prepared semantic-model changes. */
-(function initErdNameTools(root, factory) {
+interface ErdNameColumnApi extends ValidationColumnApi {
+  formatColumn: (column: ValidationColumn) => string;
+}
+
+interface ErdNameSchemaApi {
+  foreignKeyColumnImpacts: (models: DiagramModels, entityId: string, name: string) => { relationModelId: string }[];
+  renameColumnSchema: (entity: DiagramModel, before: string, after: string) => unknown;
+  renameForeignKeyColumnReferences: (models: DiagramModels, entityId: string, before: string, after: string) => unknown;
+}
+
+type ErdNameToolsApi = ReturnType<typeof createErdNameToolsModule>;
+declare var UMLErdNameTools: ErdNameToolsApi;
+
+(function initErdNameTools(
+  root: typeof globalThis & { UMLErdColumn?: ErdNameColumnApi; UMLErdSchema?: ErdNameSchemaApi; UMLErdNameTools?: ErdNameToolsApi },
+  factory: (column?: ErdNameColumnApi | null, schema?: ErdNameSchemaApi | null) => ErdNameToolsApi,
+) {
   const erdColumn = (root && root.UMLErdColumn)
     || (typeof require === 'function' ? require('../model/erd-column.js') : null);
   const erdSchema = (root && root.UMLErdSchema)
@@ -12,19 +27,21 @@
   const api = factory(erdColumn, erdSchema);
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLErdNameTools = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createErdNameToolsModule(
-  erdColumn,
-  erdSchema,
+})(typeof globalThis !== 'undefined' ? globalThis : this, createErdNameToolsModule);
+
+function createErdNameToolsModule(
+  erdColumn?: ErdNameColumnApi | null,
+  erdSchema?: ErdNameSchemaApi | null,
 ) {
-  if (!erdColumn || !['formatColumn', 'parseColumn', 'validateColumn']
+  if (!erdColumn || !(['formatColumn', 'parseColumn', 'validateColumn'] as const)
     .every(name => typeof erdColumn[name] === 'function')) {
     throw new TypeError('ERD Name Tools에는 UMLErdColumn 파서와 검증 API가 필요합니다.');
   }
-  if (!erdSchema || ![
+  if (!erdSchema || !([
     'foreignKeyColumnImpacts',
     'renameColumnSchema',
     'renameForeignKeyColumnReferences',
-  ].every(name => typeof erdSchema[name] === 'function')) {
+  ] as const).every(name => typeof erdSchema[name] === 'function')) {
     throw new TypeError('ERD Name Tools에는 UMLErdSchema 이름 변경 API가 필요합니다.');
   }
 
@@ -36,32 +53,50 @@
   } = erdSchema;
   const MAX_NAME_LENGTH = 120;
   const MAX_NAME_CHANGES = 5000;
-  const SCOPES = Object.freeze(['both', 'physical', 'logical']);
-  const MATCH_MODES = Object.freeze(['contains', 'exact']);
+  const SCOPES = Object.freeze(['both', 'physical', 'logical'] as const);
+  const MATCH_MODES = Object.freeze(['contains', 'exact'] as const);
   const REQUIRED_FUNCTIONS = Object.freeze([
     'flashStatus',
     'renderAll',
     'rollbackLastSnapshot',
     'snapshot',
-  ]);
-  const REQUIRED_VALUES = Object.freeze(['document', 'modalFocus', 'state', 'triggerButton']);
+  ] as const);
+  const REQUIRED_VALUES = Object.freeze(['document', 'modalFocus', 'state', 'triggerButton'] as const);
 
-  const normalizeText = value => String(value == null ? '' : value);
-  const folded = value => normalizeText(value).toLocaleLowerCase();
-  const escapeRegex = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  interface NameOptions { query?: unknown; replacement?: unknown; scope?: string; matchMode?: string; caseSensitive?: boolean }
+  type NameScope = typeof SCOPES[number];
+  type NameField = Exclude<NameScope, 'both'>;
+  interface NameBase { key: string; modelId: string; modelName: string; field: NameField; before: string }
+  type NameEntry = NameBase & (
+    { item: 'entity' } | { item: 'column'; columnIndex: number; columnPhysical: string }
+  );
+  type NameChange = NameEntry & { after: string };
 
-  function normalizeOptions(options) {
+  interface NamePreview {
+    options: ReturnType<typeof normalizeOptions>;
+    ready: boolean;
+    changes: NameChange[];
+    errors: string[];
+    affectedDiagrams: { id: string; name: string }[];
+    modelCount: number;
+  }
+
+  const normalizeText = (value: unknown) => String(value == null ? '' : value);
+  const folded = (value: unknown) => normalizeText(value).toLocaleLowerCase();
+  const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+  function normalizeOptions(options?: NameOptions) {
     const source = options || {};
     return {
       query: normalizeText(source.query),
       replacement: normalizeText(source.replacement),
-      scope: SCOPES.includes(source.scope) ? source.scope : 'both',
-      matchMode: MATCH_MODES.includes(source.matchMode) ? source.matchMode : 'contains',
+      scope: SCOPES.find(scope => scope === source.scope) ?? 'both',
+      matchMode: MATCH_MODES.find(mode => mode === source.matchMode) ?? 'contains',
       caseSensitive: Boolean(source.caseSensitive),
     };
   }
 
-  function replaceLiteral(value, options) {
+  function replaceLiteral(value: unknown, options?: NameOptions) {
     const source = normalizeText(value);
     const opt = normalizeOptions(options);
     if (!opt.query) return source;
@@ -75,14 +110,14 @@
     return source.replace(new RegExp(escapeRegex(opt.query), 'giu'), opt.replacement);
   }
 
-  function erdModels(models) {
+  function erdModels(models: DiagramModels) {
     return Object.values(models || {})
       .filter(model => model && model.kind === 'entity')
       .sort((left, right) => String(left.name || left.id).localeCompare(String(right.name || right.id)));
   }
 
-  function buildErdNameEntries(models) {
-    const entries = [];
+  function buildErdNameEntries(models: DiagramModels) {
+    const entries: NameEntry[] = [];
     erdModels(models).forEach(model => {
       entries.push({
         key: `${model.id}:entity:physical`,
@@ -127,11 +162,11 @@
     return entries;
   }
 
-  function selectedField(field, scope) {
+  function selectedField(field: NameField, scope: NameScope) {
     return scope === 'both' || scope === field;
   }
 
-  function validateEntityName(name, field) {
+  function validateEntityName(name: unknown, field: NameField) {
     const value = normalizeText(name).trim();
     if (field === 'physical' && !value) return '엔터티 물리명은 비워둘 수 없습니다.';
     if (value.length > MAX_NAME_LENGTH) return `이름은 ${MAX_NAME_LENGTH}자 이하여야 합니다.`;
@@ -139,16 +174,16 @@
     return '';
   }
 
-  function changedValue(changes, modelId, item, field, fallback, columnIndex = -1) {
+  function changedValue<T extends string | undefined>(changes: NameChange[], modelId: string, item: NameEntry['item'], field: NameField, fallback: T, columnIndex = -1): string | T {
     const change = changes.find(candidate => candidate.modelId === modelId
       && candidate.item === item
       && candidate.field === field
-      && (item !== 'column' || candidate.columnIndex === columnIndex));
+      && (candidate.item !== 'column' || candidate.columnIndex === columnIndex));
     return change ? change.after : fallback;
   }
 
-  function validateChanges(models, diagrams, changes) {
-    const errors = [];
+  function validateChanges(models: DiagramModels, diagrams: EditorDiagram[], changes: NameChange[]) {
+    const errors: string[] = [];
     const changedModels = new Set(changes.map(change => change.modelId));
     erdModels(models).filter(model => changedModels.has(model.id)).forEach(model => {
       const entityPhysical = changedValue(changes, model.id, 'entity', 'physical', model.name);
@@ -181,15 +216,15 @@
     (Array.isArray(diagrams) ? diagrams : []).filter(diagram => diagram.type === 'erd').forEach(diagram => {
       const entityIds = [...new Set((diagram.elements || [])
         .map(view => view.modelId)
-        .filter(modelId => models?.[modelId]?.kind === 'entity'))];
-      const names = new Map();
+        .filter((modelId): modelId is string => Boolean(modelId && models?.[modelId]?.kind === 'entity')))];
+      const names = new Map<string, string>();
       entityIds.forEach(modelId => {
         const model = models[modelId];
         const name = normalizeText(changedValue(changes, modelId, 'entity', 'physical', model.name)).trim();
         const key = folded(name);
         if (!key) return;
-        if (names.has(key) && (changedPhysicalEntities.has(modelId)
-          || changedPhysicalEntities.has(names.get(key)))) {
+        const existingId = names.get(key);
+        if (existingId && (changedPhysicalEntities.has(modelId) || changedPhysicalEntities.has(existingId))) {
           errors.push(`${diagram.name || 'ERD'} · 중복된 엔터티 물리명: ${name}`);
         } else names.set(key, modelId);
       });
@@ -197,15 +232,15 @@
     return [...new Set(errors)];
   }
 
-  function affectedDiagrams(diagrams, changes) {
+  function affectedDiagrams(diagrams: EditorDiagram[], changes: NameChange[]) {
     const changedModels = new Set(changes.map(change => change.modelId));
     return (Array.isArray(diagrams) ? diagrams : [])
       .filter(diagram => diagram.type === 'erd'
-        && (diagram.elements || []).some(view => changedModels.has(view.modelId)))
+        && (diagram.elements || []).some(view => changedModels.has(view.modelId || '')))
       .map(diagram => ({ id: diagram.id, name: diagram.name || 'ERD' }));
   }
 
-  function previewErdNameChanges(models, diagrams, options) {
+  function previewErdNameChanges(models: DiagramModels, diagrams: EditorDiagram[], options?: NameOptions): NamePreview {
     const opt = normalizeOptions(options);
     if (!opt.query) {
       return { options: opt, ready: false, changes: [], errors: [], affectedDiagrams: [], modelCount: 0 };
@@ -224,7 +259,7 @@
       .filter(entry => selectedField(entry.field, opt.scope) && entry.before)
       .map(entry => ({ ...entry, after: replaceLiteral(entry.before, opt) }))
       .filter(entry => entry.after !== entry.before);
-    const errors = [];
+    const errors: string[] = [];
     if (changes.length > MAX_NAME_CHANGES) {
       errors.push(`한 번에 변경할 수 있는 이름은 ${MAX_NAME_CHANGES}개입니다.`);
     } else errors.push(...validateChanges(models, diagrams, changes));
@@ -238,7 +273,7 @@
     };
   }
 
-  function assertFreshChange(model, columns, change) {
+  function assertFreshChange(model: DiagramModel, columns: ValidationColumn[], change: NameChange) {
     const current = change.item === 'entity'
       ? normalizeText(change.field === 'physical' ? model.name : model.logicalName)
       : normalizeText(change.field === 'physical'
@@ -247,7 +282,7 @@
     if (current !== change.before) throw new Error('미리보기 이후 ERD 이름이 변경되었습니다. 다시 시도하세요.');
   }
 
-  function temporaryColumnName(usedNames, modelIndex, columnIndex) {
+  function temporaryColumnName(usedNames: Set<string>, modelIndex: number, columnIndex: number) {
     let suffix = 0;
     let value;
     do {
@@ -257,16 +292,17 @@
     return value;
   }
 
-  function applyErdNameChanges(models, preview) {
+  function applyErdNameChanges(models: DiagramModels, preview?: NamePreview | null) {
     if (!preview || !Array.isArray(preview.changes) || preview.errors?.length) {
       throw new Error('검증을 통과한 ERD 이름 변경 미리보기가 필요합니다.');
     }
-    const grouped = new Map();
+    const grouped = new Map<string, NameChange[]>();
     preview.changes.forEach(change => {
-      if (!grouped.has(change.modelId)) grouped.set(change.modelId, []);
-      grouped.get(change.modelId).push(change);
+      const group = grouped.get(change.modelId);
+      if (group) group.push(change);
+      else grouped.set(change.modelId, [change]);
     });
-    const impactedRelations = new Set();
+    const impactedRelations = new Set<string>();
     let renamedColumns = 0;
     let renamedEntities = 0;
     let modelIndex = 0;
@@ -277,21 +313,22 @@
       const originalColumns = (Array.isArray(model.columns) ? model.columns : []).map(parseColumn);
       changes.forEach(change => assertFreshChange(model, originalColumns, change));
 
-      const physicalChanges = changes.filter(change => change.item === 'column' && change.field === 'physical');
+      const physicalChanges = changes.filter((change): change is NameChange & { item: 'column' } =>
+        change.item === 'column' && change.field === 'physical');
       const usedNames = new Set(originalColumns.map(column => folded(column.phys)));
       changes.filter(change => change.item === 'column').forEach(change => usedNames.add(folded(change.after)));
-      physicalChanges.forEach(change => {
+      const pending = physicalChanges.map(change => {
         foreignKeyColumnImpacts(models, modelId, change.before)
           .forEach(impact => impactedRelations.add(impact.relationModelId));
-        change.temporary = temporaryColumnName(usedNames, modelIndex, change.columnIndex);
-        renameColumnSchema(model, change.before, change.temporary);
-        renameForeignKeyColumnReferences(models, modelId, change.before, change.temporary);
+        const temporary = temporaryColumnName(usedNames, modelIndex, change.columnIndex);
+        renameColumnSchema(model, change.before, temporary);
+        renameForeignKeyColumnReferences(models, modelId, change.before, temporary);
+        return { temporary, after: change.after };
       });
-      physicalChanges.forEach(change => {
-        renameColumnSchema(model, change.temporary, change.after);
-        renameForeignKeyColumnReferences(models, modelId, change.temporary, change.after);
+      pending.forEach(({ temporary, after }) => {
+        renameColumnSchema(model, temporary, after);
+        renameForeignKeyColumnReferences(models, modelId, temporary, after);
         renamedColumns++;
-        delete change.temporary;
       });
 
       if (changes.some(change => change.item === 'column')) {
@@ -316,9 +353,29 @@
     };
   }
 
-  function create(dependencies) {
-    const deps = dependencies || {};
-    const missing = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
+  interface ErdNameDependencies {
+    flashStatus: (message: string) => void;
+    renderAll: () => void;
+    rollbackLastSnapshot: () => void;
+    snapshot: () => void;
+    document: Document;
+    modalFocus: {
+      activate: (settings: { overlay: HTMLElement; dialog: HTMLElement; opener: HTMLElement; initialFocus: HTMLElement }) => ErdNameModal;
+      closeOverlay: (overlay: HTMLElement, options: { restoreFocus: boolean }) => boolean;
+    };
+    state: { models: DiagramModels; diagrams: EditorDiagram[] };
+    triggerButton: HTMLElement;
+  }
+
+  interface ErdNameModal {
+    close: (options?: { restoreFocus?: boolean }) => boolean;
+    requestClose: (reason: string) => void;
+    focusInitial: (node: HTMLElement) => void;
+  }
+
+  function create(dependencies?: ErdNameDependencies) {
+    const deps: Partial<ErdNameDependencies> = dependencies || {};
+    const missing: string[] = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
     REQUIRED_VALUES.forEach(name => {
       if (deps[name] == null) missing.push(name);
     });
@@ -327,8 +384,8 @@
       missing.push('triggerButton.addEventListener');
     }
     if (deps.modalFocus) {
-      ['activate', 'closeOverlay'].forEach(name => {
-        if (typeof deps.modalFocus[name] !== 'function') missing.push(`modalFocus.${name}`);
+      (['activate', 'closeOverlay'] as const).forEach(name => {
+        if (typeof deps.modalFocus?.[name] !== 'function') missing.push(`modalFocus.${name}`);
       });
     }
     if (missing.length) {
@@ -344,10 +401,10 @@
       modalFocus,
       state,
       triggerButton,
-    } = deps;
+    } = deps as ErdNameDependencies;
     const MODAL_ID = 'erd-name-tools-modal';
 
-    let activeModal = null;
+    let activeModal: ErdNameModal | null = null;
 
     function close(restoreFocus = true) {
       const overlay = document.getElementById(MODAL_ID);
@@ -358,13 +415,13 @@
       return closed;
     }
 
-    function option(value, label) {
+    function option(value: string, label: string) {
       const node = document.createElement('option');
       node.value = value; node.textContent = label;
       return node;
     }
 
-    function field(labelText, control) {
+    function field(labelText: string, control: HTMLElement) {
       const label = document.createElement('label');
       label.className = 'erd-name-tools-field';
       const text = document.createElement('span'); text.textContent = labelText;
@@ -486,7 +543,7 @@
           modal.close();
         } catch (error) {
           rollbackLastSnapshot();
-          flashStatus(`ERD 이름 변환 실패 · ${error.message}`);
+          flashStatus(`ERD 이름 변환 실패 · ${error instanceof Error ? error.message : String(error)}`);
         }
       });
       renderPreview(); modal.focusInitial(query);
@@ -521,4 +578,4 @@
     previewErdNameChanges,
     replaceLiteral,
   });
-});
+}

@@ -39,6 +39,7 @@ function fakeNode(tagName = 'div') {
     appendChild(child) { this.children.push(child); child.parent = this; return child; },
     append(...children) { children.forEach(child => this.appendChild(child)); },
     setAttribute(name, value) { this.attributes[name] = String(value); },
+    getAttribute(name) { return this.attributes[name] ?? null; },
     removeAttribute(name) { delete this.attributes[name]; },
     getBoundingClientRect: () => ({ left: 10, bottom: 30 }),
     remove() { this.removed = true; if (this.parent) this.parent.children = this.parent.children.filter(child => child !== this); },

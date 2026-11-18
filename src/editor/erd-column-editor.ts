@@ -1,15 +1,50 @@
-// @ts-nocheck
 'use strict';
+
+interface ErdColumnEditorDependencies {
+  applyCopiedColumnSchema(entity: DiagramElement, name: string, schema: ErdColumnClipboard['schema']): void;
+  closeOtherQuickEditors(): void;
+  columnDetailsFor(entity: DiagramElement, name: string): ErdColumnDetails;
+  confirmAction(message: string): boolean;
+  copiedColumnValue(raw: string, columns: string[]): string;
+  copyColumnSchema(entity: DiagramElement, name: string): ErdColumnClipboard['schema'];
+  deleteColumnSchema(entity: DiagramElement, name: string): { checks: number; indexes: number };
+  disconnectForeignKeyColumnReferences(models: DiagramModels, modelId: string | undefined, name: string): { relations: number };
+  ensureMemberArray(entity: DiagramElement, field: 'columns'): string[];
+  flashStatus(message: string): void;
+  foreignKeyColumnImpacts(models: DiagramModels, modelId: string | undefined, name: string): { relationModelId: string; relationName: string }[];
+  nextFieldSequence(): number;
+  parseColumn(raw: string): ErdColumnValue;
+  render(): void;
+  renderProps(): void;
+  renameColumnSchema(entity: DiagramElement, oldName: string, newName: string): unknown;
+  renameForeignKeyColumnReferences(models: DiagramModels, modelId: string | undefined, oldName: string, newName: string): { relations: number };
+  reorderColumns(columns: string[], index: number, targetIndex: number): string[];
+  requestAnimationFrame(callback: FrameRequestCallback): number;
+  safeSqlFragment(value: string, description: string, allowEmpty: boolean): string;
+  selectQuickEditTarget(id: string): void;
+  setColumnDetails(entity: DiagramElement, name: string, details: ErdColumnDetails): void;
+  setTimeout(callback: () => void, delay: number): number;
+  snapshot(): void;
+  validateColumn(column: ErdColumnValue, columns: string[], editIndex: number): ErdColumnValidation;
+  document: Document;
+  state: { models: DiagramModels; zoom: number };
+  wrap: HTMLElement;
+}
+
+type ErdColumnEditorApi = ReturnType<typeof createErdColumnEditorModule>;
+declare var UMLErdColumnEditor: ErdColumnEditorApi;
 
 /* ERD column editor — the clipboard, the reorder/delete/bulk-replace commands
    and the floating column sheet that ER diagrams use. QuickEdit builds it and
    hands over `selectQuickEditTarget` plus a callback that closes its own two
    editors, so only one QuickEdit surface is ever open. */
-(function initErdColumnEditor(root, factory) {
+(function initErdColumnEditor(root: typeof globalThis, factory: () => ErdColumnEditorApi) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLErdColumnEditor = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createErdColumnEditorModule() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createErdColumnEditorModule);
+
+function createErdColumnEditorModule() {
   const REQUIRED_FUNCTIONS = Object.freeze([
     'applyCopiedColumnSchema',
     'closeOtherQuickEditors',
@@ -36,16 +71,16 @@
     'setTimeout',
     'snapshot',
     'validateColumn',
-  ]);
+  ] as const);
   const REQUIRED_VALUES = Object.freeze([
     'document',
     'state',
     'wrap',
-  ]);
+  ] as const);
 
-  function create(dependencies) {
-    const deps = dependencies || {};
-    const missing = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
+  function create(dependencies?: ErdColumnEditorDependencies) {
+    const deps: Partial<ErdColumnEditorDependencies> = dependencies || {};
+    const missing: string[] = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
     REQUIRED_VALUES.forEach(name => {
       if (deps[name] == null) missing.push(name);
     });
@@ -85,7 +120,7 @@
       document,
       state,
       wrap,
-    } = deps;
+    } = deps as ErdColumnEditorDependencies;
 
     const ERD_DATA_TYPES = [
       'BIGINT', 'INTEGER', 'SMALLINT', 'DECIMAL(10, 2)',
@@ -93,9 +128,9 @@
       'DATE', 'TIME', 'TIMESTAMP', 'JSON', 'UUID', 'BLOB',
     ];
 
-    let erdColumnClipboard = null;
+    let erdColumnClipboard: ErdColumnClipboard | null = null;
 
-    function copyErdColumn(entity, index) {
+    function copyErdColumn(entity: DiagramElement, index: number) {
       const columns = ensureMemberArray(entity, 'columns');
       if (index < 0 || index >= columns.length) return false;
       const raw = columns[index];
@@ -110,7 +145,7 @@
       return true;
     }
 
-    function pasteErdColumn(entity, requestedIndex) {
+    function pasteErdColumn(entity: DiagramElement | null | undefined, requestedIndex?: number) {
       if (!erdColumnClipboard || !entity || entity.kind !== 'entity') return false;
       const columns = ensureMemberArray(entity, 'columns');
       const numericIndex = Number(requestedIndex);
@@ -129,7 +164,7 @@
       return true;
     }
 
-    let erdColumnEditor = null;
+    let erdColumnEditor: (HTMLDivElement & { _cleanup?: () => void }) | null = null;
     function closeErdColumnEditor() {
       if (!erdColumnEditor) return;
       erdColumnEditor._cleanup?.();
@@ -137,7 +172,7 @@
       erdColumnEditor = null;
     }
 
-    function deleteErdColumn(entity, index) {
+    function deleteErdColumn(entity: DiagramElement, index: number) {
       const columns = ensureMemberArray(entity, 'columns');
       if (index < 0 || index >= columns.length) return false;
       const name = parseColumn(columns[index]).phys || `#${index + 1}`;
@@ -165,9 +200,9 @@
       return true;
     }
 
-    function replaceErdColumns(entity, rawColumns) {
+    function replaceErdColumns(entity: DiagramElement, rawColumns: string[]) {
       if (!entity || entity.kind !== 'entity' || !Array.isArray(rawColumns)) return false;
-      const normalized = [];
+      const normalized: string[] = [];
       for (let index = 0; index < rawColumns.length; index++) {
         const result = validateColumn(parseColumn(rawColumns[index]), rawColumns, index);
         if (!result.valid) {
@@ -197,7 +232,7 @@
       const renamedKeys = new Set(renames.map(item => item.oldName.toLocaleLowerCase()));
       const deletedNames = previousNames.filter(name => name
         && !nextKeys.has(name.toLocaleLowerCase()) && !renamedKeys.has(name.toLocaleLowerCase()));
-      const impactedRelations = new Map();
+      const impactedRelations = new Map<string, ReturnType<ErdColumnEditorDependencies['foreignKeyColumnImpacts']>[number]>();
       deletedNames.forEach(name => {
         foreignKeyColumnImpacts(state.models, entity.modelId, name).forEach(impact => {
           impactedRelations.set(impact.relationModelId, impact);
@@ -236,11 +271,11 @@
       return true;
     }
 
-    function moveErdColumn(entity, index, direction) {
+    function moveErdColumn(entity: DiagramElement, index: number, direction: number) {
       return moveErdColumnTo(entity, index, index + direction);
     }
 
-    function moveErdColumnTo(entity, index, targetIndex) {
+    function moveErdColumnTo(entity: DiagramElement, index: number, targetIndex: number) {
       const columns = ensureMemberArray(entity, 'columns');
       if (index < 0 || index >= columns.length || targetIndex < 0 || targetIndex >= columns.length
         || index === targetIndex) return false;
@@ -252,7 +287,7 @@
       return true;
     }
 
-    function openErdColumnEditor(entity, requestedIndex, options = {}) {
+    function openErdColumnEditor(entity: DiagramElement | null | undefined, requestedIndex?: number, options: { insert?: boolean } = {}) {
       if (!entity || entity.kind !== 'entity') return false;
       selectQuickEditTarget(entity.id);
       closeOtherQuickEditors();
@@ -266,10 +301,9 @@
       const original = isNew ? '' : columns[index];
       const value = parseColumn(original);
       const originalDetails = columnDetailsFor(entity, value.phys);
-      const metrics = entity._m || { headH: 34, RH: 17 };
-      const rowY = entity.y + metrics.headH + Math.min(index, columns.length) * (metrics.RH || 17);
+      const rowY = entity.y + (entity._m?.headH ?? 34) + Math.min(index, columns.length) * (entity._m?.RH || 17);
 
-      const editor = document.createElement('div');
+      const editor: HTMLDivElement & { _cleanup?: () => void } = document.createElement('div');
       editor.className = 'erd-column-editor';
       editor.dataset.quickEdit = 'erd-column';
       editor.dataset.columnMode = isNew ? 'add' : 'edit';
@@ -296,11 +330,10 @@
       pasteAction.disabled = !erdColumnClipboard;
       quickActions.append(copyAction, pasteAction); editor.appendChild(quickActions);
 
-      const fields = {};
       const fieldGrid = document.createElement('div');
       fieldGrid.className = 'erd-column-editor-sheet';
       editor.appendChild(fieldGrid);
-      const addField = (labelText, name, fieldValue, placeholder, hint = '') => {
+      const addField = (labelText: string, name: string, fieldValue: string | undefined, placeholder: string, hint = '') => {
         const row = document.createElement('label');
         row.className = 'erd-column-editor-row';
         const label = document.createElement('span');
@@ -320,12 +353,12 @@
           input.setAttribute('aria-describedby', small.id);
           row.appendChild(small);
         }
-        fieldGrid.appendChild(row); fields[name] = input;
+        fieldGrid.appendChild(row);
         return input;
       };
 
-      addField('물리명 *', 'phys', value.phys, '예: user_id', '같은 엔티티 안에서 고유해야 합니다.');
-      addField('논리명', 'logical', value.logical, '예: 작성자번호', '논리 모델 보기에 표시할 선택 항목입니다.');
+      const physInput = addField('물리명 *', 'phys', value.phys, '예: user_id', '같은 엔티티 안에서 고유해야 합니다.');
+      const logicalInput = addField('논리명', 'logical', value.logical, '예: 작성자번호', '논리 모델 보기에 표시할 선택 항목입니다.');
       const typeInput = addField('데이터 타입', 'type', value.type, '입력하거나 목록에서 선택', '자주 쓰는 SQL 타입을 바로 선택할 수 있습니다.');
       const listId = `erd-column-types-${entity.id}`;
       typeInput.setAttribute('list', listId);
@@ -335,20 +368,21 @@
         const option = document.createElement('option'); option.value = type; datalist.appendChild(option);
       });
       editor.appendChild(datalist);
-      addField('DEFAULT', 'defaultValue', originalDetails.defaultValue, "예: CURRENT_TIMESTAMP 또는 'draft'",
+      const defaultInput = addField('DEFAULT', 'defaultValue', originalDetails.defaultValue, "예: CURRENT_TIMESTAMP 또는 'draft'",
         'SQL 표현식으로 저장되며 내보내기 전에 안전성을 검사합니다.');
+      const fields = { phys: physInput, logical: logicalInput, type: typeInput, defaultValue: defaultInput };
 
       const flags = document.createElement('fieldset');
       flags.className = 'erd-column-flags';
       const legend = document.createElement('legend'); legend.textContent = '제약조건';
       flags.appendChild(legend);
-      ['PK', 'FK', 'UQ', 'NN'].forEach(flag => {
+      const flagInputs = ['PK', 'FK', 'UQ', 'NN'].map(flag => {
         const label = document.createElement('label');
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox'; checkbox.name = flag; checkbox.checked = value.flags.includes(flag);
         checkbox.setAttribute('aria-label', flag);
         label.append(checkbox, document.createTextNode(flag)); flags.appendChild(label);
-        fields[flag] = checkbox;
+        return checkbox;
       });
       editor.appendChild(flags);
 
@@ -378,24 +412,24 @@
           phys: fields.phys.value,
           logical: fields.logical.value,
           type: fields.type.value,
-          flags: ['PK', 'FK', 'UQ', 'NN'].filter(flag => fields[flag].checked),
+          flags: flagInputs.filter(input => input.checked).map(input => input.name),
         }, columns, isNew ? -1 : index);
         if (!result.valid) return result;
         try {
-          result.defaultValue = safeSqlFragment(fields.defaultValue.value, 'DEFAULT 값', true);
+          const defaultValue = safeSqlFragment(fields.defaultValue.value, 'DEFAULT 값', true);
+          return { ...result, defaultValue };
         } catch (error) {
-          return { valid: false, field: 'defaultValue', error: error.message };
+          return { valid: false as const, field: 'defaultValue' as const, error: error instanceof Error ? error.message : String(error) };
         }
-        return result;
       };
-      const showError = result => {
+      const showError = (result: Extract<ReturnType<typeof readResult>, { valid: false }>) => {
         error.textContent = result.error;
         const field = fields[result.field] || fields.phys;
         field.setCustomValidity(result.error);
         field.reportValidity(); field.focus();
       };
       let done = false;
-      const commit = addNext => {
+      const commit = (addNext: boolean) => {
         if (done) return false;
         const result = readResult();
         if (!result.valid) { showError(result); return false; }
@@ -428,7 +462,7 @@
         }
         return true;
       };
-      const moveCurrent = direction => {
+      const moveCurrent = (direction: number) => {
         if (done || isNew) return;
         const targetIndex = index + direction;
         if (targetIndex < 0 || targetIndex >= columns.length) return;
@@ -498,7 +532,7 @@
         if (deleteErdColumn(entity, index)) closeErdColumnEditor();
       });
       editor.addEventListener('input', event => {
-        event.target.setCustomValidity?.(''); error.textContent = '';
+        (event.target as HTMLInputElement | null)?.setCustomValidity?.(''); error.textContent = '';
       });
       editor.addEventListener('keydown', event => {
         const mod = event.ctrlKey || event.metaKey;
@@ -520,13 +554,13 @@
           }
         } else if (mod && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
           event.preventDefault(); moveCurrent(event.key === 'ArrowUp' ? -1 : 1);
-        } else if (event.key === 'Enter' && event.target.matches('input[type="text"]')) {
+        } else if (event.key === 'Enter' && (event.target as Element | null)?.matches('input[type="text"]')) {
           event.preventDefault(); commit(false);
         }
         event.stopPropagation();
       });
-      const outside = event => {
-        if (!editor.contains(event.target)) closeErdColumnEditor();
+      const outside = (event: MouseEvent) => {
+        if (!editor.contains(event.target as Node | null)) closeErdColumnEditor();
       };
       editor._cleanup = () => document.removeEventListener('mousedown', outside, true);
       wrap.appendChild(editor); erdColumnEditor = editor;
@@ -544,6 +578,7 @@
       };
       positionEditor(); requestAnimationFrame(positionEditor);
       setTimeout(() => {
+        if (!editor.isConnected) return;
         positionEditor(); document.addEventListener('mousedown', outside, true);
       }, 0);
       fields.phys.focus(); fields.phys.select();
@@ -564,4 +599,4 @@
   }
 
   return Object.freeze({ REQUIRED_FUNCTIONS, REQUIRED_VALUES, create });
-});
+}

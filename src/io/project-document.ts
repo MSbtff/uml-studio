@@ -1,13 +1,24 @@
-// @ts-nocheck
 'use strict';
+
+interface DocumentLoadOptions {
+  silent?: boolean;
+  persist?: boolean;
+  projectId?: string;
+  projectName?: string;
+}
 
 /* Project Document — owns project JSON composition, serialization, loading,
    version migrations, and the state adapters used by Undo/Redo. */
-(function initProjectDocumentModule(root, factory) {
+type ProjectDocumentApi = ReturnType<typeof createProjectDocumentModule>;
+declare var UMLProjectDocument: ProjectDocumentApi;
+
+(function initProjectDocumentModule(root: typeof globalThis & { UMLProjectDocument?: ProjectDocumentApi }, factory: () => ProjectDocumentApi) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLProjectDocument = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createProjectDocumentModule() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createProjectDocumentModule);
+
+function createProjectDocumentModule() {
   const PROJECT_VERSION = 30;
   const REQUIRED_FUNCTIONS = Object.freeze([
     'alert',
@@ -28,7 +39,7 @@
     'uid',
     'validProjectId',
     'validateProjectData',
-  ]);
+  ] as const);
   const REQUIRED_VALUES = Object.freeze([
     'counters',
     'sampleDiagrams',
@@ -36,7 +47,7 @@
     'DIAGRAM_META',
     'DIAGRAM_TOOLS',
     'REL_STYLE',
-  ]);
+  ] as const);
   const SAMPLE_METHODS = Object.freeze([
     'sampleActivity',
     'sampleBlockDefinition',
@@ -75,17 +86,74 @@
     'upgradeSampleCompositeStructureLayout',
     'upgradeSampleInformationFlowLayout',
     'upgradeSampleTimingLayout',
-  ]);
+  ] as const);
 
-  function create(dependencies) {
-    const deps = dependencies || {};
-    const missing = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
+  type SampleName = typeof SAMPLE_METHODS[number];
+  type SamplePair = 'sampleInteractionOverviewPair' | 'sampleSubmachineStatePair';
+  type PlainSample = Exclude<Extract<SampleName, `sample${string}`>, SamplePair | 'sampleActivity'>;
+  type DocumentSamples = Record<PlainSample, () => EditorDiagram>
+    & Record<Exclude<SampleName, `sample${string}`>, () => void>
+    & {
+      sampleActivity: (name?: string) => EditorDiagram;
+      sampleInteractionOverviewPair: (related: EditorDiagram | null) => EditorDiagram[];
+      sampleSubmachineStatePair: () => EditorDiagram[];
+    };
+
+  interface StoredDocument {
+    version?: number;
+    diagrams?: EditorDiagram[];
+    models?: DiagramModels;
+    elements?: DiagramElement[];
+    relations?: DiagramRelation[];
+    idSeq?: number;
+    counters?: Record<string, number>;
+    activeId?: string;
+    projectId?: string;
+    projectName?: string;
+  }
+
+  interface ProjectDocumentDependencies {
+    alert: (message: string) => void;
+    cleanProjectName: (name: string) => string;
+    clearValidationResults: () => void;
+    getIdSeq: () => number;
+    hydrateCurrentProject: (models: DiagramModels) => void;
+    markDirty: () => void;
+    markSaved: () => void;
+    projectUid: () => string;
+    renderAll: () => void;
+    resetHistory: () => void;
+    scheduleRecoverySave: (delay: number) => void;
+    setIdSeq: (seq: number) => void;
+    setSelection: (ids: string[]) => void;
+    stringifyProject: (data: StoredDocument, pretty: boolean) => string;
+    syncAllRelationModels: () => void;
+    uid: () => string;
+    validProjectId: (id: unknown) => boolean;
+    validateProjectData: (data: unknown, options: { diagramTypes: string[]; elementKinds: string[]; relationKinds: string[] }) => unknown;
+    counters: Record<string, number>;
+    sampleDiagrams: DocumentSamples;
+    state: {
+      projectId: string;
+      projectName: string;
+      diagrams: EditorDiagram[];
+      models: DiagramModels;
+      activeId: string;
+    };
+    DIAGRAM_META: Record<string, object>;
+    DIAGRAM_TOOLS: Record<string, { elements: readonly string[] }>;
+    REL_STYLE: Record<string, object>;
+  }
+
+  function create(dependencies?: ProjectDocumentDependencies) {
+    const deps: Partial<ProjectDocumentDependencies> = dependencies || {};
+    const missing: string[] = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
     REQUIRED_VALUES.forEach(name => {
       if (deps[name] == null) missing.push(name);
     });
     if (deps.sampleDiagrams) {
       SAMPLE_METHODS.forEach(name => {
-        if (typeof deps.sampleDiagrams[name] !== 'function') missing.push(`sampleDiagrams.${name}`);
+        if (typeof deps.sampleDiagrams?.[name] !== 'function') missing.push(`sampleDiagrams.${name}`);
       });
     }
     if (deps.state && !Array.isArray(deps.state.diagrams)) missing.push('state.diagrams');
@@ -118,9 +186,9 @@
       DIAGRAM_META,
       DIAGRAM_TOOLS,
       REL_STYLE,
-    } = deps;
+    } = deps as ProjectDocumentDependencies;
 
-    function replaceCounters(nextCounters) {
+    function replaceCounters(nextCounters?: Record<string, number>) {
       Object.keys(counters).forEach(key => delete counters[key]);
       Object.assign(counters, nextCounters || {});
     }
@@ -147,48 +215,46 @@
       return stringifyProject(projectData(), true);
     }
 
-    function restoreState(json) {
-      const document = JSON.parse(json);
+    function restoreState(json: string) {
+      const document: StoredDocument & { diagrams: EditorDiagram[] } = JSON.parse(json);
       setIdSeq(document.idSeq || getIdSeq());
       replaceCounters(document.counters);
-      state.projectId = validProjectId(document.projectId)
+      state.projectId = document.projectId && validProjectId(document.projectId)
         ? document.projectId
         : (state.projectId || projectUid());
       state.projectName = cleanProjectName(document.projectName || state.projectName);
       state.models = document.models || {};
       state.diagrams = document.diagrams;
-      if (!state.diagrams.find(diagram => diagram.id === document.activeId)) {
-        document.activeId = state.diagrams[0].id;
-      }
-      state.activeId = document.activeId;
+      state.activeId = state.diagrams.find(diagram => diagram.id === document.activeId)?.id
+        ?? state.diagrams[0].id;
       hydrateCurrentProject(state.models);
       setSelection([]);
       markDirty();
       renderAll();
     }
 
-    function load(json, options = {}) {
+    function load(json: string, options: DocumentLoadOptions = {}) {
       try {
-        const document = JSON.parse(json);
-        const sourceVersion = document.version || 8;
-        const migrateCommunicationLayout = !!document.diagrams && sourceVersion < 17;
-        validateProjectData(document, {
+        const parsed: unknown = JSON.parse(json);
+        validateProjectData(parsed, {
           diagramTypes: Object.keys(DIAGRAM_META),
           elementKinds: [...new Set(Object.values(DIAGRAM_TOOLS).flatMap(meta => meta.elements))],
           relationKinds: Object.keys(REL_STYLE),
         });
+        const document = parsed as StoredDocument;
+        const sourceVersion = document.version || 8;
+        const migrateCommunicationLayout = !!document.diagrams && sourceVersion < 17;
         setIdSeq(document.idSeq || 1);
         replaceCounters(document.counters);
-        state.projectId = validProjectId(options.projectId)
+        state.projectId = options.projectId && validProjectId(options.projectId)
           ? options.projectId
-          : validProjectId(document.projectId) ? document.projectId : projectUid();
+          : document.projectId && validProjectId(document.projectId) ? document.projectId : projectUid();
         state.projectName = cleanProjectName(options.projectName || document.projectName || 'Untitled Project');
         if (document.diagrams) {
           state.models = document.models || {};
           state.diagrams = document.diagrams;
-          state.activeId = document.diagrams.find(diagram => diagram.id === document.activeId)
-            ? document.activeId
-            : document.diagrams[0].id;
+          state.activeId = document.diagrams.find(diagram => diagram.id === document.activeId)?.id
+            ?? document.diagrams[0].id;
           /* v8 → v9: add the new diagram-type samples once */
           if (sourceVersion < 9) {
             state.diagrams.push(
@@ -264,7 +330,7 @@
           }
           /* v9 → v10: give the untouched v9 ERD sample logical names */
           if (sourceVersion === 9) {
-            const upgrades = {
+            const upgrades: Partial<Record<string, Pick<ModelFields, 'name' | 'logicalName' | 'columns'>>> = {
               User: {
                 name: 'TB_USER',
                 logicalName: '회원',
@@ -297,9 +363,8 @@
             state.diagrams.filter(diagram => diagram.type === 'erd').forEach(diagram => {
               if (!diagram.erdMode) diagram.erdMode = 'both';
               diagram.elements.forEach(element => {
-                if (element.kind === 'entity' && upgrades[element.name] && !element.logicalName) {
-                  Object.assign(element, upgrades[element.name]);
-                }
+                const upgrade = element.name && upgrades[element.name];
+                if (element.kind === 'entity' && upgrade && !element.logicalName) Object.assign(element, upgrade);
               });
             });
           }
@@ -359,7 +424,7 @@
         if (options.persist !== false) scheduleRecoverySave(0);
         return true;
       } catch (error) {
-        if (!options.silent) alert(`파일을 읽을 수 없습니다: ${error.message}`);
+        if (!options.silent) alert(`파일을 읽을 수 없습니다: ${error instanceof Error ? error.message : String(error)}`);
         return false;
       }
     }
@@ -380,4 +445,4 @@
     SAMPLE_METHODS,
     create,
   });
-});
+}

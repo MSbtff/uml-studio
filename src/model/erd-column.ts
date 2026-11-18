@@ -1,13 +1,29 @@
 'use strict';
 
+interface ErdColumnValue {
+  flags: string[];
+  phys: string;
+  logical: string;
+  type: string;
+}
+
+type ErdColumnValidation =
+  | { valid: true; column: ErdColumnValue; value: string }
+  | { valid: false; field: 'phys' | 'logical' | 'type'; error: string };
+
 /* ERD column expression parser/formatter shared by the editor and tests.
    Storage stays compatible with the existing compact text representation:
    "PK FK UQ NN physical_name <논리명>: TYPE". */
-(function initErdColumn<Api>(root: typeof globalThis & { UMLErdColumn?: Api }, factory: () => Api) {
+type ErdColumnApi = ReturnType<typeof createErdColumn>;
+declare var UMLErdColumn: ErdColumnApi;
+
+(function initErdColumn(root: typeof globalThis & { UMLErdColumn?: ErdColumnApi }, factory: () => ErdColumnApi) {
   const api = factory();
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.UMLErdColumn = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createErdColumn() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createErdColumn);
+
+function createErdColumn() {
   const FLAG_ORDER = ['PK', 'FK', 'UQ', 'NN'];
   const MAX_NAME_LENGTH = 120;
   const MAX_TYPE_LENGTH = 160;
@@ -64,7 +80,7 @@
     return result;
   }
 
-  function validateColumn(column: ColumnInput | null | undefined, existingColumns: unknown[] = [], editIndex = -1) {
+  function validateColumn(column: ColumnInput | null | undefined, existingColumns: unknown[] = [], editIndex = -1): ErdColumnValidation {
     const value = normalizeColumn(column);
     if (!value.phys) return { valid: false, field: 'phys', error: '물리명을 입력하세요.' };
     if (value.phys.length > MAX_NAME_LENGTH) {
@@ -122,4 +138,4 @@
   }
 
   return { FLAG_ORDER, parseColumn, formatColumn, validateColumn, copiedColumnValue, reorderColumns };
-});
+}

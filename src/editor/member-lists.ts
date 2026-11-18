@@ -2,11 +2,16 @@
 
 /* Member Lists — normalizes editable member arrays and maps measured
    compartments to the rows consumed by Quick Edit and hit testing. */
-(function initMemberListsModule<Api>(root: typeof globalThis & { UMLMemberLists?: Api }, factory: () => Api) {
+type MemberListsApi = ReturnType<typeof createMemberListsModule>;
+declare var UMLMemberLists: MemberListsApi;
+
+(function initMemberListsModule(root: typeof globalThis & { UMLMemberLists?: MemberListsApi }, factory: () => MemberListsApi) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLMemberLists = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createMemberListsModule() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createMemberListsModule);
+
+function createMemberListsModule() {
   const REQUIRED_FUNCTIONS = Object.freeze([]);
   const REQUIRED_VALUES = Object.freeze([]);
   const MEMBER_FIELDS = Object.freeze({
@@ -86,4 +91,4 @@
     REQUIRED_VALUES,
     create,
   });
-});
+}

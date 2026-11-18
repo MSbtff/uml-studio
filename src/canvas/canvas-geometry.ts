@@ -1,10 +1,15 @@
 'use strict';
 
-(function initCanvasGeometry<Api>(root: typeof globalThis & { UMLCanvasGeometry?: Api }, factory: () => Api) {
+type CanvasGeometryApi = ReturnType<typeof createCanvasGeometry>;
+declare var UMLCanvasGeometry: CanvasGeometryApi;
+
+(function initCanvasGeometry(root: typeof globalThis & { UMLCanvasGeometry?: CanvasGeometryApi }, factory: () => CanvasGeometryApi) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLCanvasGeometry = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createCanvasGeometry() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createCanvasGeometry);
+
+function createCanvasGeometry() {
   interface ElementOutline extends DiagramBounds {
     id?: string;
     kind: string;
@@ -298,4 +303,4 @@
     selfTransitionGeometry,
     cubicPoint,
   });
-});
+}

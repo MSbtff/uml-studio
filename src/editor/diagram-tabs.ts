@@ -1,11 +1,15 @@
-// @ts-nocheck
 'use strict';
 
-(function initDiagramTabs(root, factory) {
+type DiagramTabsApi = ReturnType<typeof createDiagramTabsModule>;
+declare var UMLDiagramTabs: DiagramTabsApi;
+
+(function initDiagramTabs(root: typeof globalThis & { UMLDiagramTabs?: DiagramTabsApi }, factory: () => DiagramTabsApi) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLDiagramTabs = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createDiagramTabsModule() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createDiagramTabsModule);
+
+function createDiagramTabsModule() {
   const REQUIRED_FUNCTIONS = Object.freeze([
     'adoptView',
     'clearLinking',
@@ -18,18 +22,37 @@
     'setTimeout',
     'snapshot',
     'uid',
-  ]);
+  ] as const);
   const REQUIRED_VALUES = Object.freeze([
     'document',
     'state',
     'tabs',
     'viewport',
     'DIAGRAM_META',
-  ]);
+  ] as const);
 
-  function create(dependencies) {
-    const deps = dependencies || {};
-    const missing = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
+  interface DiagramTabsDependencies {
+    adoptView: (view: DiagramElement) => DiagramElement;
+    clearLinking: () => void;
+    confirmAction: (message: string) => boolean;
+    createElement: (kind: string, x: number, y: number) => DiagramElement;
+    normalizeSize: (view: DiagramElement) => void;
+    renderAll: () => void;
+    renderExplorer: () => void;
+    setSelection: (ids: string[]) => void;
+    setTimeout: (callback: () => void, delay: number) => unknown;
+    snapshot: () => void;
+    uid: () => string;
+    document: Document;
+    state: { diagrams: EditorDiagram[]; models: DiagramModels; activeId: string; tool: string };
+    tabs: HTMLElement;
+    viewport: Pick<Window, 'innerWidth' | 'innerHeight'>;
+    DIAGRAM_META: Record<string, { label: string; color: string; code: string }>;
+  }
+
+  function create(dependencies?: DiagramTabsDependencies) {
+    const deps: Partial<DiagramTabsDependencies> = dependencies || {};
+    const missing: string[] = REQUIRED_FUNCTIONS.filter(name => typeof deps[name] !== 'function');
     REQUIRED_VALUES.forEach(name => {
       if (deps[name] == null) missing.push(name);
     });
@@ -56,12 +79,12 @@
       tabs,
       viewport,
       DIAGRAM_META,
-    } = deps;
+    } = deps as DiagramTabsDependencies;
 
-    function addDiagram(type) {
+    function addDiagram(type: string) {
       snapshot();
       const count = state.diagrams.filter(diagram => diagram.type === type).length;
-      const diagram = {
+      const diagram: EditorDiagram = {
         id: uid(),
         type,
         name: DIAGRAM_META[type].label + (count ? ` ${count + 1}` : ''),
@@ -83,7 +106,7 @@
       return diagram;
     }
 
-    function switchDiagram(id) {
+    function switchDiagram(id: string) {
       if (state.activeId === id) return false;
       state.activeId = id;
       setSelection([]);
@@ -93,7 +116,7 @@
       return true;
     }
 
-    function deleteDiagram(diagram) {
+    function deleteDiagram(diagram: EditorDiagram) {
       if (state.diagrams.length <= 1) return false;
       const interactionReferences = diagram.type === 'sequence'
         ? Object.values(state.models).filter(model =>
@@ -113,27 +136,27 @@
       return true;
     }
 
-    function renderedTab(diagramId) {
+    function renderedTab(diagramId: string) {
       for (const shell of tabs.children || []) {
-        const tab = shell.querySelector?.('.tab');
+        const tab = shell.querySelector?.<HTMLButtonElement>('.tab');
         if (tab?.dataset.diagramId === diagramId) return tab;
       }
       return null;
     }
 
-    function focusRenderedTab(diagramId) {
+    function focusRenderedTab(diagramId: string) {
       const tab = renderedTab(diagramId);
       if (tab && typeof tab.focus === 'function') tab.focus();
       return Boolean(tab);
     }
 
-    function activateTab(diagramId, moveFocus = false) {
+    function activateTab(diagramId: string, moveFocus = false) {
       const changed = switchDiagram(diagramId);
       if (moveFocus) focusRenderedTab(diagramId);
       return changed;
     }
 
-    function startRename(shell, tab, diagram) {
+    function startRename(shell: HTMLElement, tab: HTMLButtonElement, diagram: EditorDiagram) {
       const input = document.createElement('input');
       input.className = 'tab-rename';
       input.value = diagram.name;
@@ -142,7 +165,7 @@
       input.focus();
       input.select();
       let committed = false;
-      const commit = cancelled => {
+      const commit = (cancelled: boolean) => {
         if (committed) return;
         committed = true;
         const nextName = cancelled ? diagram.name : input.value.trim();
@@ -170,7 +193,7 @@
       return shell;
     }
 
-    function handleTabKeydown(event, diagram, index, shell, tab) {
+    function handleTabKeydown(event: KeyboardEvent, diagram: EditorDiagram, index: number, shell: HTMLElement, tab: HTMLButtonElement) {
       const lastIndex = state.diagrams.length - 1;
       let targetIndex = -1;
       if (event.key === 'ArrowLeft') targetIndex = index === 0 ? lastIndex : index - 1;
@@ -253,12 +276,12 @@
       add.setAttribute('aria-label', '새 다이어그램 추가');
       add.setAttribute('aria-haspopup', 'true');
       add.setAttribute('aria-expanded', 'false');
-      add.addEventListener('click', event => openMenu(event.currentTarget));
+      add.addEventListener('click', () => openMenu(add));
       tabs.appendChild(add);
     }
 
-    let menuAnchor = null;
-    function openMenu(anchor) {
+    let menuAnchor: HTMLElement | null = null;
+    function openMenu(anchor: HTMLElement) {
       closeMenu(false);
       menuAnchor = anchor;
       anchor.setAttribute('aria-expanded', 'true');
@@ -268,7 +291,6 @@
       const rect = anchor.getBoundingClientRect();
       menu.style.left = `${rect.left}px`;
       menu.style.top = `${rect.bottom + 4}px`;
-      let firstItem = null;
       Object.keys(DIAGRAM_META).forEach(type => {
         const meta = DIAGRAM_META[type];
         const item = document.createElement('button');
@@ -276,14 +298,13 @@
         item.className = 'tm-item';
         item.innerHTML = `<span class="tab-icon" style="background:${meta.color}">${meta.code}</span><span>${meta.label}</span>`;
         item.addEventListener('click', () => { closeMenu(false); addDiagram(type); });
-        if (!firstItem) firstItem = item;
         menu.appendChild(item);
       });
       document.body.appendChild(menu);
       const menuRect = menu.getBoundingClientRect();
       menu.style.left = `${Math.max(8, Math.min(rect.left, viewport.innerWidth - menuRect.width - 8))}px`;
       menu.style.top = `${Math.max(8, Math.min(rect.bottom + 4, viewport.innerHeight - menuRect.height - 8))}px`;
-      firstItem?.focus();
+      menu.querySelector<HTMLButtonElement>('.tm-item')?.focus();
       setTimeout(() => document.addEventListener('mousedown', closeMenuOnOutside), 0);
     }
 
@@ -299,9 +320,9 @@
       return Boolean(menu);
     }
 
-    function closeMenuOnOutside(event) {
+    function closeMenuOnOutside(event: MouseEvent) {
       const menu = document.getElementById('tab-menu');
-      if (menu && !menu.contains(event.target)) closeMenu(false);
+      if (menu && !menu.contains(event.target as Node | null)) closeMenu(false);
     }
 
     return Object.freeze({
@@ -316,4 +337,4 @@
   }
 
   return Object.freeze({ REQUIRED_FUNCTIONS, REQUIRED_VALUES, create });
-});
+}

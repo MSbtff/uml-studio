@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use strict';
 
 /*
@@ -9,11 +8,43 @@
  * UML Studio's explicit umlKind metadata are converted; arbitrary draw.io
  * shapes are never guessed into UML semantics.
  */
-(function initDrawioImporter(root, factory) {
+type DrawioImporterApi = ReturnType<typeof createDrawioImporter>;
+declare var UMLDrawioImporter: DrawioImporterApi;
+
+(function initDrawioImporter(root: typeof globalThis & { UMLDrawioImporter?: DrawioImporterApi }, factory: () => DrawioImporterApi) {
   const api = factory();
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.UMLDrawioImporter = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createDrawioImporter() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createDrawioImporter);
+
+function createDrawioImporter() {
+  interface XmlNode {
+    name: string;
+    attrs: Record<string, string>;
+    children: XmlNode[];
+    text: string;
+  }
+
+  interface DrawioOptions {
+    inflateRaw?: (bytes: Uint8Array) => Uint8Array | ArrayBuffer | Promise<Uint8Array | ArrayBuffer>;
+    projectName?: string;
+    defaultDiagramName?: string;
+    allowedElementKinds?: Iterable<string>;
+    allowedRelationKinds?: Iterable<string>;
+    resolveDiagramType?: (elements: DiagramModel[], relations: DiagramModel[], requestedType: string) => string;
+  }
+
+  interface ImportContext {
+    models: DiagramModels;
+    modelByKey: Map<string, string>;
+    originalModelMap: Map<string, string>;
+    modelOrigins: Record<string, string>;
+    modelRoles: Record<string, 'element' | 'relation'>;
+    usedModelIds: Set<string>;
+    usedViewIds: Set<string>;
+    usedDiagramIds: Set<string>;
+  }
+
   const MAX_XML_BYTES = 10 * 1024 * 1024;
   const MAX_NODES = 50000;
   const MAX_DEPTH = 64;
@@ -31,11 +62,11 @@
     'itemFlowModelIds', 'submachineDiagramId', 'interactionDiagramId',
   ]);
 
-  const own = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
+  const own = (value: object, key: PropertyKey) => Object.prototype.hasOwnProperty.call(value, key);
 
-  function decodeEntities(value) {
-    return String(value || '').replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos);/gi, (match, entity) => {
-      const named = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
+  function decodeEntities(value: unknown) {
+    return String(value || '').replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos);/gi, (_match, entity: string) => {
+      const named: Partial<Record<string, string>> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
       if (named[entity]) return named[entity];
       const codePoint = entity[0] === '#'
         ? Number.parseInt(entity[1].toLowerCase() === 'x' ? entity.slice(2) : entity.slice(1), entity[1].toLowerCase() === 'x' ? 16 : 10)
@@ -47,8 +78,8 @@
     });
   }
 
-  function parseAttributes(source) {
-    const attributes = {};
+  function parseAttributes(source: string) {
+    const attributes: Record<string, string> = Object.create(null);
     let index = 0;
     while (index < source.length) {
       while (/\s/.test(source[index] || '')) index++;
@@ -73,7 +104,7 @@
     return attributes;
   }
 
-  function findTagEnd(xml, start) {
+  function findTagEnd(xml: string, start: number) {
     let quote = '';
     for (let index = start + 1; index < xml.length; index++) {
       const char = xml[index];
@@ -85,12 +116,12 @@
     return -1;
   }
 
-  function parseXml(xml) {
+  function parseXml(xml: unknown) {
     const source = String(xml || '').replace(/^\uFEFF/, '');
     if (!source.trim()) throw new Error('draw.io XML 내용이 없습니다.');
     if (source.length > MAX_XML_BYTES) throw new Error('draw.io 파일이 10MB 제한을 초과합니다.');
     if (/<!DOCTYPE|<!ENTITY/i.test(source)) throw new Error('DOCTYPE과 외부 엔티티는 허용하지 않습니다.');
-    const documentNode = { name: '#document', attrs: {}, children: [], text: '' };
+    const documentNode: XmlNode = { name: '#document', attrs: {}, children: [], text: '' };
     const stack = [documentNode];
     let index = 0, nodeCount = 0;
     while (index < source.length) {
@@ -138,7 +169,7 @@
       if (selfClosing) body = body.replace(/\/\s*$/, '').trimEnd();
       const nameMatch = body.match(/^([A-Za-z_][A-Za-z0-9_.:-]*)/);
       if (!nameMatch) throw new Error('XML 태그 이름이 올바르지 않습니다.');
-      const node = {
+      const node: XmlNode = {
         name: nameMatch[1],
         attrs: parseAttributes(body.slice(nameMatch[1].length)),
         children: [],
@@ -158,11 +189,11 @@
     return roots[0];
   }
 
-  function child(node, name) {
+  function child(node: XmlNode | null, name: string) {
     return node?.children?.find(value => value.name === name) || null;
   }
 
-  function descendants(node, name, output = []) {
+  function descendants(node: XmlNode, name: string, output: XmlNode[] = []) {
     (node?.children || []).forEach(value => {
       if (value.name === name) output.push(value);
       descendants(value, name, output);
@@ -170,7 +201,7 @@
     return output;
   }
 
-  function decodeBase64(payload) {
+  function decodeBase64(payload: string) {
     const text = String(payload || '').replace(/\s+/g, '');
     if (!text || text.length > MAX_XML_BYTES || !/^[A-Za-z0-9+/]*={0,2}$/.test(text)) {
       throw new Error('압축 draw.io 데이터가 올바르지 않습니다.');
@@ -179,10 +210,12 @@
       ? atob(text)
       : typeof Buffer !== 'undefined' ? Buffer.from(text, 'base64').toString('binary') : null;
     if (binary == null) throw new Error('Base64 디코더를 사용할 수 없습니다.');
-    return Uint8Array.from(binary, char => char.charCodeAt(0));
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+    return bytes;
   }
 
-  async function inflateRaw(bytes, options) {
+  async function inflateRaw(bytes: Uint8Array<ArrayBuffer>, options?: DrawioOptions) {
     if (typeof options?.inflateRaw === 'function') return options.inflateRaw(bytes);
     if (typeof DecompressionStream !== 'undefined') {
       const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
@@ -191,11 +224,11 @@
     throw new Error('이 브라우저는 압축 draw.io 파일 해제를 지원하지 않습니다. 비압축 XML로 저장해 주세요.');
   }
 
-  function bytesToText(bytes) {
+  function bytesToText(bytes: Uint8Array | ArrayBuffer) {
     return new TextDecoder('utf-8', { fatal: true }).decode(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes));
   }
 
-  async function graphModelFromDiagram(diagram, options) {
+  async function graphModelFromDiagram(diagram: XmlNode, options: DrawioOptions) {
     const direct = child(diagram, 'mxGraphModel');
     if (direct) return direct;
     const payload = diagram.text.trim();
@@ -209,7 +242,7 @@
     return root;
   }
 
-  function numberAttribute(node, name, fallback, min = -1000000, max = 1000000) {
+  function numberAttribute(node: XmlNode | null, name: string, fallback: number, min = -1000000, max = 1000000) {
     if (!node || !own(node.attrs, name) || node.attrs[name] === '') return fallback;
     const value = Number(node.attrs[name]);
     if (!Number.isFinite(value) || value < min || value > max) {
@@ -218,21 +251,21 @@
     return value;
   }
 
-  function booleanAttribute(node, name) {
+  function booleanAttribute(node: XmlNode, name: string) {
     return node?.attrs?.[name] === 'true' || node?.attrs?.[name] === '1';
   }
 
-  function stringAttribute(node, name, fallback = '') {
+  function stringAttribute(node: XmlNode | null, name: string, fallback = '') {
     const value = node?.attrs?.[name];
     if (value === undefined) return fallback;
     if (value.length > 100000) throw new Error(`draw.io UML 속성이 너무 큽니다: ${name}`);
     return value;
   }
 
-  function jsonArrayAttribute(node, name) {
+  function jsonArrayAttribute(node: XmlNode, name: string): string[] | undefined {
     const source = stringAttribute(node, name, '');
     if (!source) return undefined;
-    let parsed;
+    let parsed: unknown;
     try { parsed = JSON.parse(source); }
     catch (_) { throw new Error(`draw.io 배열 속성이 올바르지 않습니다: ${name}`); }
     if (!Array.isArray(parsed) || parsed.length > 1000
@@ -242,10 +275,10 @@
     return parsed;
   }
 
-  function jsonSchemaAttribute(node, name, expected) {
+  function jsonSchemaAttribute(node: XmlNode, name: string, expected: 'array' | 'object'): unknown {
     const source = stringAttribute(node, name, '');
     if (!source) return undefined;
-    let parsed;
+    let parsed: unknown;
     try { parsed = JSON.parse(source); }
     catch (_) { throw new Error(`draw.io ERD 스키마 속성이 올바르지 않습니다: ${name}`); }
     const valid = expected === 'array'
@@ -256,7 +289,7 @@
     return parsed;
   }
 
-  function fallbackName(cell) {
+  function fallbackName(cell: XmlNode) {
     return stringAttribute(cell, 'value', '')
       .replace(/<br\s*\/?>/gi, '\n')
       .replace(/<hr\s*\/?>/gi, '\n')
@@ -264,7 +297,7 @@
       .split(/\r?\n/).map(value => value.trim()).filter(Boolean)[0] || '';
   }
 
-  function safeIdentifier(value, prefix, used) {
+  function safeIdentifier(value: string | number, prefix: string, used: Set<string>) {
     const base = `${prefix}_${String(value || '')}`.replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^_+|_+$/g, '') || prefix;
     let id = base.slice(0, 120), suffix = 2;
     while (used.has(id)) id = `${base.slice(0, 110)}_${suffix++}`;
@@ -272,7 +305,7 @@
     return id;
   }
 
-  function inferDiagramType(elements, relations) {
+  function inferDiagramType(elements: readonly { kind: string }[], relations: readonly { kind: string }[]) {
     const kinds = new Set(elements.map(value => value.kind));
     const relationKinds = new Set(relations.map(value => value.kind));
     if ([...kinds].some(kind => ['lifeline', 'seqactor', 'fragment', 'execution'].includes(kind))) return 'sequence';
@@ -292,8 +325,8 @@
     return 'class';
   }
 
-  function commonElementModel(cell, kind) {
-    const model = {
+  function commonElementModel(cell: XmlNode, kind: string) {
+    const model: Omit<DiagramModel, 'id'> = {
       kind,
       name: own(cell.attrs, 'umlName') ? stringAttribute(cell, 'umlName') : fallbackName(cell),
     };
@@ -306,7 +339,7 @@
       umlQuantityKind: 'quantityKind', umlClassifierModelId: 'classifierModelId',
       umlProvidedInterfaceModelId: 'providedInterfaceModelId',
       umlRequiredInterfaceModelId: 'requiredInterfaceModelId', umlDefaultValue: 'defaultValue',
-    };
+    } as const;
     Object.entries(strings).forEach(([attribute, field]) => {
       if (own(cell.attrs, attribute) && cell.attrs[attribute] !== '') model[field] = stringAttribute(cell, attribute);
     });
@@ -316,21 +349,19 @@
       umlReferences: 'references', umlValues: 'values', umlFlowProperties: 'flowProperties',
       umlConstraintProperties: 'constraintProperties', umlProperties: 'properties',
       umlConstraints: 'constraints', umlConstraintParameters: 'constraintParameters',
-    };
+    } as const;
     Object.entries(arrays).forEach(([attribute, field]) => {
       const value = jsonArrayAttribute(cell, attribute);
       if (value !== undefined) model[field] = value;
     });
     if (kind === 'entity') {
-      const schemaFields = {
-        umlErdColumnDetails: ['erdColumnDetails', 'object'],
-        umlErdChecks: ['erdChecks', 'array'],
-        umlErdIndexes: ['erdIndexes', 'array'],
-      };
-      Object.entries(schemaFields).forEach(([attribute, [field, expected]]) => {
-        const value = jsonSchemaAttribute(cell, attribute, expected);
-        if (value !== undefined) model[field] = value;
-      });
+      // The project validator checks the schema entries after the XML attributes are decoded.
+      const details = jsonSchemaAttribute(cell, 'umlErdColumnDetails', 'object') as ModelFields['erdColumnDetails'];
+      const checks = jsonSchemaAttribute(cell, 'umlErdChecks', 'array') as ModelFields['erdChecks'];
+      const indexes = jsonSchemaAttribute(cell, 'umlErdIndexes', 'array') as ModelFields['erdIndexes'];
+      if (details !== undefined) model.erdColumnDetails = details;
+      if (checks !== undefined) model.erdChecks = checks;
+      if (indexes !== undefined) model.erdIndexes = indexes;
     }
     if (own(cell.attrs, 'umlVisibility')) {
       if (!VISIBILITY.has(cell.attrs.umlVisibility)) throw new Error('draw.io UML 가시성이 올바르지 않습니다.');
@@ -341,8 +372,8 @@
     return model;
   }
 
-  function relationModel(cell, kind) {
-    const model = {
+  function relationModel(cell: XmlNode, kind: string) {
+    const model: Omit<DiagramModel, 'id'> = {
       kind,
       name: own(cell.attrs, 'umlName') ? stringAttribute(cell, 'umlName') : stringAttribute(cell, 'value', ''),
     };
@@ -356,14 +387,14 @@
       umlForeignKeyEnd: 'foreignKeyEnd', umlSourceColumnName: 'sourceColumnName',
       umlTargetColumnName: 'targetColumnName', umlForeignKeyOnDelete: 'foreignKeyOnDelete',
       umlForeignKeyOnUpdate: 'foreignKeyOnUpdate',
-    };
+    } as const;
     Object.entries(mapping).forEach(([attribute, field]) => {
       if (own(cell.attrs, attribute) && cell.attrs[attribute] !== '') model[field] = stringAttribute(cell, attribute);
     });
     if (model.foreignKeyEnd && !['source', 'target'].includes(model.foreignKeyEnd)) {
       throw new Error('draw.io ERD FK 보유 끝점이 올바르지 않습니다.');
     }
-    for (const field of ['foreignKeyOnDelete', 'foreignKeyOnUpdate']) {
+    for (const field of ['foreignKeyOnDelete', 'foreignKeyOnUpdate'] as const) {
       if (model[field]) {
         model[field] = model[field].trim().replace(/\s+/g, ' ').toUpperCase();
         if (!REFERENTIAL_ACTIONS.has(model[field])) {
@@ -371,7 +402,7 @@
         }
       }
     }
-    ['source', 'target'].forEach(end => {
+    (['source', 'target'] as const).forEach(end => {
       const nav = model[`${end}Navigability`];
       const aggregation = model[`${end}Aggregation`];
       const visibility = model[`${end}EndVisibility`];
@@ -387,7 +418,7 @@
     return model;
   }
 
-  function geometryOf(cell) {
+  function geometryOf(cell: XmlNode) {
     const geometry = child(cell, 'mxGeometry');
     if (!geometry) throw new Error(`draw.io 도형의 mxGeometry가 없습니다: ${cell.attrs.id || '?'}`);
     return {
@@ -397,7 +428,7 @@
     };
   }
 
-  function manualPoints(cell) {
+  function manualPoints(cell: XmlNode) {
     const geometry = child(cell, 'mxGeometry');
     const array = child(geometry, 'Array');
     if (!array) return [];
@@ -406,20 +437,20 @@
     }));
   }
 
-  function resolveReferences(models, originalModelMap) {
+  function resolveReferences(models: DiagramModels, originalModelMap: ReadonlyMap<string, string>) {
     Object.values(models).forEach(model => {
-      for (const field of ['classifierModelId', 'providedInterfaceModelId', 'requiredInterfaceModelId']) {
-        if (!model[field]) continue;
-        model[field] = originalModelMap.get(model[field]) || undefined;
+      for (const field of ['classifierModelId', 'providedInterfaceModelId', 'requiredInterfaceModelId'] as const) {
+        const id = model[field];
+        if (id) model[field] = originalModelMap.get(id);
       }
-      for (const field of ['conveyedModelIds', 'itemFlowModelIds']) {
+      for (const field of ['conveyedModelIds', 'itemFlowModelIds'] as const) {
         if (!Array.isArray(model[field])) continue;
-        model[field] = model[field].map(value => originalModelMap.get(value)).filter(Boolean);
+        model[field] = model[field].map(value => originalModelMap.get(value)).filter((id): id is string => Boolean(id));
       }
     });
   }
 
-  function diagramFromGraph(graph, diagramNode, context, options, index) {
+  function diagramFromGraph(graph: XmlNode, diagramNode: XmlNode, context: ImportContext, options: DrawioOptions, index: number): ImportedDiagram {
     const root = child(graph, 'root');
     if (!root) throw new Error('draw.io mxGraphModel의 root가 없습니다.');
     const cells = descendants(root, 'mxCell').filter(node => node.attrs.id);
@@ -443,25 +474,28 @@
     const vertexById = new Map(vertices.map(cell => [cell.attrs.id, cell]));
     const viewIdByCell = new Map(vertices.map(cell => [cell.attrs.id, safeIdentifier(cell.attrs.id, 'view', context.usedViewIds)]));
     const localGeometry = new Map(vertices.map(cell => [cell.attrs.id, geometryOf(cell)]));
-    const absoluteGeometry = new Map();
-    const absolute = (cellId, path = new Set()) => {
-      if (absoluteGeometry.has(cellId)) return absoluteGeometry.get(cellId);
+    const absoluteGeometry = new Map<string, DiagramBounds>();
+    const absolute = (cellId: string, path = new Set<string>()): DiagramBounds => {
+      const cached = absoluteGeometry.get(cellId);
+      if (cached) return cached;
       if (path.has(cellId)) throw new Error('draw.io 도형의 부모 관계가 순환합니다.');
       path.add(cellId);
       const cell = vertexById.get(cellId);
       const local = localGeometry.get(cellId);
+      if (!local) throw new Error(`draw.io 도형의 좌표를 찾을 수 없습니다: ${cellId}`);
       const parent = cell?.attrs?.parent && vertexById.get(cell.attrs.parent);
       const parentGeometry = parent ? absolute(parent.attrs.id, path) : { x: 0, y: 0 };
       const result = { x: parentGeometry.x + local.x, y: parentGeometry.y + local.y, w: local.w, h: local.h };
       absoluteGeometry.set(cellId, result); path.delete(cellId); return result;
     };
-    const modelFor = (cell, kind, relation = false) => {
+    const modelFor = (cell: XmlNode, kind: string, relation = false) => {
       const original = ID_PATTERN.test(cell.attrs.umlModelId || '') ? cell.attrs.umlModelId : '';
       const key = original ? `${kind}|${original}` : `${kind}|cell:${cell.attrs.id}`;
-      if (context.modelByKey.has(key)) return context.modelByKey.get(key);
+      const existingId = context.modelByKey.get(key);
+      if (existingId) return existingId;
       const id = safeIdentifier(original || cell.attrs.id, 'model', context.usedModelIds);
       const model = relation ? relationModel(cell, kind) : commonElementModel(cell, kind);
-      model.id = id; context.models[id] = model; context.modelByKey.set(key, id);
+      context.models[id] = { ...model, id }; context.modelByKey.set(key, id);
       context.modelOrigins[id] = original;
       context.modelRoles[id] = relation ? 'relation' : 'element';
       if (original && !context.originalModelMap.has(original)) context.originalModelMap.set(original, id);
@@ -469,8 +503,10 @@
     };
     const elements = vertices.map(cell => {
       const geometry = absolute(cell.attrs.id);
-      const view = {
-        id: viewIdByCell.get(cell.attrs.id), modelId: modelFor(cell, cell.attrs.umlKind),
+      const id = viewIdByCell.get(cell.attrs.id);
+      if (!id) throw new Error(`draw.io 도형의 ID를 찾을 수 없습니다: ${cell.attrs.id}`);
+      const view: ImportedElement & { modelId: string } = {
+        id, modelId: modelFor(cell, cell.attrs.umlKind),
         x: geometry.x, y: geometry.y, w: geometry.w, h: geometry.h,
       };
       if (cell.attrs.parent && vertexById.has(cell.attrs.parent)) view.parentId = viewIdByCell.get(cell.attrs.parent);
@@ -481,7 +517,7 @@
     const relations = edges.map(cell => {
       const from = viewIdByCell.get(cell.attrs.source), to = viewIdByCell.get(cell.attrs.target);
       if (!from || !to) throw new Error(`draw.io 관계의 연결 대상을 찾을 수 없습니다: ${cell.attrs.id}`);
-      const view = {
+      const view: ImportedRelation & { modelId: string } = {
         id: safeIdentifier(cell.attrs.id, 'relation', context.usedViewIds),
         modelId: modelFor(cell, cell.attrs.umlKind, true), from, to,
       };
@@ -505,32 +541,30 @@
     };
   }
 
-  function stableValue(value) {
+  function stableValue(value: unknown) {
     if (Array.isArray(value)) return JSON.stringify(value);
     if (value && typeof value === 'object') {
-      const ordered = Object.keys(value).sort().reduce((result, key) => {
-        result[key] = value[key]; return result;
-      }, {});
+      const ordered = Object.fromEntries(Object.entries(value).sort(([a], [b]) => a < b ? -1 : a === b ? 0 : 1));
       return JSON.stringify(ordered);
     }
     return JSON.stringify(value);
   }
 
-  function changedSemanticFields(importedModel, existingModel) {
+  function changedSemanticFields(importedModel: DiagramModel, existingModel: DiagramModel) {
     const fields = new Set([...Object.keys(importedModel || {}), ...Object.keys(existingModel || {})]);
     return [...fields]
       .filter(field => !CONFLICT_REFERENCE_FIELDS.has(field))
-      .filter(field => stableValue(importedModel?.[field]) !== stableValue(existingModel?.[field]))
+      .filter(field => stableValue(Reflect.get(importedModel, field)) !== stableValue(Reflect.get(existingModel, field)))
       .sort();
   }
 
-  function semanticKey(model) {
+  function semanticKey(model: DiagramModel) {
     const kind = String(model?.kind || '').trim().toLocaleLowerCase();
     const name = String(model?.name || '').trim().toLocaleLowerCase();
     return kind && name ? `${kind}\u0000${name}` : '';
   }
 
-  function analyzeImport(imported, existingModels = {}, existingDiagrams = []) {
+  function analyzeImport(imported?: DrawioProject | null, existingModels: DiagramModels = {}, existingDiagrams: readonly Pick<EditorDiagram, 'name'>[] = []): DrawioImportAnalysis {
     const models = imported?.models && typeof imported.models === 'object' ? imported.models : {};
     const diagrams = Array.isArray(imported?.diagrams) ? imported.diagrams : [];
     const relationModelIds = new Set(diagrams.flatMap(diagram => (diagram.relations || []).map(view => view.modelId)));
@@ -538,20 +572,21 @@
       const role = imported?.importMeta?.modelRoles?.[id];
       return role ? role === 'element' : !relationModelIds.has(id);
     });
-    const importedKeyCounts = new Map();
+    const importedKeyCounts = new Map<string, number>();
     elementModels.forEach(([, model]) => {
       const key = semanticKey(model);
       if (key) importedKeyCounts.set(key, (importedKeyCounts.get(key) || 0) + 1);
     });
-    const existingByKey = new Map();
+    const existingByKey = new Map<string, DiagramModel[]>();
     Object.values(existingModels || {}).forEach(model => {
       const key = semanticKey(model);
       if (!key) return;
-      if (!existingByKey.has(key)) existingByKey.set(key, []);
-      existingByKey.get(key).push(model);
+      const group = existingByKey.get(key);
+      if (group) group.push(model);
+      else existingByKey.set(key, [model]);
     });
 
-    const conflicts = [];
+    const conflicts: DrawioConflict[] = [];
     elementModels.forEach(([importedModelId, model]) => {
       const originalModelId = imported?.importMeta?.modelOrigins?.[importedModelId] || '';
       const exact = originalModelId ? existingModels?.[originalModelId] : null;
@@ -598,7 +633,7 @@
     };
   }
 
-  function filterImportConflicts(conflicts, policies = {}, query = '', filter = 'all') {
+  function filterImportConflicts(conflicts: DrawioConflict[], policies: Map<string, DrawioPolicy> | Partial<Record<string, DrawioPolicy>> = {}, query = '', filter = 'all') {
     const source = Array.isArray(conflicts) ? conflicts : [];
     const normalizedQuery = String(query || '').trim().toLocaleLowerCase();
     const allowedFilters = new Set([
@@ -606,9 +641,9 @@
       'keepBoth', 'reuse', 'replace',
     ]);
     const selectedFilter = allowedFilters.has(filter) ? filter : 'all';
-    const policyFor = modelId => {
+    const policyFor = (modelId: string) => {
       const value = policies instanceof Map ? policies.get(modelId) : policies?.[modelId];
-      return ['keepBoth', 'reuse', 'replace'].includes(value) ? value : 'keepBoth';
+      return value && ['keepBoth', 'reuse', 'replace'].includes(value) ? value : 'keepBoth';
     };
     return source.filter(conflict => {
       const policy = policyFor(conflict?.importedModelId);
@@ -631,7 +666,7 @@
     });
   }
 
-  function paginateImportConflicts(conflicts, page = 0, pageSize = 50) {
+  function paginateImportConflicts(conflicts: DrawioConflict[], page = 0, pageSize = 50) {
     const source = Array.isArray(conflicts) ? conflicts : [];
     const size = Number.isInteger(pageSize) ? Math.min(200, Math.max(1, pageSize)) : 50;
     const pageCount = Math.max(1, Math.ceil(source.length / size));
@@ -644,10 +679,10 @@
     };
   }
 
-  async function importDrawio(xml, options = {}) {
+  async function importDrawio(xml: unknown, options: DrawioOptions = {}): Promise<DrawioProject> {
     const source = String(xml || '');
     const parsed = parseXml(source);
-    let pageNodes;
+    let pageNodes: XmlNode[];
     if (parsed.name === 'mxGraphModel') {
       pageNodes = [{ name: 'diagram', attrs: { id: 'page-1', name: options.defaultDiagramName || 'Imported draw.io' }, children: [parsed], text: '' }];
     } else if (parsed.name === 'mxfile') {
@@ -656,7 +691,7 @@
       throw new Error('draw.io XML은 mxfile 또는 mxGraphModel 루트여야 합니다.');
     }
     if (!pageNodes.length || pageNodes.length > MAX_PAGES) throw new Error('draw.io 페이지 수가 올바르지 않습니다.');
-    const context = {
+    const context: ImportContext = {
       models: {}, modelByKey: new Map(), originalModelMap: new Map(),
       modelOrigins: {}, modelRoles: {},
       usedModelIds: new Set(), usedViewIds: new Set(), usedDiagramIds: new Set(),
@@ -686,4 +721,4 @@
     importDrawio, parseXml, inferDiagramType, analyzeImport,
     filterImportConflicts, paginateImportConflicts,
   };
-});
+}

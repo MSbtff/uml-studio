@@ -1,8 +1,13 @@
-(function initModalFocusModule<Api>(root: typeof globalThis & { UMLModalFocus?: Api }, factory: () => Api) {
+type ModalFocusApi = ReturnType<typeof createModalFocusModule>;
+declare var UMLModalFocus: ModalFocusApi;
+
+(function initModalFocusModule(root: typeof globalThis, factory: () => ModalFocusApi) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.UMLModalFocus = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function createModalFocusModule() {
+})(typeof globalThis !== 'undefined' ? globalThis : this, createModalFocusModule);
+
+function createModalFocusModule() {
   'use strict';
 
   const REQUIRED_VALUES = Object.freeze(['appRoot', 'document'] as const);
@@ -254,4 +259,4 @@
   }
 
   return Object.freeze({ FOCUSABLE_SELECTOR, REQUIRED_VALUES, create });
-});
+}
