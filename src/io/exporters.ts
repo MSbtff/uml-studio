@@ -770,8 +770,8 @@ function createExporters(erdCardinalityApi: ExportCardinalityApi, erdColumnApi: 
     const entities = diagram.elements.filter(element => element.kind === 'entity');
     const ids = makeIdMap(entities, 'e');
     const safeToken = (value: unknown, fallback: string) => {
-      let token = String(value || fallback || '').trim().replace(/[^A-Za-z0-9_()\[\]-]/g, '_');
-      if (!/^[A-Za-z]/.test(token)) token = `T_${token}`;
+      let token = String(value || fallback || '').trim().replace(/[^A-Za-z0-9_()\[\]\u00c0-\uffff-]/g, '_');
+      if (!/^[A-Za-z\u00c0-\uffff]/.test(token) || /^(?:PK|FK|UK)\b/i.test(token)) token = `T_${token}`;
       return token || fallback;
     };
     const safeComment = (value: unknown) => String(value || '').replace(/"/g, "'").replace(/\r?\n/g, ' ').trim();
@@ -789,13 +789,18 @@ function createExporters(erdCardinalityApi: ExportCardinalityApi, erdColumnApi: 
         return;
       }
       lines.push(`  ${id}["${title}"] {`);
+      const columnNames = new Set<string>();
       columns.forEach(raw => {
         const column = parseErdColumn(raw);
         const type = safeToken(column.type, 'string');
-        const name = safeToken(column.phys, 'column');
+        const baseName = safeToken(column.phys, 'column');
+        let name = baseName;
+        let suffix = 2;
+        while (columnNames.has(name)) name = `${baseName}_${suffix++}`;
+        columnNames.add(name);
         const keys = column.flags.filter(flag => flag === 'PK' || flag === 'FK' || flag === 'UQ')
           .map(flag => flag === 'UQ' ? 'UK' : flag);
-        const comment = safeComment(column.logical);
+        const comment = safeComment([column.logical, name === column.phys ? '' : column.phys].filter(Boolean).join(' · '));
         lines.push(`    ${type} ${name}${keys.length ? ` ${keys.join(',')}` : ''}${comment ? ` "${comment}"` : ''}`);
       });
       lines.push('  }');

@@ -52,6 +52,16 @@ test('the packed library converts SQL from a standalone project', (t) => {
     assert.equal(erd.importMeta.linkedForeignKeys, 0);
     assert.equal(erd.importMeta.warnings.length, 1);
     assert.equal(JSON.parse(JSON.stringify(erd)).importMeta.tables, 1);
+    const names = ddlToMermaid('CREATE TABLE stock ("PK" INTEGER PRIMARY KEY, "FK value" TEXT, "UK" TEXT, "자재" TEXT, "수량" INTEGER, "item name" TEXT, item_name TEXT);');
+    assert.deepEqual(Object.values(names.erd.models)[0].columns.slice(0, 2), [
+      'PK "PK": INTEGER', '"FK value": TEXT',
+    ]);
+    assert.match(names.mermaid, /INTEGER T_PK PK "PK"/);
+    assert.match(names.mermaid, /TEXT T_UK "UK"/);
+    assert.match(names.mermaid, /TEXT 자재$/m);
+    assert.match(names.mermaid, /INTEGER 수량$/m);
+    assert.match(names.mermaid, /TEXT item_name "item name"/);
+    assert.match(names.mermaid, /TEXT item_name_2 "item_name"/);
     assert.throws(() => ddlToMermaid('ALTER TABLE users ADD COLUMN name VARCHAR(120);'), /DDL 1:1/);
     assert.throws(() => ddlToMermaid(null), TypeError);
     assert.deepEqual(Object.keys(globalThis).filter(key => key.startsWith('UML')), before);

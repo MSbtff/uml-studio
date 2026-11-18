@@ -20,6 +20,13 @@ const {
 }
 
 {
+  for (const phys of ['PK', 'FK team', 'UQ-item', '"PK"']) {
+    const column = { flags: ['NN'], phys, logical: '원래 이름', type: 'TEXT' };
+    assert.deepEqual(parseColumn(formatColumn(column)), column);
+  }
+}
+
+{
   const result = validateColumn({ phys: 'user_id', logical: '작성자번호', type: 'BIGINT', flags: ['FK', 'NN'] }, [
     'PK id: BIGINT',
   ]);

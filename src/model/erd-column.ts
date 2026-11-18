@@ -25,6 +25,7 @@ declare var UMLErdColumn: ErdColumnApi;
 
 function createErdColumn() {
   const FLAG_ORDER = ['PK', 'FK', 'UQ', 'NN'];
+  const FLAG_PREFIX = /^(PK|FK|UQ|NN)\b[,\s]*/i;
   const MAX_NAME_LENGTH = 120;
   const MAX_TYPE_LENGTH = 160;
   type ColumnInput = { flags?: unknown; phys?: unknown; logical?: unknown; type?: unknown };
@@ -40,7 +41,7 @@ function createErdColumn() {
     let rest = String(raw || '').trim();
     const flags = [];
     let match;
-    while ((match = rest.match(/^(PK|FK|UQ|NN)\b[,\s]*/i))) {
+    while ((match = rest.match(FLAG_PREFIX))) {
       flags.push(match[1].toUpperCase());
       rest = rest.slice(match[0].length);
     }
@@ -56,6 +57,8 @@ function createErdColumn() {
       logical = logicalMatch[1].trim();
       rest = rest.slice(0, logicalMatch.index).trim();
     }
+    const quotedName = rest.match(/^"((?:[^"]|"")*)"$/);
+    if (quotedName) rest = quotedName[1].replace(/""/g, '"');
     return { flags: orderedFlags(flags), phys: rest, logical, type };
   }
 
@@ -73,7 +76,10 @@ function createErdColumn() {
     const value = normalizeColumn(column);
     const parts = [];
     if (value.flags.length) parts.push(value.flags.join(' '));
-    parts.push(value.phys);
+    // Quote names that would otherwise be read as flags, or as quoted names.
+    const phys = FLAG_PREFIX.test(value.phys) || value.phys.startsWith('"')
+      ? `"${value.phys.replace(/"/g, '""')}"` : value.phys;
+    parts.push(phys);
     let result = parts.filter(Boolean).join(' ');
     if (value.logical) result += ` <${value.logical}>`;
     if (value.type) result += `: ${value.type}`;
