@@ -1,4 +1,4 @@
-# UML Studio V7 Professional
+# UML Studio
 
 UML Studio is a browser-based editor for UML, SysML, and entity–relationship diagrams. Build models across multiple diagrams, validate them as you work, and export the results for documentation or further editing. The local server saves projects to SQLite and keeps a recovery history.
 
