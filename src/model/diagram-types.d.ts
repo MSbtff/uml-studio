@@ -3,6 +3,8 @@ interface DiagramPoint {
   y: number;
 }
 
+type DiagramMoveAxis = 'x' | 'y';
+
 interface DiagramBounds extends DiagramPoint {
   w: number;
   h: number;

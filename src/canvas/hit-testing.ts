@@ -76,9 +76,6 @@ function createHitTestingModule() {
   type CommunicationGeometry =
     | { self: true; startX: number; y: number; width: number; height: number }
     | (DiagramEndpoints & { self?: false; normal: DiagramPoint });
-  type MessageGeometry =
-    | { self: true; startX: number; endX: number }
-    | (DiagramEndpoints & { self?: false });
   type LabeledCurve = DiagramCubicCurve & { label: DiagramPoint };
   interface HitTestingDependencies {
     bezierPoint(curve: DiagramQuadraticCurve, t: number): DiagramPoint;
@@ -95,7 +92,7 @@ function createHitTestingModule() {
     lblOff(relation: HitRelation, field: LabelField): { dx: number; dy: number };
     memberLists(element: HitElement): { kind: string; top: number; h: number; arr: unknown[] }[];
     msgDisplayLabel(relation: HitRelation): string;
-    msgPoints(relation: HitRelation): MessageGeometry | null;
+    msgPoints(relation: HitRelation): MessagePoints | null;
     pointNearPolyline(point: DiagramPoint, points: DiagramPoint[], threshold: number): boolean;
     polylineMidpoint(points: DiagramPoint[]): DiagramPoint;
     relEndpoints(relation: HitRelation): DiagramEndpoints | null;
@@ -254,6 +251,34 @@ function createHitTestingModule() {
           && point.y >= element.y && point.y <= getSequenceBottom()) return element;
       }
       return null;
+    }
+
+    function nearestSequenceMessage(point: DiagramPoint, tolerance: number) {
+      const relations = dg().relations;
+      let nearest: HitRelation | null = null;
+      let distance = tolerance;
+      for (let index = relations.length - 1; index >= 0; index--) {
+        const relation = relations[index];
+        if (!isMsg(relation.kind)) continue;
+        const points = msgPoints(relation);
+        if (!points) continue;
+        let gap;
+        if (points.self) {
+          const top = { x: points.startX + points.width, y: points.y };
+          const bottom = { x: top.x, y: top.y + points.height };
+          gap = Math.min(
+            distToSegment(point, { x: points.startX, y: top.y }, top),
+            distToSegment(point, top, bottom),
+            distToSegment(point, bottom, { x: points.endX, y: bottom.y }),
+          );
+        } else {
+          gap = distToSegment(point, points.p1, points.p2);
+        }
+        if (gap >= distance) continue;
+        nearest = relation;
+        distance = gap;
+      }
+      return nearest;
     }
 
     function relationAt(point: DiagramPoint) {
@@ -443,6 +468,7 @@ function createHitTestingModule() {
       lifelineAt,
       memberRowAt,
       nearFragmentEdge,
+      nearestSequenceMessage,
       relationAt,
       relationLabelAt,
     });
