@@ -65,4 +65,4 @@ TypeScript 프로젝트에서도 같은 import를 사용합니다. 패키지에 
 - Mermaid 구문에 맞게 바꾼 컬럼명은 컬럼 설명에 원래 이름도 표시합니다.
 - 복합 FK, `ALTER TABLE`, `CREATE TABLE AS`, 함수·식 기반 인덱스와 잘못된 DDL은 예외를 발생시킵니다.
 
-[편집기의 DDL 지원 범위](https://github.com/MSbtff/uml-studio#erd-ddl-가져오기와-내보내기)도 참고할 수 있습니다.
+[편집기의 DDL 지원 범위](https://github.com/MSbtff/uml-studio#import-and-export-sql-ddl)도 참고할 수 있습니다.
