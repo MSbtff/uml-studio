@@ -8,6 +8,27 @@ _The built-in Render Sequence example shows lifelines, messages, and an `alt` co
 
 ## Quick start
 
+### DDL-to-Mermaid npm package
+
+Use Node.js 24 or later to convert SQL DDL into an ERD model and Mermaid source. [View the package on npm](https://www.npmjs.com/package/uml-studio-ddl-to-mermaid).
+
+From your Node.js project directory, install the package and use the bundled example to generate `schema.mmd` from the sample SQL.
+
+```bash
+npm install uml-studio-ddl-to-mermaid
+node node_modules/uml-studio-ddl-to-mermaid/examples/convert.mjs > schema.mmd
+```
+
+Pass the path to your own SQL file to convert that schema.
+
+```bash
+node node_modules/uml-studio-ddl-to-mermaid/examples/convert.mjs ./schema.sql > schema.mmd
+```
+
+See the [package README](packages/ddl-to-mermaid/README.md) for API usage.
+
+### Run the browser editor locally
+
 You need Node.js 24 or later and Python 3.12 or later.
 
 ```bash
@@ -55,24 +76,7 @@ _An online store schema imported from SQL and exported as an ER diagram._
 - Imports warn about `MATCH`, `DEFERRABLE`, database-specific index options, and references to tables outside the input. Composite foreign keys, expression indexes, `ALTER TABLE`, and `CREATE TABLE AS` stop the import with an error.
 - Model Explorer searches logical and physical names of entities and columns. Use the ERD name tool (**ERD 이름**) beside the search box to preview a project-wide rename. Renames update affected FK, `CHECK`, and index references across diagrams. An FK column deletion previews affected relationships and clears their column bindings and referential actions. Undo restores the previous state.
 
-### DDL-to-Mermaid npm package
-
-Convert SQL DDL into an ERD model and Mermaid source from Node.js 24 or later. [View `uml-studio-ddl-to-mermaid@0.1.0` on npm](https://www.npmjs.com/package/uml-studio-ddl-to-mermaid/v/0.1.0).
-
-From your Node.js project directory, install the package and run the bundled example to generate `schema.mmd` from the included sample SQL.
-
-```bash
-npm install uml-studio-ddl-to-mermaid@0.1.0
-node node_modules/uml-studio-ddl-to-mermaid/examples/convert.mjs > schema.mmd
-```
-
-Pass the path to your own SQL file to generate a Mermaid diagram for that schema.
-
-```bash
-node node_modules/uml-studio-ddl-to-mermaid/examples/convert.mjs ./schema.sql > schema.mmd
-```
-
-See the [package README](packages/ddl-to-mermaid/README.md) for API usage and the [examples directory](packages/ddl-to-mermaid/examples) for a sample schema and conversion script.
+For SQL conversion from a Node.js script, see the [npm quick start](#ddl-to-mermaid-npm-package).
 
 ## Projects and recovery
 
