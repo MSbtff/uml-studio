@@ -1,5 +1,9 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { installPackedDdlLibrary } from '../support/install-packed-ddl-library.js';
 import { test, expect } from './fixtures.mjs';
 import {
   canvasElements,
@@ -129,4 +133,55 @@ test('CREATE TABLE DDL을 미리 보고 의미적 FK가 있는 ERD로 가져온�
   expect(sqlite.text).toContain('"title" VARCHAR(200) DEFAULT \'Untitled\'');
   expect(sqlite.text).toContain('FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE');
   expect(sqlite.text).toContain('CREATE INDEX "posts_user_idx" ON "posts" ("user_id");');
+});
+
+test('설치한 npm 패키지의 ERD를 열고 재접속한 뒤에도 컬럼과 FK가 보존된다', async ({ studioPage: page }) => {
+  const converted = await test.step('압축 파일을 별도 프로젝트에 설치하고 SQL을 변환한다', async () => {
+    const work = await mkdtemp(path.join(tmpdir(), 'uml-ddl-package-browser-'));
+    try {
+      installPackedDdlLibrary(work);
+      const requireFromConsumer = createRequire(path.join(work, 'package.json'));
+      const { ddlToMermaid } = requireFromConsumer('uml-studio-ddl-to-mermaid');
+      return ddlToMermaid(
+        `CREATE TABLE items ("PK" INTEGER PRIMARY KEY);
+         CREATE TABLE stock (
+           "FK value" INTEGER NOT NULL,
+           "자재" TEXT,
+           "수량" INTEGER DEFAULT 0 CHECK ("수량" >= 0),
+           "item name" TEXT,
+           item_name TEXT,
+           CONSTRAINT stock_item_fk FOREIGN KEY ("FK value") REFERENCES items("PK") ON DELETE CASCADE
+         );`,
+        { diagramName: 'Package ERD' },
+      );
+    } finally {
+      await rm(work, { recursive: true, force: true });
+    }
+  });
+
+  const chooserPromise = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Open', exact: true }).click();
+  const chooser = await chooserPromise;
+  await chooser.setFiles({
+    name: 'npm-package.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(converted.erd)),
+  });
+
+  const activeTab = page.locator('#tabs .tab.active .tab-name');
+  await expect(activeTab).toHaveText('Package ERD');
+  await waitForStoredProject(page, (data) => data.diagrams.some((diagram) => diagram.name === 'Package ERD'));
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await expect(activeTab).toHaveText('Package ERD');
+  await expect(canvasElements(page)).toHaveCount(2);
+  const canvas = page.locator('#canvas');
+  for (const label of ['FK value', '자재', '수량', 'item name', 'item_name']) {
+    await expect(canvas).toContainText(label);
+  }
+  await expect(canvas.locator('[data-rel]')).toHaveCount(1);
+
+  const { text: savedJson } = await downloadFromToolbar(page, 'save');
+  expect(JSON.parse(savedJson).models).toEqual(converted.erd.models);
+  const { text: mermaid } = await downloadFromToolbar(page, 'exportmermaid');
+  expect(mermaid).toBe(converted.mermaid);
 });

@@ -6,20 +6,27 @@ const { mkdtempSync, rmSync, writeFileSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 const { join, resolve } = require('node:path');
 const { test } = require('node:test');
+const { installPackedDdlLibrary } = require('./support/install-packed-ddl-library.js');
 
 test('the packed library converts SQL from a standalone project', (t) => {
   const work = mkdtempSync(join(tmpdir(), 'ddl-to-mermaid-'));
   t.after(() => rmSync(work, { recursive: true, force: true }));
-  const npm = (...args) => execFileSync('npm', ['--cache', join(work, 'npm-cache'), ...args], {
-    cwd: work,
-    encoding: 'utf8',
-  });
-
-  const source = resolve(__dirname, '../packages/ddl-to-mermaid');
-  const [packed] = JSON.parse(npm('pack', source, '--json'));
-  assert.ok(packed.files.some((file) => file.path === 'LICENSE'));
-  writeFileSync(join(work, 'package.json'), '{"private":true}');
-  npm('install', `./${packed.filename}`, '--offline', '--ignore-scripts', '--no-audit', '--no-fund');
+  const packed = installPackedDdlLibrary(work);
+  assert.deepEqual(packed.files.map(({ path }) => path).sort(), [
+    'LICENSE',
+    'README.md',
+    'dist/index.cjs',
+    'dist/index.d.cts',
+    'dist/shared/io/ddl-importer.js',
+    'dist/shared/io/exporters.js',
+    'dist/shared/model/erd-cardinality.js',
+    'dist/shared/model/erd-column.js',
+    'dist/shared/model/erd-schema.js',
+    'dist/shared/model/model-core.js',
+    'examples/convert.mjs',
+    'examples/schema.sql',
+    'package.json',
+  ]);
 
   const types = join(work, 'consumer.mts');
   writeFileSync(types, `
