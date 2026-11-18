@@ -785,25 +785,25 @@ assert.throws(() => create({}), err => {
 
 {
   /* sequence message, self and straight */
-  const self = relation('r1', 'msg-sync', { y: 100, messagePoints: { self: true, startX: 10, endX: 30, width: 44, height: 20 } });
+  const self = relation('r1', 'msg-sync', { y: 100, messagePoints: { self: true, startX: 10, endX: 30, y: 100, width: 44, height: 20 } });
   const { nodes: selfNodes } = selectionOf({
     diagram: { id: 'd1', type: 'sequence', elements: [], relations: [self] },
-    state: { selection: ['r1'], selectedId: 'r1' },
+    state: { tool: 'select', selection: ['r1'], selectedId: 'r1' },
   });
-  assert.equal(selfNodes.length, 1);
+  assert.deepEqual(selfNodes.filter(node => node.getAttribute('data-message-action'))
+    .map(node => node.getAttribute('data-message-action')), ['move', 'edit']);
   assert.deepEqual([selfNodes[0].getAttribute('x'), selfNodes[0].getAttribute('y')], [6, 92]);
   assert.deepEqual([selfNodes[0].getAttribute('width'), selfNodes[0].getAttribute('height')], [76, 34]);
 
   const straightMsg = relation('r2', 'msg-async', { messagePoints: straight(0, 10, 80, 10) });
   const { nodes: straightNodes } = selectionOf({
     diagram: { id: 'd1', type: 'sequence', elements: [], relations: [straightMsg] },
-    state: { selection: ['r2'], selectedId: 'r2' },
+    state: { tool: 'select', selection: ['r2'], selectedId: 'r2' },
   });
-  assert.equal(straightNodes.length, 3, '메시지 끝점은 크기 핸들 모양으로 그려야 합니다');
   assert.equal(straightNodes[0].tag, 'line');
-  assert.equal(straightNodes[1].getAttribute('width'), RENDER_STYLE.handleSize);
-  assert.equal(straightNodes[1].getAttribute('data-endpoint'), undefined,
-    '메시지 끝점은 재연결 핸들이 아닙니다');
+  const controls = straightNodes.filter(node => node.getAttribute('data-message-action'));
+  assert.deepEqual(controls.map(node => node.getAttribute('data-message-action')), ['move', 'edit']);
+  assert.ok(controls.every(node => node.getAttribute('data-message-id') === straightMsg.id));
 }
 {
   const { nodes } = selectionOf({

@@ -448,12 +448,12 @@ function createContainmentLayoutModule() {
     /* `grid` lets a caller move finer than the drawing grid — keyboard nudging
        asks for 1px steps, which snapping to GRID would round away entirely.
        Omitted, snap() applies the usual GRID, so drag behaviour is unchanged. */
-    function moveViewTree(e: DiagramElement, dx: number, dy: number, origins?: ReadonlyMap<string, DiagramPoint>, grid?: number) {
+    function moveViewTree(e: DiagramElement, dx: number, dy: number, origins?: ReadonlyMap<string, DiagramPoint>, grid?: number, axis?: DiagramMoveAxis) {
       const all = [e, ...descendantViews(e.id)];
       all.forEach(view => {
         const origin = origins && origins.get(view.id);
-        view.x = Math.max(0, snap((origin ? origin.x : view.x) + dx, grid));
-        if (!(dg().type === 'sequence' && view.kind === 'lifeline')) {
+        if (axis !== 'y') view.x = Math.max(0, snap((origin ? origin.x : view.x) + dx, grid));
+        if (axis !== 'x' && !(dg().type === 'sequence' && view.kind === 'lifeline')) {
           view.y = Math.max(0, snap((origin ? origin.y : view.y) + dy, grid));
         }
         if (view.kind === 'region') regionLayoutCache.set(view, { x: view.x, y: view.y, w: view.w, h: view.h });

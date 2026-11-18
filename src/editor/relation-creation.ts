@@ -241,6 +241,7 @@ function createRelationCreationModule() {
       syncRelationModel(relation);
       setSelection([relation.id]);
       finishLink();
+      return relation;
     }
 
     return Object.freeze({

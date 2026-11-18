@@ -717,6 +717,7 @@ function createQuickEditModule() {
 
     return Object.freeze({
       handleCanvasQuickEdit,
+      openRelationQuickEdit,
       openSelectedQuickEdit,
       openSelectedMemberQuickEdit,
       openErdColumnEditor,

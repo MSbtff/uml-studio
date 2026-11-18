@@ -67,11 +67,15 @@ assert.equal(svg.listenerCount('mousedown'), 1, '중복 attach는 리스너를 �
 assert.equal(root.listenerCount('mousemove'), 1);
 assert.equal(root.listenerCount('mouseup'), 1);
 
+dependencies.state.tool = 'select';
+root.emit('mousemove', { clientX: 60, clientY: 50, target: svg });
+assert.equal(controller.state().hoveredMessageId, null, '캔버스를 그리기 전에는 메시지를 찾지 않습니다');
+
 controller.setLinking({ fromId: 'source', x: 10, y: 20, armed: false });
 assert.equal(controller.getLinking().fromId, 'source');
 assert.equal(controller.state().linking.x, 10);
 controller.cancel();
-assert.deepEqual(controller.state(), { drag: null, linking: null, marquee: null });
+assert.deepEqual(controller.state(), { drag: null, linking: null, marquee: null, hoveredMessageId: null });
 
 controller.detach();
 controller.detach();

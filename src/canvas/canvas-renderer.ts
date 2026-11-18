@@ -363,6 +363,33 @@ function createCanvasRendererModule() {
     function drawLinkingPreview(root: SVGElement, linking: CanvasLinking) {
       const from = byId(linking.fromId);
       if (!from) return;
+      if (linking.message) {
+        const { y, targetId } = linking.message;
+        const target = targetId ? byId(targetId) : null;
+        const x = center(from).x;
+        const endX = target ? center(target).x : linking.x;
+        const self = target?.id === from.id;
+        const endY = self ? y + 20 : y;
+        const direction = endX > x ? 1 : -1;
+        const path = self
+          ? `M ${x} ${y} h44 v20 H ${endX}`
+          : `M ${x} ${y} H ${endX}`;
+        if (target) el('circle', {
+          'data-message-link-target': target.id, cx: endX, cy: endY, r: 8 / state.zoom,
+          fill: 'none', stroke: RENDER_STYLE.accent, 'pointer-events': 'none',
+          'vector-effect': 'non-scaling-stroke',
+        }, root);
+        el('path', {
+          'data-message-link-preview': '',
+          d: path, fill: 'none', stroke: RENDER_STYLE.accent, 'stroke-dasharray': '5 4',
+          'pointer-events': 'none', 'vector-effect': 'non-scaling-stroke',
+        }, root);
+        if (target) el('path', {
+          d: `M ${endX - direction * 8} ${endY - 4} L ${endX} ${endY} L ${endX - direction * 8} ${endY + 4}`,
+          fill: 'none', stroke: RENDER_STYLE.accent, 'pointer-events': 'none',
+        }, root);
+        return;
+      }
       const p = edgePoint(from, linking);
       el('line', {
         x1: p.x, y1: p.y, x2: linking.x, y2: linking.y,
@@ -415,9 +442,30 @@ function createCanvasRendererModule() {
       }
     }
 
+    function drawMessageSpacingGuide(root: SVGElement, drag: CanvasMessageDrag) {
+      const guide = drag.guide;
+      const points = guide && msgPoints(drag.rel);
+      if (!guide || !points) return;
+      const left = points.self ? Math.min(points.startX, points.endX) : Math.min(points.p1.x, points.p2.x);
+      const right = points.self ? points.startX + points.width : Math.max(points.p1.x, points.p2.x);
+      const x = right + 16 / state.zoom;
+      const tick = 5 / state.zoom;
+      const { before, after, y } = guide;
+      el('path', {
+        'data-message-spacing-guide': '',
+        d: `M ${left} ${y} H ${x}
+          M ${x} ${before} V ${after}
+          M ${x - tick} ${before} h${2 * tick}
+          M ${x - tick} ${y} h${2 * tick}
+          M ${x - tick} ${after} h${2 * tick}`,
+        fill: 'none', stroke: RENDER_STYLE.reconnectTarget, 'stroke-dasharray': '4 3',
+        'pointer-events': 'none', 'vector-effect': 'non-scaling-stroke',
+      }, root);
+    }
+
     function render() {
       const d = dg();
-      const { drag, linking, marquee } = interactionState();
+      const { drag, linking, marquee, hoveredMessageId } = interactionState();
       runLayoutPasses(d);
 
       const root = buildCanvasRoot();
@@ -433,12 +481,17 @@ function createCanvasRendererModule() {
       });
       drawActivationBars(gRel);
       d.relations.forEach(r => drawRelation(gRel, r));
+      if (hoveredMessageId && !state.selection.includes(hoveredMessageId)) {
+        const hovered = relById(hoveredMessageId);
+        if (hovered) drawMessageSelection(el('g', { 'data-message-hover': hovered.id }, gSel), hovered, false);
+      }
       drawSelection(gSel);
 
       if (linking) drawLinkingPreview(root, linking);
       if (marquee) drawMarquee(root, marquee);
       if (drag && drag.mode === 'erdcolumn' && drag.moved) drawColumnDropIndicator(root, drag);
       if (drag && drag.mode === 'endpoint') drawEndpointDragFeedback(root, drag);
+      if (drag?.mode === 'msgmove' && drag.guide) drawMessageSpacingGuide(root, drag);
 
       renderExplorer();
       renderStatus();
@@ -607,6 +660,33 @@ function createCanvasRendererModule() {
       });
     }
 
+    function drawMessageControls(g: SVGElement, relation: DiagramRelation, points: MessagePoints) {
+      const center = points.self
+        ? { x: points.startX + points.width / 2, y: points.y }
+        : { x: (points.p1.x + points.p2.x) / 2, y: (points.p1.y + points.p2.y) / 2 };
+      const scale = 1 / state.zoom;
+      const controls = [
+        { action: 'move', x: center.x, label: '메시지 높이 이동', cursor: 'ns-resize',
+          icon: 'M 0 -6 V 6 M -3 -3 L 0 -6 L 3 -3 M -3 3 L 0 6 L 3 3' },
+        { action: 'edit', x: center.x + 26 * scale, label: '메시지 이름 편집', cursor: 'pointer',
+          icon: 'M -6 5 L -5 1 L 3 -7 L 7 -3 L -1 5 Z M 1 -5 L 5 -1' },
+      ];
+      controls.forEach(({ action, x, label, cursor, icon }) => {
+        const button = el('g', {
+          transform: `translate(${x} ${center.y}) scale(${scale})`,
+          'data-message-action': action, 'data-message-id': relation.id,
+          'aria-label': label, role: action === 'edit' ? 'button' : 'img',
+          'pointer-events': 'all', cursor,
+        }, g);
+        el('title', {}, button).textContent = label;
+        el('rect', {
+          x: -11, y: -11, width: 22, height: 22, rx: 5,
+          fill: RENDER_STYLE.handleFill, stroke: RENDER_STYLE.accent,
+        }, button);
+        el('path', { d: icon, stroke: RENDER_STYLE.accent, fill: 'none', 'stroke-width': 1.4 }, button);
+      });
+    }
+
     function drawMessageSelection(g: SVGElement, r: DiagramRelation, showHandles = true) {
       if (isCommMsg(r.kind)) {
         const pts = communicationMessagePoints(r);
@@ -632,13 +712,8 @@ function createCanvasRendererModule() {
           }, g);
         } else {
           highlightLine(g, pts.p1, pts.p2);
-          if (!showHandles) return true;
-          const size = RENDER_STYLE.handleSize;
-          [pts.p1, pts.p2].forEach(p => el('rect', {
-            x: p.x - size / 2, y: p.y - size / 2, width: size, height: size,
-            fill: RENDER_STYLE.handleFill, stroke: RENDER_STYLE.accent, 'stroke-width': 1,
-          }, g));
         }
+        if (showHandles && state.tool === 'select') drawMessageControls(g, r, pts);
         return true;
       }
       return false;

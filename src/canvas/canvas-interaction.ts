@@ -1,18 +1,36 @@
 interface CanvasSelectionState { selectedId: string | null; selection: string[]; tool: string; zoom: number }
-interface CanvasLinking extends DiagramPoint { fromId: string; armed: boolean }
+interface CanvasLinking extends DiagramPoint { fromId: string; armed: boolean; message?: { y: number; targetId?: string } }
 interface CanvasMarquee { x0: number; y0: number; x1: number; y1: number }
 interface CanvasEndpointDrag { mode: 'endpoint'; rel: DiagramRelation; end: 'src' | 'dst'; hoverId?: string | null }
 interface CanvasColumnDrag { mode: 'erdcolumn'; entity: DiagramElement; fromIndex: number; targetIndex: number; start: DiagramPoint; moved: boolean }
+interface AxisDrag {
+  start: DiagramPoint;
+  moved: boolean;
+  axis?: DiagramMoveAxis;
+  previous?: DiagramPoint;
+  offset?: DiagramPoint;
+}
+interface MessageSpacingGuide { before: number; after: number; y: number }
+interface CanvasMessageDrag {
+  mode: 'msgmove';
+  rel: DiagramRelation;
+  startY: number;
+  originY: number;
+  peerRows: readonly number[];
+  guide?: MessageSpacingGuide;
+  moved: boolean;
+}
 type CanvasDrag = CanvasEndpointDrag | CanvasColumnDrag
+  | CanvasMessageDrag
+  | { mode: 'shiftselect'; id: string; start: DiagramPoint; begin(): void }
   | { mode: 'resize'; dir: string; el: DiagramElement; orig: DiagramBounds; start: DiagramPoint; origins: Map<string, DiagramPoint> }
-  | { mode: 'move'; el: DiagramElement; moved: boolean; offx: number; offy: number; start: DiagramPoint; origins: Map<string, DiagramPoint> }
+  | (AxisDrag & { mode: 'move'; el: DiagramElement; origins: Map<string, DiagramPoint> })
   | { mode: 'connectionpoint' | 'compositeport' | 'activityattachment'; el: DiagramElement; moved: boolean }
   | { mode: 'operanddivider'; fragment: DiagramElement; index: number; boundaries: number[]; minHeight: number; startY: number; moved: boolean }
-  | { mode: 'sequencemove'; start: DiagramPoint; moved: boolean; wholeDiagram: boolean; elements: (DiagramPoint & { view: DiagramElement })[]; messages: { view: DiagramRelation; y: number }[]; minX: number; minY: number }
-  | { mode: 'groupmove'; start: DiagramPoint; moved: boolean; els: { e: DiagramElement; ox: number; oy: number }[] }
+  | (AxisDrag & { mode: 'sequencemove'; wholeDiagram: boolean; elements: (DiagramPoint & { view: DiagramElement })[]; messages: { view: DiagramRelation; y: number }[]; minX: number; minY: number })
+  | (AxisDrag & { mode: 'groupmove'; els: { e: DiagramElement; ox: number; oy: number }[] })
   | { mode: 'marquee' }
-  | { mode: 'msgmove'; rel: DiagramRelation; moved: boolean }
-  | { mode: 'label'; rel: DiagramRelation; field: string; start: DiagramPoint; orig: LabelOffset; moved: boolean }
+  | (AxisDrag & { mode: 'label'; rel: DiagramRelation; field: string; orig: LabelOffset })
   | { mode: 'routepoint'; rel: DiagramRelation; index: number; moved: boolean }
   | { mode: 'relmove'; rel: DiagramRelation; start: DiagramPoint; origEp: DiagramEndpoints | null; origManualPoints: DiagramPoint[]; moved: boolean };
 
@@ -40,7 +58,7 @@ interface CanvasInteractionDependencies {
   byId(id?: string | null): DiagramElement | null | undefined;
   closeInlineEditor(): void;
   communicationConnectorAt(point: DiagramPoint): DiagramRelation | null | undefined;
-  completeLink(target: DiagramElement, point: DiagramPoint): void;
+  completeLink(target: DiagramElement, point: DiagramPoint): DiagramRelation | undefined;
   compositeRelationError: CanvasRelationRule;
   createCommunicationMessage(connector: DiagramRelation, kind: string): void;
   descendantViews(id: string): DiagramElement[];
@@ -57,13 +75,16 @@ interface CanvasInteractionDependencies {
   isInteractionMsg(kind: string): boolean;
   isMsg(kind?: string): boolean;
   isPortOwner(view: DiagramElement): boolean;
+  lifelineAt(point: DiagramPoint): DiagramElement | null;
   lblOff(relation: DiagramRelation, field: string): LabelOffset;
   markDirty(): void;
   measure(view: DiagramElement): ElementMeasurement;
   memberRowAt(view: DiagramElement, point: DiagramPoint): { kind: string; index: number; arr: readonly unknown[] } | null;
   moveErdColumnTo(view: DiagramElement, from: number, to: number): boolean;
-  moveViewTree(view: DiagramElement, dx: number, dy: number, origins: ReadonlyMap<string, DiagramPoint>): void;
+  moveViewTree(view: DiagramElement, dx: number, dy: number, origins: ReadonlyMap<string, DiagramPoint>, grid?: number, axis?: DiagramMoveAxis): void;
   msgPoints(relation: DiagramRelation): MessagePoints | null;
+  nearestSequenceMessage(point: DiagramPoint, tolerance: number): DiagramRelation | null;
+  openRelationQuickEdit(relation: DiagramRelation): boolean;
   packageRelationError: CanvasRelationRule;
   parametricRelationError: CanvasRelationRule;
   profileRelationError: CanvasRelationRule;
@@ -93,6 +114,37 @@ type CanvasInteractionFrame = ReturnType<ReturnType<CanvasInteractionApi['create
 
 function createCanvasInteractionModule() {
   'use strict';
+
+  const MESSAGE_PICK_RADIUS = 8;
+  const DRAG_THRESHOLD = 3;
+  const SPACING_SNAP_RADIUS = 6;
+
+  function dragOffset(drag: AxisDrag, point: DiagramPoint, shift: boolean) {
+    // Accumulate the allowed movement so toggling Shift does not jump to the pointer.
+    const previous = drag.previous ?? drag.start;
+    const dx = point.x - previous.x;
+    const dy = point.y - previous.y;
+    const offset = drag.offset ?? { x: 0, y: 0 };
+    if (!shift) drag.axis = undefined;
+    else if (!drag.axis && (dx || dy)) drag.axis = Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y';
+    drag.previous = point;
+    drag.offset = {
+      x: offset.x + (drag.axis === 'y' ? 0 : dx),
+      y: offset.y + (drag.axis === 'x' ? 0 : dy),
+    };
+    return drag.offset;
+  }
+
+  function spacingGuide(rows: readonly number[], y: number, tolerance: number): MessageSpacingGuide | undefined {
+    const afterIndex = rows.findIndex(row => row > y);
+    if (afterIndex <= 0) return;
+    const before = rows[afterIndex - 1];
+    const after = rows[afterIndex];
+    const middle = (before + after) / 2;
+    if (Math.abs(y - middle) <= Math.min(tolerance, (after - before) / 4)) {
+      return { before, after, y: middle };
+    }
+  }
 
   function canvasPoint(event: Pick<MouseEvent, 'clientX' | 'clientY'>, svg: Pick<SVGSVGElement, 'getBoundingClientRect'>, zoom: number) {
     const rect = svg.getBoundingClientRect();
@@ -152,6 +204,7 @@ function createCanvasInteractionModule() {
     'isInteractionMsg',
     'isMsg',
     'isPortOwner',
+    'lifelineAt',
     'lblOff',
     'markDirty',
     'measure',
@@ -159,6 +212,8 @@ function createCanvasInteractionModule() {
     'moveErdColumnTo',
     'moveViewTree',
     'msgPoints',
+    'nearestSequenceMessage',
+    'openRelationQuickEdit',
     'packageRelationError',
     'parametricRelationError',
     'profileRelationError',
@@ -233,6 +288,7 @@ function createCanvasInteractionModule() {
       isInteractionMsg,
       isMsg,
       isPortOwner,
+      lifelineAt,
       lblOff,
       markDirty,
       measure,
@@ -240,6 +296,8 @@ function createCanvasInteractionModule() {
       moveErdColumnTo,
       moveViewTree,
       msgPoints,
+      nearestSequenceMessage,
+      openRelationQuickEdit,
       packageRelationError,
       parametricRelationError,
       profileRelationError,
@@ -287,6 +345,13 @@ function createCanvasInteractionModule() {
     let drag: CanvasDrag | null = null;
     let linking: CanvasLinking | null = null;
     let marquee: CanvasMarquee | null = null;
+    let hoveredMessageId: string | null = null;
+
+    function highlightMessage(id: string | null) {
+      if (hoveredMessageId === id) return;
+      hoveredMessageId = id;
+      scheduleRender();
+    }
 
     function beginSequenceMove(start: DiagramPoint) {
       const diagram = dg();
@@ -323,12 +388,112 @@ function createCanvasInteractionModule() {
       return canvasPoint(ev, svg, state.zoom);
     }
 
+    function selectRelation(relation: DiagramRelation) {
+      if (state.selectedId === relation.id) return;
+      setSelection([relation.id]);
+      render(); renderProps();
+    }
+
+    function beginElementMove(hitEl: DiagramElement, start: DiagramPoint) {
+      if (!state.selection.includes(hitEl.id)) {
+        setSelection([hitEl.id]);
+        render(); renderProps();
+      }
+      if (beginSequenceMove(start)) return;
+      if (state.selection.length > 1) {
+        /* group move: every selected element follows the drag */
+        const roots = rootViews(state.selection.map(byId).filter((view): view is DiagramElement => view != null));
+        const moving = [...new Map(roots.flatMap(root => [root, ...descendantViews(root.id)]).map(view => [view.id, view])).values()];
+        drag = {
+          mode: 'groupmove', start, moved: false,
+          els: moving.map(e => ({ e, ox: e.x, oy: e.y })),
+        };
+      } else {
+        if (hitEl.kind === 'region' || hitEl.kind === 'timingstate') { drag = null; return; }
+        if (hitEl.kind === 'connectionpointref') {
+          drag = { mode: 'connectionpoint', el: hitEl, moved: false };
+          return;
+        }
+        if (hitEl.kind === 'port' || hitEl.kind === 'constraintparameter') {
+          drag = { mode: 'compositeport', el: hitEl, moved: false };
+          return;
+        }
+        if (ACTIVITY_PIN_KINDS.has(hitEl.kind)) {
+          drag = { mode: 'activityattachment', el: hitEl, moved: false };
+          return;
+        }
+        const tree = [hitEl, ...descendantViews(hitEl.id)];
+        drag = {
+          mode: 'move', el: hitEl, moved: false,
+          start, origins: new Map(tree.map(view => [view.id, { x: view.x, y: view.y }])),
+        };
+      }
+    }
+
+    function beginLabelMove(rel: DiagramRelation, field: string, start: DiagramPoint) {
+      drag = { mode: 'label', rel, field, start, orig: { ...lblOff(rel, field) }, moved: false };
+    }
+
+    function beginMessageMove(rel: DiagramRelation, start: DiagramPoint) {
+      if (rel.y === undefined) return;
+      const rows = new Set<number>();
+      for (const peer of dg().relations) {
+        if (peer.id === rel.id || !isMsg(peer.kind) || peer.y === undefined) continue;
+        if ([peer.from, peer.to].includes(rel.from) || [peer.from, peer.to].includes(rel.to)) rows.add(peer.y);
+      }
+      drag = { mode: 'msgmove', rel, startY: start.y, originY: rel.y, peerRows: [...rows].sort((a, b) => a - b), moved: false };
+    }
+
+    function startDrag(id: string, start: DiagramPoint, shift: boolean, begin: () => void) {
+      // Decide between extending the selection and axis-constrained dragging once the pointer moves.
+      if (shift) drag = { mode: 'shiftselect', id, start, begin };
+      else begin();
+    }
+
+    function messageNear(point: DiagramPoint, element?: DiagramElement | null) {
+      if (state.tool !== 'select' || dg().type !== 'sequence') return null;
+      const hit = element === undefined ? elementAt(point) : element;
+      if (hit && hit.kind !== 'lifeline') return null;
+      return nearestSequenceMessage(point, MESSAGE_PICK_RADIUS / state.zoom);
+    }
+
+    function updateLink(link: CanvasLinking, point: DiagramPoint) {
+      link.x = point.x;
+      link.y = point.y;
+      if (isMsg(state.tool)) {
+        link.message = {
+          y: Math.max(sequenceMessageMinY(dg()), snap(point.y)),
+          targetId: lifelineAt(point)?.id,
+        };
+      }
+    }
+
+    function finishLinkAt(target: DiagramElement, point: DiagramPoint, event: MouseEvent) {
+      const relation = completeLink(target, point);
+      if (relation && isMsg(relation.kind)) {
+        event.preventDefault();
+        openRelationQuickEdit(relation);
+      }
+    }
+
     function handleMouseDown(ev: MouseEvent) {
     if (ev.button !== 0) return;
     closeInlineEditor();
     const p = svgPoint(ev);
 
     const target = ev.target as Element | null;
+    const messageControl = target?.closest?.('[data-message-action]');
+    if (state.tool === 'select' && messageControl) {
+      const relation = relById(messageControl.getAttribute('data-message-id'));
+      if (relation && isMsg(relation.kind)) {
+        ev.preventDefault();
+        highlightMessage(null);
+        if (messageControl.getAttribute('data-message-action') === 'edit' || ev.detail >= 2) openRelationQuickEdit(relation);
+        else beginMessageMove(relation, p);
+        return;
+      }
+    }
+    highlightMessage(null);
     const divider = target?.getAttribute?.('data-operand-divider');
     if (state.tool === 'select' && divider != null) {
       const fragment = byId(target?.getAttribute('data-fragment-id'));
@@ -438,15 +603,17 @@ function createCanvasInteractionModule() {
 
     /* relation creation */
     if (REL_STYLE[tool]) {
-      if (linking && linking.armed && hitEl) {
-        const self = hitEl.id === linking.fromId;
+      const endpoint = isMsg(tool) ? lifelineAt(p) : hitEl;
+      if (linking && linking.armed && endpoint) {
+        const self = endpoint.id === linking.fromId;
         if (!self || tool === 'msg-sync' || tool === 'msg-async' || tool === 'transition' || tool === 'commconnector') {
-          completeLink(hitEl, p);
+          finishLinkAt(endpoint, p, ev);
           return;
         }
       }
-      if (hitEl) {
-        linking = { fromId: hitEl.id, x: p.x, y: p.y, armed: false };
+      if (endpoint) {
+        linking = { fromId: endpoint.id, x: p.x, y: p.y, armed: false };
+        updateLink(linking, p);
         render();
       }
       return;
@@ -468,60 +635,26 @@ function createCanvasInteractionModule() {
       }
     }
 
-    /* select / move */
-    if (hitEl) {
-      if (ev.shiftKey) {
-        toggleSelection(hitEl.id);
-        return;
-      }
-      if (!state.selection.includes(hitEl.id)) {
-        setSelection([hitEl.id]);
-        render(); renderProps();
-      }
-      if (beginSequenceMove(p)) return;
-      if (state.selection.length > 1) {
-        /* group move: every selected element follows the drag */
-        const roots = rootViews(state.selection.map(byId).filter((view): view is DiagramElement => view != null));
-        const moving = [...new Map(roots.flatMap(root => [root, ...descendantViews(root.id)]).map(view => [view.id, view])).values()];
-        drag = {
-          mode: 'groupmove', start: p, moved: false,
-          els: moving.map(e => ({ e, ox: e.x, oy: e.y })),
-        };
-      } else {
-        if (hitEl.kind === 'region' || hitEl.kind === 'timingstate') { drag = null; return; }
-        if (hitEl.kind === 'connectionpointref') {
-          drag = { mode: 'connectionpoint', el: hitEl, moved: false };
-          return;
-        }
-        if (hitEl.kind === 'port' || hitEl.kind === 'constraintparameter') {
-          drag = { mode: 'compositeport', el: hitEl, moved: false };
-          return;
-        }
-        if (ACTIVITY_PIN_KINDS.has(hitEl.kind)) {
-          drag = { mode: 'activityattachment', el: hitEl, moved: false };
-          return;
-        }
-        const tree = [hitEl, ...descendantViews(hitEl.id)];
-        drag = {
-          mode: 'move', el: hitEl, moved: false, offx: p.x - hitEl.x, offy: p.y - hitEl.y,
-          start: p, origins: new Map(tree.map(view => [view.id, { x: view.x, y: view.y }])),
-        };
-      }
+    const message = messageNear(p, hitEl);
+    if (hitEl && !message) {
+      startDrag(hitEl.id, p, ev.shiftKey, () => beginElementMove(hitEl, p));
       return;
     }
     const labelHit = relationLabelAt(p);
-    const hitRel = labelHit ? labelHit.r : relationAt(p);
+    const hitRel = labelHit?.r ?? message ?? relationAt(p);
     if (hitRel) {
       if (isMsg(hitRel.kind)) {
-        if (ev.shiftKey) { toggleSelection(hitRel.id); return; }
-        if (state.selection.includes(hitRel.id) && beginSequenceMove(p)) return;
+        startDrag(hitRel.id, p, ev.shiftKey, () => {
+          if (state.selection.includes(hitRel.id) && (!labelHit || !ev.shiftKey) && beginSequenceMove(p)) return;
+          selectRelation(hitRel);
+          if (labelHit) beginLabelMove(hitRel, labelHit.field, p);
+          else beginMessageMove(hitRel, p);
+        });
+        return;
       }
-      if (state.selectedId !== hitRel.id) { setSelection([hitRel.id]); render(); renderProps(); }
+      selectRelation(hitRel);
       if (labelHit) {
-        /* drag the label itself to reposition it */
-        drag = { mode: 'label', rel: hitRel, field: labelHit.field, start: p, orig: { ...lblOff(hitRel, labelHit.field) }, moved: false };
-      } else if (isMsg(hitRel.kind)) {
-        drag = { mode: 'msgmove', rel: hitRel, moved: false };
+        beginLabelMove(hitRel, labelHit.field, p);
       } else if (isCommMsg(hitRel.kind)) {
         drag = null; // Communication Message 위치는 소유 Connector와 순서로 자동 배치된다.
       } else {
@@ -591,8 +724,19 @@ function createCanvasInteractionModule() {
 
     function handleMouseMove(ev: MouseEvent) {
     const p = svgPoint(ev);
-    if (linking) { linking.x = p.x; linking.y = p.y; scheduleRender(); return; }
-    if (!drag) return;
+    if (linking) { updateLink(linking, p); scheduleRender(); return; }
+    if (drag?.mode === 'shiftselect') {
+      if (Math.hypot(p.x - drag.start.x, p.y - drag.start.y) * state.zoom < DRAG_THRESHOLD) return;
+      const { begin } = drag;
+      drag = null;
+      begin();
+    }
+    if (!drag) {
+      const onCanvas = svg.firstElementChild && ev.target instanceof Node && svg.contains(ev.target);
+      const next = onCanvas ? messageNear(p) : null;
+      highlightMessage(next?.id ?? null);
+      return;
+    }
     if (drag.mode === 'erdcolumn') {
       const dx = p.x - drag.start.x, dy = p.y - drag.start.y;
       if (!drag.moved && Math.hypot(dx, dy) < 4) return;
@@ -606,12 +750,14 @@ function createCanvasInteractionModule() {
         Math.floor((p.y - bodyTop) / metrics.RH)));
       scheduleRender();
     } else if (drag.mode === 'move') {
-      if (!drag.moved) { snapshot(); drag.moved = true; }
+      if (!drag.moved && Math.hypot(p.x - drag.start.x, p.y - drag.start.y) * state.zoom < DRAG_THRESHOLD) return;
       const origin = drag.origins.get(drag.el.id);
       if (!origin) return;
-      const targetX = snap(p.x - drag.offx);
-      const targetY = snap(p.y - drag.offy);
-      moveViewTree(drag.el, targetX - origin.x, targetY - origin.y, drag.origins);
+      if (!drag.moved) { snapshot(); drag.moved = true; }
+      const { x, y } = dragOffset(drag, p, ev.shiftKey);
+      const dx = snap(origin.x + x) - origin.x;
+      const dy = snap(origin.y + y) - origin.y;
+      moveViewTree(drag.el, dx, dy, drag.origins, undefined, drag.axis);
       scheduleRender();
     } else if (drag.mode === 'connectionpoint') {
       const owner = byId(drag.el.parentId);
@@ -644,8 +790,9 @@ function createCanvasInteractionModule() {
         .map((boundary, offset) => ((offset + 1 === index ? y : boundary) - top) / height);
       scheduleRender();
     } else if (drag.mode === 'sequencemove') {
-      const dx = drag.wholeDiagram ? Math.max(-drag.minX, snap(p.x - drag.start.x)) : 0;
-      const dy = Math.max(-drag.minY, snap(p.y - drag.start.y));
+      const offset = dragOffset(drag, p, ev.shiftKey && drag.wholeDiagram);
+      const dx = drag.wholeDiagram ? Math.max(-drag.minX, snap(offset.x)) : 0;
+      const dy = Math.max(-drag.minY, snap(offset.y));
       if (!drag.moved && !dx && !dy) return;
       if (!drag.moved) { snapshot(); drag.moved = true; }
       drag.elements.forEach(({ view, x, y }) => {
@@ -656,10 +803,11 @@ function createCanvasInteractionModule() {
       scheduleRender();
     } else if (drag.mode === 'groupmove') {
       if (!drag.moved) { snapshot(); drag.moved = true; }
-      const dx = p.x - drag.start.x, dy = p.y - drag.start.y;
+      const { x, y } = dragOffset(drag, p, ev.shiftKey);
+      const { axis } = drag;
       drag.els.forEach(({ e, ox, oy }) => {
-        e.x = snap(ox + dx);
-        e.y = dg().type === 'sequence' && e.kind === 'lifeline' ? oy : snap(oy + dy);
+        if (axis !== 'y') e.x = snap(ox + x);
+        if (axis !== 'x' && !(dg().type === 'sequence' && e.kind === 'lifeline')) e.y = snap(oy + y);
       });
       scheduleRender();
     } else if (drag.mode === 'marquee' && marquee) {
@@ -667,14 +815,23 @@ function createCanvasInteractionModule() {
       setSelection(marqueeHits(marquee));   // 드래그 중 실시간 선택
       scheduleRender();
     } else if (drag.mode === 'msgmove') {
+      const offset = p.y - drag.startY;
+      if (!drag.moved && Math.abs(offset) * state.zoom < DRAG_THRESHOLD) return;
+      const minimum = sequenceMessageMinY(dg());
+      const targetY = Math.max(minimum, drag.originY + offset);
+      drag.guide = spacingGuide(drag.peerRows, targetY, SPACING_SNAP_RADIUS / state.zoom);
+      const y = drag.guide?.y ?? Math.max(minimum, snap(targetY));
+      if (!drag.moved && y === drag.originY) { scheduleRender(); return; }
       if (!drag.moved) { snapshot(); drag.moved = true; }
-      drag.rel.y = Math.max(sequenceMessageMinY(dg()), snap(p.y));
+      drag.rel.y = y;
       scheduleRender();
     } else if (drag.mode === 'label') {
+      if (!drag.moved && Math.hypot(p.x - drag.start.x, p.y - drag.start.y) * state.zoom < DRAG_THRESHOLD) return;
       if (!drag.moved) { snapshot(); drag.moved = true; }
+      const { x, y } = dragOffset(drag, p, ev.shiftKey);
       const r = drag.rel;
       r.lblOff = r.lblOff || {};
-      r.lblOff[drag.field] = { dx: drag.orig.dx + (p.x - drag.start.x), dy: drag.orig.dy + (p.y - drag.start.y) };
+      r.lblOff[drag.field] = { dx: drag.orig.dx + x, dy: drag.orig.dy + y };
       scheduleRender();
     } else if (drag.mode === 'routepoint') {
       const waypoints = bindingWaypoints(drag.rel);
@@ -752,10 +909,16 @@ function createCanvasInteractionModule() {
     function handleMouseUp(ev: MouseEvent) {
     if (linking) {
       const p = svgPoint(ev);
-      const target = elementAt(p);
-      if (target && target.id !== linking.fromId) completeLink(target, p);
+      const target = isMsg(state.tool) ? lifelineAt(p) : elementAt(p);
+      if (target && target.id !== linking.fromId) finishLinkAt(target, p, ev);
       else if (target) { linking.armed = true; }       // click-click mode
       else { linking = null; render(); }
+      return;
+    }
+    if (drag?.mode === 'shiftselect') {
+      const { id } = drag;
+      drag = null;
+      toggleSelection(id);
       return;
     }
     if (drag && drag.mode === 'marquee') {
@@ -764,13 +927,15 @@ function createCanvasInteractionModule() {
       render(); renderProps();
       return;
     }
-    if (drag?.mode === 'sequencemove' || drag?.mode === 'operanddivider') {
+    if (drag?.mode === 'sequencemove' || drag?.mode === 'operanddivider'
+      || drag?.mode === 'msgmove' || drag?.mode === 'label' || drag?.mode === 'groupmove') {
       const moved = drag.moved;
+      const hasGuide = drag.mode === 'msgmove' && drag.guide;
       drag = null;
       if (moved) {
         markDirty();
         render(); renderProps();
-      }
+      } else if (hasGuide) scheduleRender();
       return;
     }
     if (drag && drag.mode === 'erdcolumn') {
@@ -842,6 +1007,7 @@ function createCanvasInteractionModule() {
         attachToParametricContainer(drag.el);
         attachToActivityContainer(drag.el);
         attachToPackageContainer(drag.el);
+        markDirty();
       }
       drag = null;
       render(); renderProps();
@@ -878,13 +1044,14 @@ function createCanvasInteractionModule() {
     return Object.freeze({
       attach,
       detach,
-      state: () => ({ drag, linking, marquee }),
+      state: () => ({ drag, linking, marquee, hoveredMessageId }),
       getLinking: () => linking,
       setLinking(value: CanvasLinking | null) { linking = value; },
       cancel() {
         drag = null;
         linking = null;
         marquee = null;
+        hoveredMessageId = null;
       },
     });
   }
