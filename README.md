@@ -29,16 +29,23 @@ See the [package README](packages/ddl-to-mermaid/README.md) for API usage.
 
 ### Run the browser editor locally
 
-You need Node.js 24 or later and Python 3.12 or later.
+You need Node.js 24 or later and Python 3.12 or later. Set up the editor once.
 
 ```bash
 git clone https://github.com/MSbtff/uml-studio.git
 cd uml-studio
 npm ci
+```
+
+From the `uml-studio` directory, run this each time you want to open the editor.
+
+```bash
 npm start
 ```
 
-Open [http://127.0.0.1:8000](http://127.0.0.1:8000). `npm start` builds the TypeScript editor and starts the local Python server. The first launch creates a sample project. Browse its diagram tabs or choose **Projects** to create a blank project.
+`npm start` builds the TypeScript editor, starts the local Python server, and opens the editor in your default browser. You can also visit [http://127.0.0.1:8000](http://127.0.0.1:8000). To start the server without opening a browser, run `npm start -- --no-open-browser`.
+
+The first launch creates a sample project. Browse its diagram tabs or choose **Projects** to create a blank project.
 
 Project changes are automatically saved to `uml-studio.db` in the repository root. Once the editor is built, you can run the server directly with a different port or database path.
 
