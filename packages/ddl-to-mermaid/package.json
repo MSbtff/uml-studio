@@ -3,6 +3,11 @@
   "version": "0.1.0",
   "license": "MIT",
   "description": "Convert CREATE TABLE SQL into an ERD model and Mermaid source",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MSbtff/uml-studio.git",
+    "directory": "packages/ddl-to-mermaid"
+  },
   "type": "commonjs",
   "main": "./dist/index.cjs",
   "exports": {

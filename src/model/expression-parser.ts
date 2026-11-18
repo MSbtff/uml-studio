@@ -1,6 +1,6 @@
 'use strict';
 
-/* StarUML-compatible QuickEdit expression parser/normalizer. */
+/* Parser and normalizer for QuickEdit expressions. */
 type ExpressionParserApi = ReturnType<typeof createExpressionParser>;
 declare var UMLExpressionParser: ExpressionParserApi;
 

@@ -1,7 +1,7 @@
 'use strict';
 
 /*
- * Safe parser for StarUML-style stereotype icon scripts.
+ * Safe parser for stereotype icon scripts.
  *
  * The language is intentionally data-only: commands are normalized into a
  * bounded drawing list and are never evaluated as JavaScript.

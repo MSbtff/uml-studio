@@ -1057,7 +1057,7 @@ function createElementRendererModule() {
     }
     case 'entity': {
       if (!m.cols) return;
-      /* eXERD-style entity: dark-red header, explicit PK/FK badges, aligned columns */
+      /* Entity layout with a table header, PK/FK badges, and aligned columns. */
       el('rect', { x: e.x, y: e.y, width: e.w, height: e.h, fill: '#ffffff', stroke: ERD_HEADER, 'stroke-width': 1.2, ...SHADOW }, g);
       el('rect', { x: e.x, y: e.y, width: e.w, height: m.headH, fill: ERD_HEADER, stroke: ERD_HEADER, 'stroke-width': 1.2 }, g);
       text(g, m.primaryTitle, e.x + 8, e.y + 16, { bold: true, size: 12.5, color: '#ffffff' });

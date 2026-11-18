@@ -1,7 +1,7 @@
 'use strict';
 
 /* ═══════════════════════════════════════════════════════════════
-   UML Studio V7 Professional — StarUML-style diagram editor
+   UML Studio V7 Professional — web diagram editor
    UML 2.5: Class · Use Case · Activity · Sequence · Component ·
    Deployment · State Machine · Package · Profile · Interaction Overview ·
    Information Flow · SysML Requirement · SysML Block Definition ·
@@ -103,7 +103,7 @@ const {
 const EXEC_WIDTH = 12;
 const EXEC_NEST_OFFSET = 8;
 
-/* StarUML-like visual constants */
+/* Canvas drawing constants */
 const FILL_DEFAULT = '#fffbd8';
 const STROKE = '#3d3a2e';
 const TEXT_COLOR = '#1c1c1c';
@@ -527,7 +527,7 @@ register(relationRules);
 const relationCreation = UMLRelationCreation.create(provide(UMLRelationCreation));
 register(relationCreation);
 
-/* ── ERD logical / physical model (eXERD-style) ────────────── */
+/* ── ERD logical / physical model ────────────────────────── */
 const ERD_VIEW_MODES = [
   ['physical', '물리만'], ['logical', '논리만'], ['both', '논리 + 물리'],
 ] as const;
@@ -563,7 +563,7 @@ register({
   lockBindingRoute, syncConstraintParameters, unlockBindingRoute,
 });
 
-/* eXERD-style palette */
+/* ERD relationship cardinality */
 function erdRelationCardinality(r: DiagramRelation, end: RelationEnd) {
   const field = end === 'source' ? 'sourceLabel' : 'targetLabel';
   return normalizeErdCardinality(r[field], erdDefaultCardinality(r.kind, end));

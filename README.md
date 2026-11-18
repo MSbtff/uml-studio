@@ -210,7 +210,10 @@ UML 검증을 통과하는지도 한 번에 확인합니다. 실패 시 `test-re
 
 ## 라이선스와 참고 자료
 
-UML Studio와 DDL 변환 라이브러리는 [MIT 라이선스](LICENSE)로 제공됩니다.
+UML Studio는 MSbtff가 관리하는 독립 프로젝트입니다. 편집기와 DDL 변환 라이브러리는 [MIT 라이선스](LICENSE)로 제공됩니다.
 
-- QuickEdit 표현식 문법은 [StarUML Class Diagram 문서](https://docs.staruml.io/working-with-uml-diagrams/class-diagram/)를 참고할 수 있습니다.
-- 스테레오타입 아이콘의 그리기 명령은 [StarUML Icon Script 문서](https://docs.staruml.io/working-with-uml-diagrams/profile-diagram/#icon-script)에 설명되어 있습니다. 내장 Entity·Service 예제는 이 저장소에서 정의한 도형을 사용합니다.
+편집기의 QuickEdit 표현식과 스테레오타입 아이콘 명령을 구현할 때 아래 공개 문서의 구문을 참고했습니다.
+내장 Entity·Service 아이콘 예제의 도형은 이 저장소에서 정의합니다.
+
+- QuickEdit의 클래스, 속성, 연산 표현식. [StarUML Class Diagram 문서](https://docs.staruml.io/working-with-uml-diagrams/class-diagram/)
+- 스테레오타입 아이콘의 그리기 명령. [StarUML Icon Script 문서](https://docs.staruml.io/working-with-uml-diagrams/profile-diagram/#icon-script)
