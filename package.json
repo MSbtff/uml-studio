@@ -14,6 +14,7 @@
     "typecheck": "tsc --project tsconfig.json --noEmit && tsc --project packages/ddl-to-mermaid/tsconfig.json --noEmit",
     "check": "npm run lint && npm run format:check && npm run typecheck && npm run test:coverage && npm run test:server",
     "lint": "npm run lint:js && npm run lint:py",
+    "lint:commits": "commitlint --strict",
     "prelint:js": "npm run build",
     "lint:js": "eslint . --max-warnings=0",
     "lint:py": "ruff check server.py tests",
@@ -37,7 +38,15 @@
     "pretest:e2e:stability": "npm run build",
     "test:e2e:stability": "playwright test --repeat-each=3"
   },
+  "commitlint": {
+    "extends": [
+      "@commitlint/config-conventional"
+    ],
+    "defaultIgnores": false
+  },
   "devDependencies": {
+    "@commitlint/cli": "21.2.4",
+    "@commitlint/config-conventional": "21.2.4",
     "@eslint/js": "10.0.1",
     "@playwright/test": "1.62.1",
     "@types/node": "24.19.2",
