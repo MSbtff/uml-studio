@@ -8,12 +8,14 @@ import json
 import re
 import sqlite3
 import time
+import webbrowser
 from collections.abc import Iterator
 from contextlib import closing, contextmanager
 from functools import partial
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from threading import Thread
 from urllib.parse import unquote, urlparse
 
 ROOT = Path(__file__).resolve().parent
@@ -580,18 +582,32 @@ def create_server(
     return UMLStudioServer((host, port), db_path, directory, handler_class)
 
 
+def open_editor_in_browser(url: str) -> None:
+    try:
+        if webbrowser.open(url, new=2):
+            return
+    except (OSError, webbrowser.Error):
+        pass
+    print(f"Open {url} in your browser.", flush=True)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run UML Studio with SQLite autosave")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--db", type=Path, default=ROOT / "uml-studio.db")
+    parser.add_argument("--open-browser", action=argparse.BooleanOptionalAction, default=False)
     args = parser.parse_args()
     db_path = args.db.expanduser().resolve()
     server = create_server(args.host, args.port, db_path)
-    print(f"UML Studio: http://{args.host}:{args.port}")
+    browser_host = "127.0.0.1" if args.host in ("", "0.0.0.0") else args.host
+    url = f"http://{browser_host}:{server.server_port}"
+    print(f"UML Studio: {url}")
     print(f"SQLite DB: {db_path}")
-    print(f"SQLite journal: {server.journal_mode}")
+    print(f"SQLite journal: {server.journal_mode}", flush=True)
     try:
+        if args.open_browser:
+            Thread(target=open_editor_in_browser, args=(url,), daemon=True).start()
         server.serve_forever()
     except KeyboardInterrupt:
         pass
