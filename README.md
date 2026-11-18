@@ -55,7 +55,15 @@ _An online store schema imported from SQL and exported as an ER diagram._
 - Imports warn about `MATCH`, `DEFERRABLE`, database-specific index options, and references to tables outside the input. Composite foreign keys, expression indexes, `ALTER TABLE`, and `CREATE TABLE AS` stop the import with an error.
 - Model Explorer searches logical and physical names of entities and columns. Use the ERD name tool (**ERD 이름**) beside the search box to preview a project-wide rename. Renames update affected FK, `CHECK`, and index references across diagrams. An FK column deletion previews affected relationships and clears their column bindings and referential actions. Undo restores the previous state.
 
-For Node.js scripts, use the [DDL-to-Mermaid package](packages/ddl-to-mermaid/README.md) to convert SQL into an ERD model and Mermaid source. The package includes a [sample schema and conversion example](packages/ddl-to-mermaid/examples).
+### DDL-to-Mermaid npm package
+
+Convert SQL DDL into an ERD model and Mermaid source from Node.js 24 or later. [View `uml-studio-ddl-to-mermaid@0.1.0` on npm](https://www.npmjs.com/package/uml-studio-ddl-to-mermaid/v/0.1.0).
+
+```bash
+npm install uml-studio-ddl-to-mermaid@0.1.0
+```
+
+See the [package README](packages/ddl-to-mermaid/README.md) for API usage and the [examples directory](packages/ddl-to-mermaid/examples) for a sample schema and conversion script.
 
 ## Projects and recovery
 
