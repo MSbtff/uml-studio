@@ -1475,7 +1475,7 @@ function createSampleDiagramsModule() {
     }
 
     function sampleMindmap() {
-      const root = NE({ kind: 'mindnode', name: 'UML Studio V7', x: 432, y: 264, fill: '#ffd9a0' });
+      const root = NE({ kind: 'mindnode', name: 'UML Studio', x: 432, y: 264, fill: '#ffd9a0' });
       const d1 = NE({ kind: 'mindnode', name: 'Diagrams', x: 216, y: 152, fill: '#d7e6f7' });
       const d2 = NE({ kind: 'mindnode', name: 'Editing', x: 216, y: 384, fill: '#dff0d8' });
       const d3 = NE({ kind: 'mindnode', name: 'Export', x: 688, y: 152, fill: '#fce4ec' });

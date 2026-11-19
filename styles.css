@@ -34,12 +34,6 @@ body {
   color: #fff; font-size: 13px; margin-right: 18px; letter-spacing: .2px;
   display: flex; align-items: center; gap: 4px;
 }
-#menubar .logo b { color: #6db3ff; }
-#menubar .edition {
-  font-style: normal; font-size: 9px; font-weight: 700; letter-spacing: 1px;
-  background: linear-gradient(135deg,#1a73e8,#7b46d3);
-  color: #fff; border-radius: 3px; padding: 2px 5px; margin-left: 6px;
-}
 #menubar .menu-list { display: flex; align-items: center; gap: 2px; }
 #menubar .menu {
   padding: 4px 9px; border-radius: 4px; cursor: pointer; font-size: 12px; outline: none;
