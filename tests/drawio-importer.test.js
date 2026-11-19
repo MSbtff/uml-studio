@@ -174,13 +174,37 @@ async function run() {
   const payload = zlib.deflateRawSync(Buffer.from(encodeURIComponent(graph), 'utf8')).toString('base64');
   const compressed = `<?xml version="1.0"?><mxfile><diagram id="compressed" name="Compressed" umlDiagramType="class">${payload}</diagram></mxfile>`;
   const importedCompressed = await importDrawio(compressed, {
-    inflateRaw: bytes => zlib.inflateRawSync(bytes),
     allowedElementKinds: ['class'], allowedRelationKinds: ['association'],
     resolveDiagramType: (_elements, _relations, requested) => requested,
   });
   assert.equal(importedCompressed.diagrams[0].name, 'Compressed');
   assert.equal(importedCompressed.diagrams[0].elements.length, 3);
   assert.equal(importedCompressed.models[importedCompressed.diagrams[0].relations[0].modelId].targetEndName, 'orders');
+
+  const halfLimitPage = Buffer.from(encodeURIComponent(graph).padEnd(5 * 1024 * 1024));
+  const threePages = `<mxfile>${[1, 2, 3].map(id => `<diagram id="page-${id}">AA==</diagram>`).join('')}</mxfile>`;
+  let openedStreams = 0;
+  let cancelledStreams = 0;
+  await assert.rejects(() => importDrawio(threePages, {
+    inflateRaw() {
+      const withinBudget = ++openedStreams <= 2;
+      let sent = false;
+      return new ReadableStream({
+        pull(controller) {
+          if (sent) {
+            controller.close();
+            return;
+          }
+          sent = true;
+          controller.enqueue(withinBudget ? halfLimitPage : Uint8Array.of(32));
+          if (withinBudget) controller.close();
+        },
+        cancel() { cancelledStreams += 1; },
+      }, { highWaterMark: 0 });
+    },
+  }), /10MB 제한을 초과/);
+  assert.equal(openedStreams, 3, 'two pages can consume the exact byte budget');
+  assert.equal(cancelledStreams, 1, 'reading stops as soon as the total exceeds the limit');
 
   const bare = await importDrawio(graph, {
     defaultDiagramName: 'Bare Graph',

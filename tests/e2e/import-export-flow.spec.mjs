@@ -1,8 +1,9 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { deflateRawSync } from 'node:zlib';
 import { installPackedDdlLibrary } from '../support/install-packed-ddl-library.js';
 import { test, expect } from './fixtures.mjs';
 import {
@@ -79,6 +80,29 @@ test('draw.io 가져오기 충돌을 미리 보고 기존 모델 재사용 정�
   expect(Object.values(saved.models).filter((model) => model.kind === 'class' && model.name === 'Style')).toHaveLength(
     1,
   );
+});
+
+test('압축된 draw.io 파일을 열고 요소를 가져온다', async ({ studioPage: page }) => {
+  await createEmptyProject(page);
+  const source = await readFile(DRAWIO_CONFLICT_FIXTURE, 'utf8');
+  const compressed = source.replace(/<mxGraphModel[\s\S]*?<\/mxGraphModel>/, (graph) =>
+    deflateRawSync(Buffer.from(encodeURIComponent(graph))).toString('base64'),
+  );
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Import draw.io', exact: true }).click();
+  await (
+    await chooser
+  ).setFiles({ name: 'compressed.drawio', mimeType: 'application/xml', buffer: Buffer.from(compressed) });
+
+  const preview = page.locator('#drawio-import-preview-modal');
+  await expect(preview).toBeVisible();
+  await preview
+    .locator('.project-dialog-footer')
+    .getByRole('button', { name: /Import/ })
+    .click();
+  await expect(preview).toBeHidden();
+  await expect(page.locator('#canvas')).toContainText('ImportedService');
+  await expect(canvasElements(page)).toHaveCount(3);
 });
 
 test('CREATE TABLE DDL을 미리 보고 의미적 FK가 있는 ERD로 가져온다', async ({ studioPage: page }) => {

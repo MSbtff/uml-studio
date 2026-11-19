@@ -24,7 +24,6 @@ from urllib.request import Request, urlopen
 from server import (
     MAX_BODY_BYTES,
     REVISION_LIMIT,
-    ROOT,
     UMLStudioHandler,
     create_server,
     database_journal_mode,
@@ -42,11 +41,16 @@ class StorageServerTestCase(unittest.TestCase):
         self.temporary_directory = tempfile.TemporaryDirectory(prefix="uml-studio-storage-test-")
         self.temp_root = Path(self.temporary_directory.name)
         self.db_path = self.temp_root / "isolated.db"
+        browser_build = self.temp_root / "dist" / "browser"
+        browser_build.mkdir(parents=True)
+        (self.temp_root / "index.html").write_text("<!doctype html><title>UML Studio</title>", encoding="utf-8")
+        (self.temp_root / "styles.css").touch()
+        (browser_build / "app.js").touch()
         self.server = create_server(
             "127.0.0.1",
             0,
             self.db_path,
-            directory=ROOT,
+            directory=self.temp_root,
             handler_class=QuietHandler,
         )
         host, port = self.server.server_address[:2]
@@ -132,6 +136,24 @@ class StorageServerTestCase(unittest.TestCase):
         self.assertEqual(health["journalMode"], database_journal_mode().lower())
         self.assertEqual(health["sqliteVersion"], sqlite3.sqlite_version)
         self.assertTrue(self.db_path.exists())
+
+    def test_disallows_http_access_to_private_storage_files(self) -> None:
+        sidecars = [f"{self.db_path.name}{suffix}" for suffix in ("-wal", "-shm", "-journal")]
+        for name in sidecars:
+            (self.temp_root / name).touch()
+
+        for name in [self.db_path.name, *sidecars]:
+            for method in ("GET", "HEAD"):
+                with self.subTest(name=name, method=method):
+                    request = Request(f"{self.base_url}/{name}", method=method)
+                    with self.assertRaises(HTTPError) as failure:
+                        urlopen(request, timeout=10)
+                    with failure.exception as response:
+                        self.assertEqual(response.code, HTTPStatus.NOT_FOUND)
+
+        for asset in ("/", "/styles.css?v=1", "/dist/browser/app.js"):
+            with self.subTest(asset=asset), urlopen(f"{self.base_url}{asset}", timeout=10) as response:
+                self.assertEqual(response.status, HTTPStatus.OK)
 
     def test_create_list_read_rename_delete_and_revision_cascade(self) -> None:
         project_id = "p-crud"

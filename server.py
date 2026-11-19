@@ -102,7 +102,7 @@ def initialize_database(path: Path) -> str:
     return journal_mode
 
 
-class UMLStudioHandler(SimpleHTTPRequestHandler):
+class EditorAssetHandler(SimpleHTTPRequestHandler):
     server_version = "UMLStudio/7"
     # The stdlib default is HTTP/1.0, which opens a new TCP connection for every
     # one of the ~60 scripts the page loads. Keep-alive cuts that burst to the
@@ -111,8 +111,32 @@ class UMLStudioHandler(SimpleHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
     def __init__(self, *args, directory: str | None = None, **kwargs):
-        super().__init__(*args, directory=str(directory or ROOT), **kwargs)
+        super().__init__(*args, directory=str(Path(directory or ROOT).resolve()), **kwargs)
 
+    def send_head(self):
+        # GET and HEAD both use this hook. Only resolve browser assets under the
+        # static root, including when a requested path is a symbolic link.
+        root = Path(self.directory)
+        requested = Path(self.translate_path(self.path))
+        if requested == root:
+            requested = root / "index.html"
+        try:
+            asset = requested.resolve(strict=True)
+            relative = asset.relative_to(root)
+        except (OSError, RuntimeError, ValueError):
+            self.send_error(HTTPStatus.NOT_FOUND)
+            return None
+
+        is_editor_asset = relative in (Path("index.html"), Path("styles.css")) or (
+            relative.is_relative_to("dist/browser") and relative.name.endswith((".js", ".js.map"))
+        )
+        if not is_editor_asset or asset == getattr(self.server, "db_path", None) or not asset.is_file():
+            self.send_error(HTTPStatus.NOT_FOUND)
+            return None
+        return super().send_head()
+
+
+class UMLStudioHandler(EditorAssetHandler):
     @property
     def db_path(self) -> Path:
         return self.server.db_path  # type: ignore[attr-defined]
@@ -597,14 +621,19 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--db", type=Path, default=ROOT / "uml-studio.db")
     parser.add_argument("--open-browser", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--static-only", action="store_true", help="serve editor assets without starting SQLite")
     args = parser.parse_args()
-    db_path = args.db.expanduser().resolve()
-    server = create_server(args.host, args.port, db_path)
+    server = (
+        ThreadingHTTPServer((args.host, args.port), EditorAssetHandler)
+        if args.static_only
+        else create_server(args.host, args.port, args.db)
+    )
     browser_host = "127.0.0.1" if args.host in ("", "0.0.0.0") else args.host
     url = f"http://{browser_host}:{server.server_port}"
-    print(f"UML Studio: {url}")
-    print(f"SQLite DB: {db_path}")
-    print(f"SQLite journal: {server.journal_mode}", flush=True)
+    print(f"UML Studio: {url}", flush=True)
+    if isinstance(server, UMLStudioServer):
+        print(f"SQLite DB: {server.db_path}")
+        print(f"SQLite journal: {server.journal_mode}", flush=True)
     try:
         if args.open_browser:
             Thread(target=open_editor_in_browser, args=(url,), daemon=True).start()
