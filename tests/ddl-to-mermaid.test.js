@@ -11,7 +11,7 @@ const { installPackedDdlLibrary } = require('./support/install-packed-ddl-librar
 test('the packed library converts SQL from a standalone project', (t) => {
   const work = mkdtempSync(join(tmpdir(), 'ddl-to-mermaid-'));
   t.after(() => rmSync(work, { recursive: true, force: true }));
-  const packed = installPackedDdlLibrary(work);
+  const packed = installPackedDdlLibrary(work, process.env.DDL_PACKAGE_OUTPUT_DIR);
   assert.deepEqual(packed.files.map(({ path }) => path).sort(), [
     'LICENSE',
     'README.md',
