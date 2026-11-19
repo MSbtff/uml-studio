@@ -111,11 +111,11 @@ The status bar announces canvas selection and scrolls off-screen selections into
 
 ### Components
 
-`src/app.ts` wires together canvas input, SVG rendering, project import and export, and persistence. The editor and the `uml-studio-ddl-to-mermaid` npm package share the DDL parser, model hydration, and exporters.
+`src/app.ts` wires together canvas input, SVG rendering, project import and export, and persistence.
 
-![Component diagram showing editor modules, shared conversion code, and the Python project storage API](docs/images/architecture-components.png)
+![Component diagram showing the browser editor modules and the Python project storage API](docs/images/architecture-components.png)
 
-_Editor modules, shared DDL conversion code, and the project storage API._
+_Editor modules and the project storage API._
 
 ### Deployment
 
