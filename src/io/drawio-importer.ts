@@ -29,12 +29,16 @@ function createDrawioImporter() {
   }
 
   interface DrawioOptions {
-    inflateRaw?: (bytes: Uint8Array) => Uint8Array | ArrayBuffer | Promise<Uint8Array | ArrayBuffer>;
+    inflateRaw?: (bytes: Uint8Array) => ReadableStream<Uint8Array>;
     projectName?: string;
     defaultDiagramName?: string;
     allowedElementKinds?: Iterable<string>;
     allowedRelationKinds?: Iterable<string>;
     resolveDiagramType?: (elements: DiagramModel[], relations: DiagramModel[], requestedType: string) => string;
+  }
+
+  interface InflationBudget {
+    remainingBytes: number;
   }
 
   interface ImportContext {
@@ -221,29 +225,59 @@ function createDrawioImporter() {
     return bytes;
   }
 
-  async function inflateRaw(bytes: Uint8Array<ArrayBuffer>, options?: DrawioOptions) {
-    if (typeof options?.inflateRaw === 'function') return options.inflateRaw(bytes);
-    if (typeof DecompressionStream !== 'undefined') {
-      const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
-      return new Uint8Array(await new Response(stream).arrayBuffer());
+  function inflateRaw(bytes: Uint8Array<ArrayBuffer>) {
+    if (typeof DecompressionStream === 'undefined') {
+      throw new Error(uiText(
+        'This browser cannot decompress draw.io files. Save the file as uncompressed XML.',
+        '이 브라우저는 압축 draw.io 파일 해제를 지원하지 않습니다. 비압축 XML로 저장해 주세요.',
+      ));
     }
-    throw new Error(uiText(
-      'This browser cannot decompress draw.io files. Save the file as uncompressed XML.',
-      '이 브라우저는 압축 draw.io 파일 해제를 지원하지 않습니다. 비압축 XML로 저장해 주세요.',
-    ));
+    // Bound the amount of compressed input consumed per transform call.
+    const chunkSize = 4 * 1024;
+    let offset = 0;
+    const compressed = new ReadableStream<Uint8Array<ArrayBuffer>>({
+      pull(controller) {
+        const end = Math.min(offset + chunkSize, bytes.length);
+        controller.enqueue(bytes.subarray(offset, end));
+        offset = end;
+        if (offset === bytes.length) controller.close();
+      },
+    });
+    return compressed.pipeThrough(new DecompressionStream('deflate-raw'));
   }
 
-  function bytesToText(bytes: Uint8Array | ArrayBuffer) {
-    return new TextDecoder('utf-8', { fatal: true }).decode(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes));
+  async function readInflatedText(stream: ReadableStream<Uint8Array>, budget: InflationBudget) {
+    const reader = stream.getReader();
+    const decoder = new TextDecoder('utf-8', { fatal: true });
+    let text = '';
+    try {
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) return text + decoder.decode();
+        budget.remainingBytes -= value.byteLength;
+        if (budget.remainingBytes < 0) {
+          throw new Error(uiText(
+            'The decompressed draw.io data exceeds the 10 MB limit.',
+            '압축 해제된 draw.io 데이터가 10MB 제한을 초과합니다.',
+          ));
+        }
+        text += decoder.decode(value, { stream: true });
+      }
+    } catch (error) {
+      await reader.cancel().catch(() => {});
+      throw error;
+    } finally {
+      reader.releaseLock();
+    }
   }
 
-  async function graphModelFromDiagram(diagram: XmlNode, options: DrawioOptions) {
+  async function graphModelFromDiagram(diagram: XmlNode, options: DrawioOptions, budget: InflationBudget) {
     const direct = child(diagram, 'mxGraphModel');
     if (direct) return direct;
     const payload = diagram.text.trim();
     if (!payload) throw new Error(uiText('The draw.io page is missing mxGraphModel.', 'draw.io 페이지에 mxGraphModel이 없습니다.'));
-    const inflated = await inflateRaw(decodeBase64(payload), options);
-    let encoded = bytesToText(inflated);
+    const stream = (options.inflateRaw ?? inflateRaw)(decodeBase64(payload));
+    let encoded = await readInflatedText(stream, budget);
     try { encoded = decodeURIComponent(encoded); }
     catch (_) { throw new Error(uiText('Invalid URL encoding in a compressed draw.io file.', '압축 draw.io URL 인코딩이 올바르지 않습니다.')); }
     const root = parseXml(encoded);
@@ -754,8 +788,9 @@ function createDrawioImporter() {
       usedModelIds: new Set(), usedViewIds: new Set(), usedDiagramIds: new Set(),
     };
     const diagrams = [];
+    const budget = { remainingBytes: MAX_XML_BYTES };
     for (let index = 0; index < pageNodes.length; index++) {
-      const graph = await graphModelFromDiagram(pageNodes[index], options);
+      const graph = await graphModelFromDiagram(pageNodes[index], options, budget);
       diagrams.push(diagramFromGraph(graph, pageNodes[index], context, options, index));
     }
     resolveReferences(context.models, context.originalModelMap);

@@ -55,7 +55,7 @@ Project changes are automatically saved to `uml-studio.db` in the repository roo
 python3 server.py --port 8080 --db /path/to/uml-studio.db
 ```
 
-For a static preview, run `npm run preview` and open [http://127.0.0.1:8765](http://127.0.0.1:8765). After `npm run build`, you can also serve the repository root with a static server or open `index.html` directly. The static editor uses IndexedDB and a browser recovery copy. Use the same browser profile and URL origin to reopen its saved projects.
+For a static preview, run `npm run preview` and open [http://127.0.0.1:8765](http://127.0.0.1:8765). After `npm run build`, you can also open `index.html` directly or serve `index.html`, `styles.css`, and `dist/browser/` from a separate static directory. The static editor uses IndexedDB and a browser recovery copy. Use the same browser profile and URL origin to reopen its saved projects.
 
 ## Diagrams and editing
 
