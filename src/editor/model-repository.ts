@@ -14,6 +14,9 @@ declare var UMLModelRepository: ModelRepositoryApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createModelRepositoryModule);
 
 function createModelRepositoryModule() {
+  const { text: uiText } = globalThis.UMLLanguage
+    ?? require('./language.js') as typeof UMLLanguage;
+
   const REQUIRED_FUNCTIONS = Object.freeze([
     'adoptView',
     'createElement',
@@ -215,12 +218,18 @@ function createModelRepositoryModule() {
     function hintText() {
       const type = dg().type;
       if (type === 'informationflow') {
-        return 'Class, Component, Actor 등 기존 모델을 Add View로 배치한 뒤 Information Flow의 송신·수신 주체로 사용하세요.';
+        return uiText(
+          'Use Add View to place a class, component, or actor as the sender or receiver of an information flow.',
+          'Class, Component, Actor 등 기존 모델을 Add View로 배치한 뒤 Information Flow의 송신·수신 주체로 사용하세요.',
+        );
       }
       if (type === 'requirement') {
-        return '기존 모델을 Add View로 배치한 뒤 Requirement에 Satisfy, Verify, Refine, Trace 관계로 연결하세요.';
+        return uiText(
+          'Use Add View to place a model, then connect it to a requirement with Satisfy, Verify, Refine, or Trace.',
+          '기존 모델을 Add View로 배치한 뒤 Requirement에 Satisfy, Verify, Refine, Trace 관계로 연결하세요.',
+        );
       }
-      return '같은 모델을 여러 다이어그램에 배치하면 이름과 속성이 함께 동기화됩니다.';
+      return uiText('Views of the same model share its name and properties.', '같은 모델을 여러 다이어그램에 배치하면 이름과 속성이 함께 동기화됩니다.');
     }
 
     /* place the model on the active diagram; composite states arrive with the
@@ -286,13 +295,13 @@ function createModelRepositoryModule() {
       header.className = 'model-repository-header';
       const title = document.createElement('strong'); title.textContent = 'Project Models';
       const closeButton = document.createElement('button'); closeButton.type = 'button'; closeButton.className = 'modal-close'; closeButton.textContent = '×';
-      closeButton.title = '닫기'; closeButton.setAttribute('aria-label', 'Project Models 닫기');
+      closeButton.title = uiText('Close', '닫기'); closeButton.setAttribute('aria-label', uiText('Close Project Models', 'Project Models 닫기'));
       header.append(title, closeButton);
       const search = document.createElement('input');
-      search.className = 'model-search'; search.type = 'search'; search.placeholder = '모델 이름 또는 종류 검색';
+      search.className = 'model-search'; search.type = 'search'; search.placeholder = uiText('Search by model name or type', '모델 이름 또는 종류 검색');
       /* the search box has no visible caption, so the placeholder is its only
          label — and a placeholder is not an accessible name */
-      search.setAttribute('aria-label', '모델 이름 또는 종류 검색');
+      search.setAttribute('aria-label', uiText('Search by model name or type', '모델 이름 또는 종류 검색'));
       const list = document.createElement('div'); list.className = 'model-repository-list';
       list.setAttribute('aria-live', 'polite');
       const hint = document.createElement('div');
@@ -305,11 +314,14 @@ function createModelRepositoryModule() {
         if (!models.length) {
           /* a `list` may only contain `listitem` children */
           list.removeAttribute('role'); list.removeAttribute('aria-label');
-          const empty = document.createElement('div'); empty.className = 'model-repository-empty'; empty.textContent = '일치하는 모델이 없습니다.';
+          const empty = document.createElement('div'); empty.className = 'model-repository-empty'; empty.textContent = uiText(
+            'No matching models.',
+            '일치하는 모델이 없습니다.',
+          );
           list.appendChild(empty); return;
         }
         list.setAttribute('role', 'list');
-        list.setAttribute('aria-label', `모델 ${models.length}개`);
+        list.setAttribute('aria-label', uiText('Models: {0}', '모델 {0}개', models.length));
         models.forEach(model => list.appendChild(buildRow(model, modal)));
       };
       search.addEventListener('input', renderList);

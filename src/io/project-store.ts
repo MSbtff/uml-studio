@@ -63,6 +63,9 @@ declare var UMLProjectStore: ProjectStoreApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createProjectStoreModule);
 
 function createProjectStoreModule() {
+  const { label: uiLabel, text: uiText, locale } = globalThis.UMLLanguage
+    ?? require('../editor/language.js') as typeof UMLLanguage;
+
   const REQUIRED_FUNCTIONS = Object.freeze([
     'cleanProjectName',
     'clearInterval',
@@ -180,7 +183,27 @@ function createProjectStoreModule() {
       autosaveTimer = setTimeout(() => saveRecoveryCopy(), delay);
     }
 
-    async function saveRecoveryCopy() {
+    let pendingRecovery: Promise<boolean> | null = null;
+
+    function saveRecoveryCopy() {
+      const previous = pendingRecovery;
+      const saving = (async () => {
+        if (previous) await previous;
+        return writeRecoveryCopy();
+      })();
+      pendingRecovery = saving;
+      const clear = () => { if (pendingRecovery === saving) pendingRecovery = null; };
+      void saving.then(clear, clear);
+      return saving;
+    }
+
+    async function flushRecovery() {
+      while (pendingRecovery) await pendingRecovery;
+      if (state.autosaveStatus === 'error') return false;
+      return recoveryDirty || autosaveTimer !== null ? saveRecoveryCopy() : true;
+    }
+
+    async function writeRecoveryCopy() {
       clearTimeout(autosaveTimer);
       autosaveTimer = null;
       if (!state.diagrams.length) return false;
@@ -189,7 +212,7 @@ function createProjectStoreModule() {
       try { json = serialize(); }
       catch (err) {
         state.autosaveStatus = 'error';
-        flashStatus(`자동저장 직렬화 실패: ${err instanceof Error ? err.message : String(err)}`);
+        flashStatus(uiText('Could not serialize the autosave: {0}', '자동저장 직렬화 실패: {0}', err instanceof Error ? err.message : String(err)));
         return false;
       }
 
@@ -210,7 +233,10 @@ function createProjectStoreModule() {
         recoveryDirty = false;
         renderStatus();
         if (!autosaveErrorShown) {
-          flashStatus('다른 탭에서 이 프로젝트가 변경되었습니다 · Project Manager에서 최신본을 확인하세요');
+          flashStatus(uiText(
+            'This project changed in another tab. Open the Project Manager to check the latest version.',
+            '다른 탭에서 이 프로젝트가 변경되었습니다 · Project Manager에서 최신본을 확인하세요',
+          ));
           autosaveErrorShown = true;
         }
         return false;
@@ -232,8 +258,11 @@ function createProjectStoreModule() {
         renderStatus();
         if (!autosaveErrorShown) {
           flashStatus(localSaved
-            ? 'IndexedDB 저장 실패 · 비상 복구본은 브라우저 저장소에 보관했습니다'
-            : '자동 복구 저장 실패: SQLite와 IndexedDB를 모두 사용할 수 없습니다');
+            ? uiText('IndexedDB save failed. A recovery copy is available in browser storage.', 'IndexedDB 저장 실패 · 비상 복구본은 브라우저 저장소에 보관했습니다')
+            : uiText(
+              'Could not save recovery data. SQLite and IndexedDB are both unavailable.',
+              '자동 복구 저장 실패: SQLite와 IndexedDB를 모두 사용할 수 없습니다',
+            ));
           autosaveErrorShown = true;
         }
         return localSaved;
@@ -283,7 +312,7 @@ function createProjectStoreModule() {
       const records = await projectRecords(projectId);
       const record = newestProjectRecord(records);
       if (!record) {
-        flashStatus('프로젝트 저장본을 찾을 수 없습니다');
+        flashStatus(uiText('No saved copy of this project was found.', '프로젝트 저장본을 찾을 수 없습니다'));
         return false;
       }
       const loaded = load(record.json, {
@@ -300,7 +329,7 @@ function createProjectStoreModule() {
       recoveryDirty = false;
       rememberActiveProject();
       renderAll();
-      flashStatus(`프로젝트를 열었습니다 · ${state.projectName}`);
+      flashStatus(uiText('Opened project · {0}', '프로젝트를 열었습니다 · {0}', state.projectName));
       if (!records.indexed || !records.sqlite || records.indexed.updatedAt !== records.sqlite.updatedAt) {
         recoveryDirty = true;
         scheduleRecoverySave(0);
@@ -309,7 +338,10 @@ function createProjectStoreModule() {
     }
 
     async function createNewProject(name = 'Untitled Project', requireConfirmation = true) {
-      if (requireConfirmation && !confirmAction('새 프로젝트를 만들까요? 현재 프로젝트는 자동저장 후 전환됩니다.')) return false;
+      if (requireConfirmation && !confirmAction(uiText(
+        'Create a new project? The current project will be autosaved before switching.',
+        '새 프로젝트를 만들까요? 현재 프로젝트는 자동저장 후 전환됩니다.',
+      ))) return false;
       if (state.projectId && state.diagrams.length) await saveRecoveryCopy();
       state.projectId = projectUid();
       state.projectName = cleanProjectName(name);
@@ -364,8 +396,11 @@ function createProjectStoreModule() {
       const dialog = document.createElement('div'); dialog.className = 'project-dialog';
       const header = document.createElement('div'); header.className = 'project-dialog-header';
       const title = document.createElement('strong'); title.textContent = titleText;
-      const close = document.createElement('button'); close.type = 'button'; close.className = 'modal-close'; close.textContent = '×'; close.title = '닫기';
-      close.setAttribute('aria-label', `${titleText} 닫기`);
+      const close = document.createElement('button'); close.type = 'button'; close.className = 'modal-close'; close.textContent = '×'; close.title = uiText(
+        'Close',
+        '닫기',
+      );
+      close.setAttribute('aria-label', uiText('Close {0}', '{0} 닫기', titleText));
       header.append(title, close); dialog.appendChild(header); overlay.appendChild(dialog); document.body.appendChild(overlay);
       const modal = modalFocus.activate({ overlay, dialog });
       close.addEventListener('click', () => modal.requestClose('close-button'));
@@ -376,16 +411,16 @@ function createProjectStoreModule() {
     }
 
     function openProjectRenameDialog(project: Pick<ProjectMetadata, 'id' | 'name'>, onRenamed?: () => void | Promise<void>) {
-      const { dialog, modal } = projectModal('Rename Project', 'project-rename-modal');
+      const { dialog, modal } = projectModal(uiLabel('Rename Project', '프로젝트 이름 변경'), 'project-rename-modal');
       const body = document.createElement('div'); body.className = 'project-rename-body';
-      const label = document.createElement('label'); label.textContent = '프로젝트 이름'; label.htmlFor = 'project-rename-input';
+      const label = document.createElement('label'); label.textContent = uiText('Project Name', '프로젝트 이름'); label.htmlFor = 'project-rename-input';
       const input = document.createElement('input'); input.id = 'project-rename-input'; input.className = 'project-name-input';
       input.type = 'text'; input.maxLength = 200; input.value = project.name || 'Untitled Project';
       const footer = document.createElement('div'); footer.className = 'project-dialog-footer';
-      const cancel = projectActionButton('취소', () => modal.close());
-      const save = projectActionButton('이름 변경', async () => {
+      const cancel = projectActionButton(uiText('Cancel', '취소'), () => modal.close());
+      const save = projectActionButton(uiText('Rename', '이름 변경'), async () => {
         const clean = cleanProjectName(input.value);
-        if (!input.value.trim()) { input.setCustomValidity('프로젝트 이름을 입력하세요.'); input.reportValidity(); return; }
+        if (!input.value.trim()) { input.setCustomValidity(uiText('Enter a project name.', '프로젝트 이름을 입력하세요.')); input.reportValidity(); return; }
         save.disabled = true;
         await Promise.allSettled([
           persistence.renameProject(project.id, clean),
@@ -408,23 +443,29 @@ function createProjectStoreModule() {
     }
 
     const formatProjectTime = (value: number) => value
-      ? new Date(Number(value)).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'medium' })
-      : '저장 시각 없음';
+      ? new Date(Number(value)).toLocaleString(locale, { dateStyle: 'short', timeStyle: 'medium' })
+      : uiText('No save time available', '저장 시각 없음');
     const formatBytes = (value: number) => Number(value) >= 1024 * 1024
       ? `${(Number(value) / 1024 / 1024).toFixed(1)} MB`
       : `${Math.max(0, Math.round(Number(value || 0) / 1024))} KB`;
 
     async function openProjectManager() {
-      const { overlay, dialog, header, modal } = projectModal('Project Manager', 'project-manager-modal');
-      const create = projectActionButton('새 프로젝트', async () => {
+      const { overlay, dialog, header, modal } = projectModal(uiLabel('Project Manager', '프로젝트 관리'), 'project-manager-modal');
+      const create = projectActionButton(uiText('New Project', '새 프로젝트'), async () => {
         await createNewProject('Untitled Project', false);
         modal.close();
       });
       create.classList.add('project-primary'); header.insertBefore(create, header.lastChild);
       modal.focusInitial(create);
       const hint = document.createElement('div'); hint.className = 'project-dialog-hint';
-      hint.textContent = 'SQLite와 브라우저 DB의 프로젝트를 통합 표시합니다. 현재 프로젝트는 삭제할 수 없습니다.';
-      const list = document.createElement('div'); list.className = 'project-list'; list.textContent = '프로젝트를 불러오는 중…';
+      hint.textContent = uiText(
+        'Shows projects saved in SQLite and browser storage. The active project is protected from deletion.',
+        'SQLite와 브라우저 DB의 프로젝트를 통합 표시합니다. 현재 프로젝트는 삭제할 수 없습니다.',
+      );
+      const list = document.createElement('div'); list.className = 'project-list'; list.textContent = uiText(
+        'Loading projects…',
+        '프로젝트를 불러오는 중…',
+      );
       list.setAttribute('aria-live', 'polite');
       dialog.append(hint, list);
 
@@ -432,25 +473,28 @@ function createProjectStoreModule() {
         const projects = await listStoredProjects();
         if (!overlay.isConnected) return;
         list.textContent = '';
-        markProjectList(list, projects.length > 0, `저장된 프로젝트 ${projects.length}개`);
+        markProjectList(list, projects.length > 0, uiText('Saved projects: {0}', '저장된 프로젝트 {0}개', projects.length));
         if (!projects.length) {
-          const empty = document.createElement('div'); empty.className = 'project-empty'; empty.textContent = '저장된 프로젝트가 없습니다.';
+          const empty = document.createElement('div'); empty.className = 'project-empty'; empty.textContent = uiText(
+            'No saved projects.',
+            '저장된 프로젝트가 없습니다.',
+          );
           list.appendChild(empty); return;
         }
         projects.forEach(project => {
           const row = document.createElement('div'); row.className = `project-row${project.id === state.projectId ? ' active' : ''}`;
           const info = document.createElement('div'); info.className = 'project-info';
           const name = document.createElement('div'); name.className = 'project-name';
-          name.textContent = `${project.name || 'Untitled Project'}${project.id === state.projectId ? ' · 현재' : ''}`;
+          name.textContent = `${project.name || 'Untitled Project'}${project.id === state.projectId ? uiText(' · Active', ' · 현재') : ''}`;
           const meta = document.createElement('div'); meta.className = 'project-meta';
           meta.textContent = `${formatProjectTime(project.updatedAt)} · r${project.revision || 0} · ${formatBytes(project.byteLength)} · ${project.backends.includes('sqlite') ? 'SQLite' : 'IndexedDB'}${project.backends.length > 1 ? '+IndexedDB' : ''}`;
           info.append(name, meta);
           const actions = document.createElement('div'); actions.className = 'project-actions';
           actions.append(
-            projectActionButton('열기', async () => { if (await openStoredProject(project.id)) modal.close(); }, project.id === state.projectId),
-            projectActionButton('복구', () => openRecoveryHistory(project.id)),
-            projectActionButton('이름', () => openProjectRenameDialog(project, renderList)),
-            projectActionButton('복제', async () => {
+            projectActionButton(uiText('Open', '열기'), async () => { if (await openStoredProject(project.id)) modal.close(); }, project.id === state.projectId),
+            projectActionButton(uiText('History', '복구'), () => openRecoveryHistory(project.id)),
+            projectActionButton(uiText('Rename', '이름'), () => openProjectRenameDialog(project, renderList)),
+            projectActionButton(uiText('Duplicate', '복제'), async () => {
               const records = await projectRecords(project.id); const source = newestProjectRecord(records);
               if (!source) return;
               const duplicateId = projectUid(); const duplicateName = `${source.name || 'Untitled Project'} Copy`;
@@ -462,8 +506,8 @@ function createProjectStoreModule() {
               ]);
               await renderList();
             }),
-            projectActionButton('삭제', async () => {
-              if (!confirmAction(`“${project.name}” 프로젝트와 복구 이력을 삭제할까요?`)) return;
+            projectActionButton(uiText('Delete', '삭제'), async () => {
+              if (!confirmAction(uiText('Delete the project “{0}” and its recovery history?', '“{0}” 프로젝트와 복구 이력을 삭제할까요?', project.name))) return;
               await Promise.allSettled([
                 persistence.deleteProject(project.id),
                 persistence.deleteServerProject(project.id),
@@ -481,10 +525,16 @@ function createProjectStoreModule() {
     async function openRecoveryHistory(projectId = state.projectId) {
       const projects = await listStoredProjects();
       const project = projects.find(item => item.id === projectId);
-      const { overlay, dialog, modal } = projectModal(`Recovery History · ${project?.name || state.projectName}`, 'recovery-history-modal');
+      const { overlay, dialog, modal } = projectModal(`${uiLabel('Recovery History', '복구 이력')} · ${project?.name || state.projectName}`, 'recovery-history-modal');
       const hint = document.createElement('div'); hint.className = 'project-dialog-hint';
-      hint.textContent = '최근 10개 스냅샷을 보관합니다. 복원 직전 현재 상태도 먼저 안전하게 저장합니다.';
-      const list = document.createElement('div'); list.className = 'project-list'; list.textContent = '복구 이력을 불러오는 중…';
+      hint.textContent = uiText(
+        'Keeps the ten most recent snapshots. The current project is saved before you restore a snapshot.',
+        '최근 10개 스냅샷을 보관합니다. 복원 직전 현재 상태도 먼저 안전하게 저장합니다.',
+      );
+      const list = document.createElement('div'); list.className = 'project-list'; list.textContent = uiText(
+        'Loading recovery history…',
+        '복구 이력을 불러오는 중…',
+      );
       list.setAttribute('aria-live', 'polite');
       dialog.append(hint, list);
       const [indexed, sqlite] = await Promise.all([
@@ -501,31 +551,34 @@ function createProjectStoreModule() {
         });
       const entries = [...revisions.values()].sort((a, b) => Number(b.savedAt) - Number(a.savedAt));
       list.textContent = '';
-      markProjectList(list, entries.length > 0, `복구 스냅샷 ${entries.length}개`);
+      markProjectList(list, entries.length > 0, uiText('Recovery snapshots: {0}', '복구 스냅샷 {0}개', entries.length));
       if (!entries.length) {
-        const empty = document.createElement('div'); empty.className = 'project-empty'; empty.textContent = '복구 이력이 없습니다.';
+        const empty = document.createElement('div'); empty.className = 'project-empty'; empty.textContent = uiText(
+          'No recovery history.',
+          '복구 이력이 없습니다.',
+        );
         list.appendChild(empty); return;
       }
       entries.forEach((entry, index) => {
         const row = document.createElement('div'); row.className = 'project-row recovery-row';
         const info = document.createElement('div'); info.className = 'project-info';
         const name = document.createElement('div'); name.className = 'project-name';
-        name.textContent = `${index === 0 ? '최신 · ' : ''}Revision ${entry.revision}`;
+        name.textContent = `${index === 0 ? uiText('Latest · ', '최신 · ') : ''}Revision ${entry.revision}`;
         const meta = document.createElement('div'); meta.className = 'project-meta';
         meta.textContent = `${formatProjectTime(entry.savedAt)} · ${formatBytes(entry.byteLength)} · ${entry.backend === 'sqlite' ? 'SQLite' : 'IndexedDB'}`;
         info.append(name, meta);
-        const restoreButton = projectActionButton('이 버전 복원', async () => {
-          if (!confirmAction(`${formatProjectTime(entry.savedAt)} 버전으로 복원할까요?`)) return;
+        const restoreButton = projectActionButton(uiText('Restore This Version', '이 버전 복원'), async () => {
+          if (!confirmAction(uiText('Restore version {0}?', '{0} 버전으로 복원할까요?', formatProjectTime(entry.savedAt)))) return;
           if (state.projectId !== projectId) await openStoredProject(projectId);
           await saveRecoveryCopy();
           const record = entry.backend === 'sqlite'
             ? await persistence.loadServerProjectRevision(projectId, entry.revision)
             : await persistence.loadProjectRevision(projectId, entry.revision);
-          if (!record?.json) { flashStatus('선택한 복구본을 읽을 수 없습니다'); return; }
+          if (!record?.json) { flashStatus(uiText('Could not read the selected recovery snapshot.', '선택한 복구본을 읽을 수 없습니다')); return; }
           if (!load(record.json, { persist: false, projectId, projectName: project?.name || state.projectName })) return;
           markDirty(); rememberActiveProject(); scheduleRecoverySave(0); modal.close({ restoreFocus: false });
           modalFocus.closeOverlay(document.getElementById('project-manager-modal'));
-          flashStatus(`Revision ${entry.revision}을 복원했습니다`);
+          flashStatus(uiText('Restored revision {0}.', 'Revision {0}을 복원했습니다', entry.revision));
         });
         row.append(info, restoreButton); list.appendChild(row);
         nameRowActions(row, name);
@@ -607,7 +660,7 @@ function createProjectStoreModule() {
           state.autosaveStatus = 'saved';
           recoveryDirty = false;
           rememberActiveProject();
-          flashStatus(`프로젝트를 복원했습니다 · ${state.projectName}`);
+          flashStatus(uiText('Restored project · {0}', '프로젝트를 복원했습니다 · {0}', state.projectName));
           if (!records.indexed || !records.sqlite || records.indexed.updatedAt !== records.sqlite.updatedAt) {
             scheduleRecoverySave(0);
           }
@@ -631,7 +684,7 @@ function createProjectStoreModule() {
           state.autosaveBackend = recovery.source;
           state.autosaveStatus = recovery.source === 'local' ? 'fallback' : 'saved';
           rememberActiveProject();
-          flashStatus('기존 단일 자동저장 프로젝트를 새 프로젝트 저장소로 이전했습니다');
+          flashStatus(uiText('Moved the previous autosaved project into the project store.', '기존 단일 자동저장 프로젝트를 새 프로젝트 저장소로 이전했습니다'));
           scheduleRecoverySave(0);
         }
       }
@@ -659,6 +712,7 @@ function createProjectStoreModule() {
     return Object.freeze({
       attach,
       detach,
+      flushRecovery,
       createNewProject,
       isRecoveryDirty,
       listStoredProjects,

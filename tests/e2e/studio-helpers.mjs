@@ -43,7 +43,7 @@ export async function createEmptyProject(page) {
   await page.getByRole('button', { name: 'Projects', exact: true }).click();
   const modal = page.locator('#project-manager-modal');
   await expect(modal).toBeVisible();
-  await modal.getByRole('button', { name: '새 프로젝트', exact: true }).click();
+  await modal.getByRole('button', { name: 'New Project', exact: true }).click();
   await expect(modal).toBeHidden();
   await expect(page.locator('#tabs .tab.active .tab-name')).toHaveText('Class Diagram');
   await expect(canvasElements(page)).toHaveCount(0);

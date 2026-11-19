@@ -31,6 +31,9 @@ declare var UMLDdlImporter: DdlImporterApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createDdlImporter);
 
 function createDdlImporter(erdColumn?: DdlColumnApi, erdSchema?: DdlSchemaApi) {
+  const { text: uiText } = globalThis.UMLLanguage
+    ?? require('../editor/language.js') as typeof UMLLanguage;
+
   if (!erdColumn || typeof erdColumn.formatColumn !== 'function'
     || typeof erdColumn.validateColumn !== 'function') {
     throw new TypeError('DDL Importer에는 UMLErdColumn.formatColumn/validateColumn이 필요합니다.');
@@ -143,7 +146,7 @@ function createDdlImporter(erdColumn?: DdlColumnApi, erdSchema?: DdlSchemaApi) {
     let index = 0;
     const push = (type: Token['type'], value: string, raw: string, start: number, end: number) => {
       tokens.push({ type, value, raw, start, end });
-      if (tokens.length > MAX_TOKENS) throw new Error(`DDL 토큰 수가 제한(${MAX_TOKENS})을 초과합니다.`);
+      if (tokens.length > MAX_TOKENS) throw new Error(uiText('DDL exceeds the limit of {0} tokens.', 'DDL 토큰 수가 제한({0})을 초과합니다.', MAX_TOKENS));
     };
     while (index < text.length) {
       const start = index;
@@ -161,7 +164,7 @@ function createDdlImporter(erdColumn?: DdlColumnApi, erdSchema?: DdlSchemaApi) {
       }
       if (char === '/' && text[index + 1] === '*') {
         const close = text.indexOf('*/', index + 2);
-        if (close < 0) throw locatedError('닫히지 않은 블록 주석이 있습니다.', text, start);
+        if (close < 0) throw locatedError(uiText('Unclosed block comment.', '닫히지 않은 블록 주석이 있습니다.'), text, start);
         index = close + 2;
         continue;
       }
@@ -169,7 +172,7 @@ function createDdlImporter(erdColumn?: DdlColumnApi, erdSchema?: DdlSchemaApi) {
       if (dollar) {
         const marker = dollar[0];
         const close = text.indexOf(marker, index + marker.length);
-        if (close < 0) throw locatedError('닫히지 않은 PostgreSQL dollar 문자열이 있습니다.', text, start);
+        if (close < 0) throw locatedError(uiText('Unclosed PostgreSQL dollar-quoted string.', '닫히지 않은 PostgreSQL dollar 문자열이 있습니다.'), text, start);
         index = close + marker.length;
         push('string', text.slice(start, index), text.slice(start, index), start, index);
         continue;
@@ -193,7 +196,11 @@ function createDdlImporter(erdColumn?: DdlColumnApi, erdSchema?: DdlSchemaApi) {
           value += text[index++];
         }
         if (!closed) {
-          throw locatedError(`닫히지 않은 ${type === 'string' ? '문자열' : '식별자'}가 있습니다.`, text, start);
+          throw locatedError(uiText(
+            'Unclosed {0}.',
+            '닫히지 않은 {0}가 있습니다.',
+            type === 'string' ? uiText('string', '문자열') : uiText('identifier', '식별자'),
+          ), text, start);
         }
         push(type, value, text.slice(start, index), start, index);
         continue;
@@ -229,7 +236,7 @@ function createDdlImporter(erdColumn?: DdlColumnApi, erdSchema?: DdlSchemaApi) {
     });
     if (current.length) statements.push(current);
     if (statements.length > MAX_STATEMENTS) {
-      throw new Error(`DDL 문장 수가 제한(${MAX_STATEMENTS})을 초과합니다.`);
+      throw new Error(uiText('DDL exceeds the limit of {0} statements.', 'DDL 문장 수가 제한({0})을 초과합니다.', MAX_STATEMENTS));
     }
     return statements;
   }
@@ -312,19 +319,19 @@ function createDdlImporter(erdColumn?: DdlColumnApi, erdSchema?: DdlSchemaApi) {
 
   function identifierList(tokens: Token[], openIndex: number) {
     const close = matchingParen(tokens, openIndex);
-    if (close < 0) throw new Error('컬럼 목록의 닫는 괄호가 없습니다.');
+    if (close < 0) throw new Error(uiText('Missing closing parenthesis in the column list.', '컬럼 목록의 닫는 괄호가 없습니다.'));
     const names = splitCommaItems(tokens.slice(openIndex + 1, close)).map(item => {
       const identifier = item.find(isIdentifier);
-      if (!identifier) throw new Error('컬럼 목록에 올바른 식별자가 없습니다.');
+      if (!identifier) throw new Error(uiText('Expected an identifier in the column list.', '컬럼 목록에 올바른 식별자가 없습니다.'));
       return identifier.value;
     });
-    if (!names.length) throw new Error('컬럼 목록이 비어 있습니다.');
+    if (!names.length) throw new Error(uiText('The column list is empty.', '컬럼 목록이 비어 있습니다.'));
     return { names, next: close + 1 };
   }
 
   function referenceAt(tokens: Token[], referenceIndex: number) {
     const target = qualifiedIdentifier(tokens, referenceIndex + 1);
-    if (!target) throw new Error('REFERENCES 대상 테이블 이름이 없습니다.');
+    if (!target) throw new Error(uiText('Expected a table name after REFERENCES.', 'REFERENCES 대상 테이블 이름이 없습니다.'));
     let targetColumns: string[] = [];
     let next = target.next;
     if (isSymbol(tokens[next], '(')) {
@@ -341,13 +348,13 @@ function createDdlImporter(erdColumn?: DdlColumnApi, erdSchema?: DdlSchemaApi) {
       if (isKeyword(tokens[index], 'MATCH') || isKeyword(tokens[index], 'DEFERRABLE')
         || (isKeyword(tokens[index], 'NOT') && isKeyword(tokens[index + 1], 'DEFERRABLE'))
         || isKeyword(tokens[index], 'INITIALLY')) {
-        addWarning(warnings, 'MATCH·DEFERRABLE 정책은 현재 ERD 모델에 저장하지 않습니다.');
+        addWarning(warnings, uiText('MATCH and DEFERRABLE options are skipped.', 'MATCH·DEFERRABLE 정책은 현재 ERD 모델에 저장하지 않습니다.'));
         continue;
       }
       if (!isKeyword(tokens[index], 'ON')
         || (!isKeyword(tokens[index + 1], 'DELETE') && !isKeyword(tokens[index + 1], 'UPDATE'))) continue;
       const field = isKeyword(tokens[index + 1], 'DELETE') ? 'onDelete' : 'onUpdate';
-      if (result[field]) throw new Error(`중복된 ${field === 'onDelete' ? 'ON DELETE' : 'ON UPDATE'} 절입니다.`);
+      if (result[field]) throw new Error(uiText('Duplicate {0} clause.', '중복된 {0} 절입니다.', field === 'onDelete' ? 'ON DELETE' : 'ON UPDATE'));
       let action = '';
       if (isKeyword(tokens[index + 2], 'CASCADE') || isKeyword(tokens[index + 2], 'RESTRICT')) {
         action = upper(tokens[index + 2]);
@@ -360,7 +367,7 @@ function createDdlImporter(erdColumn?: DdlColumnApi, erdSchema?: DdlSchemaApi) {
         action = `SET ${upper(tokens[index + 3])}`;
         index += 3;
       } else {
-        throw new Error(`${field === 'onDelete' ? 'ON DELETE' : 'ON UPDATE'} 참조 동작이 올바르지 않습니다.`);
+        throw new Error(uiText('Invalid {0} referential action.', '{0} 참조 동작이 올바르지 않습니다.', field === 'onDelete' ? 'ON DELETE' : 'ON UPDATE'));
       }
       result[field] = normalizeReferentialAction(action, field === 'onDelete' ? 'FK ON DELETE' : 'FK ON UPDATE');
     }
@@ -387,40 +394,40 @@ function createDdlImporter(erdColumn?: DdlColumnApi, erdSchema?: DdlSchemaApi) {
 
   function checkAt(tokens: Token[], checkIndex: number, constraintName = '', column = '') {
     const open = tokens.findIndex((token, index) => index > checkIndex && isSymbol(token, '('));
-    if (open < 0) throw new Error('CHECK 표현식의 여는 괄호가 없습니다.');
+    if (open < 0) throw new Error(uiText('Missing opening parenthesis for the CHECK expression.', 'CHECK 표현식의 여는 괄호가 없습니다.'));
     const close = matchingParen(tokens, open);
-    if (close < 0) throw new Error('CHECK 표현식의 닫는 괄호가 없습니다.');
-    const expression = safeSqlFragment(renderExpressionTokens(tokens.slice(open + 1, close)), 'CHECK 표현식');
+    if (close < 0) throw new Error(uiText('Missing closing parenthesis for the CHECK expression.', 'CHECK 표현식의 닫는 괄호가 없습니다.'));
+    const expression = safeSqlFragment(renderExpressionTokens(tokens.slice(open + 1, close)), uiText('CHECK expression', 'CHECK 표현식'));
     return { check: { name: constraintName, expression, column }, next: close + 1 };
   }
 
   function defaultAt(tokens: Token[], defaultIndex: number) {
     const end = nextColumnConstraint(tokens, defaultIndex + 1);
-    const expression = safeSqlFragment(renderExpressionTokens(tokens.slice(defaultIndex + 1, end)), 'DEFAULT 값');
+    const expression = safeSqlFragment(renderExpressionTokens(tokens.slice(defaultIndex + 1, end)), uiText('DEFAULT value', 'DEFAULT 값'));
     return { expression, next: end };
   }
 
   function indexedColumns(tokens: Token[], openIndex: number, warnings: string[]) {
     const close = matchingParen(tokens, openIndex);
-    if (close < 0) throw new Error('인덱스 컬럼 목록의 닫는 괄호가 없습니다.');
+    if (close < 0) throw new Error(uiText('Missing closing parenthesis in the index column list.', '인덱스 컬럼 목록의 닫는 괄호가 없습니다.'));
     const columns = splitCommaItems(tokens.slice(openIndex + 1, close)).map((item): ErdSchemaIndex['columns'][number] => {
-      if (!isIdentifier(item[0])) throw new Error('식 기반 인덱스는 아직 지원하지 않습니다.');
+      if (!isIdentifier(item[0])) throw new Error(uiText('Expression indexes are unsupported.', '식 기반 인덱스는 아직 지원하지 않습니다.'));
       let index = 1;
       if (isSymbol(item[index], '(')) {
         const prefixClose = matchingParen(item, index);
-        if (prefixClose < 0) throw new Error('인덱스 접두 길이의 닫는 괄호가 없습니다.');
-        addWarning(warnings, 'MySQL 인덱스 접두 길이는 제외하고 컬럼만 저장했습니다.');
+        if (prefixClose < 0) throw new Error(uiText('Missing closing parenthesis for the index prefix length.', '인덱스 접두 길이의 닫는 괄호가 없습니다.'));
+        addWarning(warnings, uiText('Imported the column without its MySQL index prefix length.', 'MySQL 인덱스 접두 길이는 제외하고 컬럼만 저장했습니다.'));
         index = prefixClose + 1;
       }
       const direction = upper(item[index]);
       const order = direction === 'ASC' || direction === 'DESC' ? direction : '';
       if (order) index++;
       if (index < item.length) {
-        addWarning(warnings, '인덱스 COLLATE·NULLS·연산자 클래스 옵션은 제외하고 저장했습니다.');
+        addWarning(warnings, uiText('Skipped index COLLATE, NULLS, and operator class options.', '인덱스 COLLATE·NULLS·연산자 클래스 옵션은 제외하고 저장했습니다.'));
       }
       return { name: item[0].value, order };
     });
-    if (!columns.length) throw new Error('인덱스 컬럼 목록이 비어 있습니다.');
+    if (!columns.length) throw new Error(uiText('The index column list is empty.', '인덱스 컬럼 목록이 비어 있습니다.'));
     return { columns, next: close + 1 };
   }
 
@@ -430,7 +437,7 @@ function createDdlImporter(erdColumn?: DdlColumnApi, erdSchema?: DdlSchemaApi) {
     if (isKeyword(item[index], 'UNIQUE')) { unique = true; index++; }
     if (isKeyword(item[index], 'FULLTEXT') || isKeyword(item[index], 'SPATIAL')
       || isKeyword(item[index], 'EXCLUDE')) {
-      addWarning(warnings, `${upper(item[index])} 인덱스는 일반 인덱스로 단순화했습니다.`);
+      addWarning(warnings, uiText('Imported the {0} index as a regular index.', '{0} 인덱스는 일반 인덱스로 단순화했습니다.', upper(item[index])));
       index++;
     }
     if (isKeyword(item[index], 'INDEX') || isKeyword(item[index], 'KEY')) index++;
@@ -439,24 +446,31 @@ function createDdlImporter(erdColumn?: DdlColumnApi, erdSchema?: DdlSchemaApi) {
     let name = constraintName;
     if (!isSymbol(item[index], '(') && isIdentifier(item[index])) name = item[index++].value;
     if (isKeyword(item[index], 'USING')) {
-      addWarning(warnings, '인덱스 USING 방식은 제외하고 저장했습니다.');
+      addWarning(warnings, uiText('Skipped the index USING method.', '인덱스 USING 방식은 제외하고 저장했습니다.'));
       index += isIdentifier(item[index + 1]) ? 2 : 1;
     }
-    if (!isSymbol(item[index], '(')) throw new Error('인덱스 컬럼 목록이 없습니다.');
+    if (!isSymbol(item[index], '(')) throw new Error(uiText('Missing index column list.', '인덱스 컬럼 목록이 없습니다.'));
     const parsed = indexedColumns(item, index, warnings);
     index = parsed.next;
     let where = '';
     const whereIndex = item.findIndex((token, tokenIndex) => tokenIndex >= index && isKeyword(token, 'WHERE'));
     if (whereIndex >= 0) {
-      where = safeSqlFragment(renderExpressionTokens(item.slice(whereIndex + 1)), '인덱스 WHERE');
+      where = safeSqlFragment(renderExpressionTokens(item.slice(whereIndex + 1)), uiText('Index WHERE clause', '인덱스 WHERE'));
       index = item.length;
     }
-    if (index < item.length) addWarning(warnings, '인덱스 저장 방식·가시성·테이블스페이스 옵션은 제외했습니다.');
+    if (index < item.length) addWarning(warnings, uiText(
+      'Skipped index storage, visibility, and tablespace options.',
+      '인덱스 저장 방식·가시성·테이블스페이스 옵션은 제외했습니다.',
+    ));
     return { kind, name, unique, columns: parsed.columns, where };
   }
 
   function parseColumnItem(item: Token[], table: Table, warnings: string[]) {
-    if (!isIdentifier(item[0])) throw new Error(`'${table.name}' 테이블에 올바르지 않은 컬럼 정의가 있습니다.`);
+    if (!isIdentifier(item[0])) throw new Error(uiText(
+      'Table \'{0}\' has an invalid column definition.',
+      '\'{0}\' 테이블에 올바르지 않은 컬럼 정의가 있습니다.',
+      table.name,
+    ));
     const name = item[0].value;
     let depth = 0;
     let constraintIndex = item.length;
@@ -470,7 +484,7 @@ function createDdlImporter(erdColumn?: DdlColumnApi, erdSchema?: DdlSchemaApi) {
     let type = renderTokens(item.slice(1, constraintIndex));
     if (!type) {
       type = 'TEXT';
-      addWarning(warnings, `'${table.name}.${name}' 타입이 없어 TEXT로 가져왔습니다.`);
+      addWarning(warnings, uiText('Imported \'{0}.{1}\' as TEXT because it has no type.', '\'{0}.{1}\' 타입이 없어 TEXT로 가져왔습니다.', table.name, name));
     }
     const column = {
       name, type, primaryKey: false, foreignKey: false, notNull: false,
@@ -483,7 +497,12 @@ function createDdlImporter(erdColumn?: DdlColumnApi, erdSchema?: DdlSchemaApi) {
       if (isSymbol(item[index], ')')) { nested--; continue; }
       if (nested !== 0 || item[index].type !== 'word') continue;
       if (isKeyword(item[index], 'CONSTRAINT')) {
-        if (!isIdentifier(item[index + 1])) throw new Error(`'${table.name}.${name}'의 CONSTRAINT 이름이 없습니다.`);
+        if (!isIdentifier(item[index + 1])) throw new Error(uiText(
+          'Missing CONSTRAINT name on \'{0}.{1}\'.',
+          '\'{0}.{1}\'의 CONSTRAINT 이름이 없습니다.',
+          table.name,
+          name,
+        ));
         constraintName = item[index + 1].value;
         index++;
         continue;
@@ -516,10 +535,10 @@ function createDdlImporter(erdColumn?: DdlColumnApi, erdSchema?: DdlSchemaApi) {
       }
       if (isKeyword(item[index], 'GENERATED') || isKeyword(item[index], 'AUTO_INCREMENT')
         || isKeyword(item[index], 'AUTOINCREMENT')) {
-        addWarning(warnings, '자동 생성·Identity 속성은 현재 ERD 모델에 저장하지 않습니다.');
+        addWarning(warnings, uiText('Skipped generated and identity column options.', '자동 생성·Identity 속성은 현재 ERD 모델에 저장하지 않습니다.'));
       }
       if (isKeyword(item[index], 'COMMENT') || isKeyword(item[index], 'COLLATE')) {
-        addWarning(warnings, '컬럼 COMMENT·COLLATE 속성은 현재 ERD 모델에 저장하지 않습니다.');
+        addWarning(warnings, uiText('Skipped column COMMENT and COLLATE options.', '컬럼 COMMENT·COLLATE 속성은 현재 ERD 모델에 저장하지 않습니다.'));
       }
     }
     table.columns.push(column);
@@ -529,22 +548,30 @@ function createDdlImporter(erdColumn?: DdlColumnApi, erdSchema?: DdlSchemaApi) {
     let index = 0;
     let constraintName = '';
     if (isKeyword(item[index], 'CONSTRAINT')) {
-      if (!isIdentifier(item[index + 1])) throw new Error(`'${table.name}'의 CONSTRAINT 이름이 없습니다.`);
+      if (!isIdentifier(item[index + 1])) throw new Error(uiText(
+        'Missing CONSTRAINT name on \'{0}\'.',
+        '\'{0}\'의 CONSTRAINT 이름이 없습니다.',
+        table.name,
+      ));
       constraintName = item[index + 1].value;
       index += 2;
     }
     if (isKeyword(item[index], 'PRIMARY') && isKeyword(item[index + 1], 'KEY')) {
       const open = item.findIndex((token, tokenIndex) => tokenIndex > index && isSymbol(token, '('));
-      if (open < 0) throw new Error(`'${table.name}'의 PRIMARY KEY 컬럼 목록이 없습니다.`);
+      if (open < 0) throw new Error(uiText('Missing PRIMARY KEY column list on \'{0}\'.', '\'{0}\'의 PRIMARY KEY 컬럼 목록이 없습니다.', table.name));
       table.primaryKeyNames.push(...identifierList(item, open).names);
       return;
     }
     if (isKeyword(item[index], 'FOREIGN') && isKeyword(item[index + 1], 'KEY')) {
       const open = item.findIndex((token, tokenIndex) => tokenIndex > index && isSymbol(token, '('));
-      if (open < 0) throw new Error(`'${table.name}'의 FOREIGN KEY 컬럼 목록이 없습니다.`);
+      if (open < 0) throw new Error(uiText('Missing FOREIGN KEY column list on \'{0}\'.', '\'{0}\'의 FOREIGN KEY 컬럼 목록이 없습니다.', table.name));
       const source = identifierList(item, open);
       const references = item.findIndex((token, tokenIndex) => tokenIndex >= source.next && isKeyword(token, 'REFERENCES'));
-      if (references < 0) throw new Error(`'${table.name}'의 FOREIGN KEY REFERENCES 절이 없습니다.`);
+      if (references < 0) throw new Error(uiText(
+        'Missing FOREIGN KEY REFERENCES clause on \'{0}\'.',
+        '\'{0}\'의 FOREIGN KEY REFERENCES 절이 없습니다.',
+        table.name,
+      ));
       const target = referenceAt(item, references);
       const actions = referenceActionsAt(item, target.next, warnings);
       table.foreignKeys.push({ name: constraintName, sourceColumns: source.names, ...target, ...actions });
@@ -562,7 +589,12 @@ function createDdlImporter(erdColumn?: DdlColumnApi, erdSchema?: DdlSchemaApi) {
       table.indexes.push(parseIndexDefinition(item, index, warnings, 'index', constraintName));
       return;
     }
-    throw new Error(`'${table.name}'에 지원하지 않는 테이블 정의가 있습니다: ${renderTokens(item).slice(0, 120)}`);
+    throw new Error(uiText(
+      'Unsupported table definition on \'{0}\': {1}',
+      '\'{0}\'에 지원하지 않는 테이블 정의가 있습니다: {1}',
+      table.name,
+      renderTokens(item).slice(0, 120),
+    ));
   }
 
   function parseCreateTable(statement: Token[], warnings: string[]): Table | null {
@@ -572,25 +604,41 @@ function createDdlImporter(erdColumn?: DdlColumnApi, erdSchema?: DdlSchemaApi) {
     if (isKeyword(statement[index], 'IF') && isKeyword(statement[index + 1], 'NOT')
       && isKeyword(statement[index + 2], 'EXISTS')) index += 3;
     const identifier = qualifiedIdentifier(statement, index);
-    if (!identifier) throw new Error('CREATE TABLE 이름이 없습니다.');
+    if (!identifier) throw new Error(uiText('Missing CREATE TABLE name.', 'CREATE TABLE 이름이 없습니다.'));
     index = identifier.next;
     if (!isSymbol(statement[index], '(')) {
-      throw new Error(`'${identifier.name}'의 CREATE TABLE AS/OF/PARTITION 형식은 지원하지 않습니다.`);
+      throw new Error(uiText(
+        'Unsupported CREATE TABLE AS, OF, or PARTITION form for \'{0}\'.',
+        '\'{0}\'의 CREATE TABLE AS/OF/PARTITION 형식은 지원하지 않습니다.',
+        identifier.name,
+      ));
     }
     const close = matchingParen(statement, index);
-    if (close < 0) throw new Error(`'${identifier.name}' CREATE TABLE의 닫는 괄호가 없습니다.`);
+    if (close < 0) throw new Error(uiText(
+      'Missing closing parenthesis in CREATE TABLE for \'{0}\'.',
+      '\'{0}\' CREATE TABLE의 닫는 괄호가 없습니다.',
+      identifier.name,
+    ));
     if (identifier.parts.length > 1) {
-      addWarning(warnings, `스키마 '${identifier.parts.slice(0, -1).join('.')}'는 제외하고 테이블 '${identifier.name}'만 가져옵니다.`);
+      addWarning(warnings, uiText(
+        'Imported table \'{1}\' without schema \'{0}\'.',
+        '스키마 \'{0}\'는 제외하고 테이블 \'{1}\'만 가져옵니다.',
+        identifier.parts.slice(0, -1).join('.'),
+        identifier.name,
+      ));
     }
     if (statement.slice(close + 1).length) {
-      addWarning(warnings, 'ENGINE·TABLESPACE·WITHOUT ROWID 등 테이블 옵션은 현재 ERD 모델에 저장하지 않습니다.');
+      addWarning(warnings, uiText(
+        'Skipped table options such as ENGINE, TABLESPACE, and WITHOUT ROWID.',
+        'ENGINE·TABLESPACE·WITHOUT ROWID 등 테이블 옵션은 현재 ERD 모델에 저장하지 않습니다.',
+      ));
     }
     const table: Table = {
       name: identifier.name, qualifiedName: identifier.parts.join('.'),
       columns: [], primaryKeyNames: [], foreignKeys: [], checks: [], indexes: [],
     };
     const items = splitCommaItems(statement.slice(index + 1, close));
-    if (!items.length) throw new Error(`'${table.name}' 테이블에 컬럼이 없습니다.`);
+    if (!items.length) throw new Error(uiText('Table \'{0}\' has no columns.', '\'{0}\' 테이블에 컬럼이 없습니다.', table.name));
     items.forEach(item => {
       let first = 0;
       if (isKeyword(item[0], 'CONSTRAINT')) first = 2;
@@ -600,25 +648,49 @@ function createDdlImporter(erdColumn?: DdlColumnApi, erdSchema?: DdlSchemaApi) {
       else parseColumnItem(item, table, warnings);
     });
     if (table.columns.length > MAX_COLUMNS_PER_TABLE) {
-      throw new Error(`'${table.name}' 컬럼 수가 제한(${MAX_COLUMNS_PER_TABLE})을 초과합니다.`);
+      throw new Error(uiText(
+        'Table \'{0}\' exceeds the limit of {1} columns.',
+        '\'{0}\' 컬럼 수가 제한({1})을 초과합니다.',
+        table.name,
+        MAX_COLUMNS_PER_TABLE,
+      ));
     }
     const columnByName = new Map<string, Column>();
     table.columns.forEach(column => {
       const key = column.name.toLocaleLowerCase();
-      if (columnByName.has(key)) throw new Error(`'${table.name}'에 중복된 컬럼이 있습니다: ${column.name}`);
+      if (columnByName.has(key)) throw new Error(uiText(
+        'Duplicate column on \'{0}\': {1}',
+        '\'{0}\'에 중복된 컬럼이 있습니다: {1}',
+        table.name,
+        column.name,
+      ));
       columnByName.set(key, column);
     });
     table.primaryKeyNames.forEach(name => {
       const column = columnByName.get(name.toLocaleLowerCase());
-      if (!column) throw new Error(`'${table.name}'의 PRIMARY KEY 컬럼을 찾을 수 없습니다: ${name}`);
+      if (!column) throw new Error(uiText(
+        'PRIMARY KEY column not found on \'{0}\': {1}',
+        '\'{0}\'의 PRIMARY KEY 컬럼을 찾을 수 없습니다: {1}',
+        table.name,
+        name,
+      ));
       column.primaryKey = true;
     });
     table.foreignKeys.forEach(foreignKey => {
       if (foreignKey.sourceColumns.length !== 1 || foreignKey.targetColumns.length > 1) {
-        throw new Error(`'${table.name}'의 복합 FOREIGN KEY는 아직 지원하지 않습니다.`);
+        throw new Error(uiText(
+          'Composite FOREIGN KEY constraints are unsupported on \'{0}\'.',
+          '\'{0}\'의 복합 FOREIGN KEY는 아직 지원하지 않습니다.',
+          table.name,
+        ));
       }
       const column = columnByName.get(foreignKey.sourceColumns[0].toLocaleLowerCase());
-      if (!column) throw new Error(`'${table.name}'의 FOREIGN KEY 컬럼을 찾을 수 없습니다: ${foreignKey.sourceColumns[0]}`);
+      if (!column) throw new Error(uiText(
+        'FOREIGN KEY column not found on \'{0}\': {1}',
+        '\'{0}\'의 FOREIGN KEY 컬럼을 찾을 수 없습니다: {1}',
+        table.name,
+        foreignKey.sourceColumns[0],
+      ));
       column.foreignKey = true;
     });
     normalizeErdChecks(table.checks, table.columns.map(column => column.name));
@@ -634,40 +706,55 @@ function createDdlImporter(erdColumn?: DdlColumnApi, erdSchema?: DdlSchemaApi) {
     if (!isKeyword(statement[index], 'INDEX')) return null;
     index++;
     if (isKeyword(statement[index], 'CONCURRENTLY')) {
-      addWarning(warnings, 'CREATE INDEX CONCURRENTLY 실행 방식은 제외하고 저장했습니다.');
+      addWarning(warnings, uiText('Skipped the CONCURRENTLY option on CREATE INDEX.', 'CREATE INDEX CONCURRENTLY 실행 방식은 제외하고 저장했습니다.'));
       index++;
     }
     if (isKeyword(statement[index], 'IF') && isKeyword(statement[index + 1], 'NOT')
       && isKeyword(statement[index + 2], 'EXISTS')) index += 3;
     const indexName = qualifiedIdentifier(statement, index);
-    if (!indexName) throw new Error('CREATE INDEX 이름이 없습니다.');
+    if (!indexName) throw new Error(uiText('Missing CREATE INDEX name.', 'CREATE INDEX 이름이 없습니다.'));
     index = indexName.next;
     if (isKeyword(statement[index], 'USING')) {
-      addWarning(warnings, 'CREATE INDEX USING 방식은 제외하고 저장했습니다.');
+      addWarning(warnings, uiText('Skipped the USING method on CREATE INDEX.', 'CREATE INDEX USING 방식은 제외하고 저장했습니다.'));
       index += isIdentifier(statement[index + 1]) ? 2 : 1;
     }
-    if (!isKeyword(statement[index], 'ON')) throw new Error(`'${indexName.name}' 인덱스의 ON 테이블이 없습니다.`);
+    if (!isKeyword(statement[index], 'ON')) throw new Error(uiText(
+      'Missing ON clause for index \'{0}\'.',
+      '\'{0}\' 인덱스의 ON 테이블이 없습니다.',
+      indexName.name,
+    ));
     index++;
     if (isKeyword(statement[index], 'ONLY')) index++;
     const tableName = qualifiedIdentifier(statement, index);
-    if (!tableName) throw new Error(`'${indexName.name}' 인덱스의 대상 테이블 이름이 없습니다.`);
+    if (!tableName) throw new Error(uiText('Missing target table name for index \'{0}\'.', '\'{0}\' 인덱스의 대상 테이블 이름이 없습니다.', indexName.name));
     index = tableName.next;
     if (isKeyword(statement[index], 'USING')) {
-      addWarning(warnings, 'CREATE INDEX USING 방식은 제외하고 저장했습니다.');
+      addWarning(warnings, uiText('Skipped the USING method on CREATE INDEX.', 'CREATE INDEX USING 방식은 제외하고 저장했습니다.'));
       index += isIdentifier(statement[index + 1]) ? 2 : 1;
     }
-    if (!isSymbol(statement[index], '(')) throw new Error(`'${indexName.name}' 인덱스의 컬럼 목록이 없습니다.`);
+    if (!isSymbol(statement[index], '(')) throw new Error(uiText(
+      'Missing column list for index \'{0}\'.',
+      '\'{0}\' 인덱스의 컬럼 목록이 없습니다.',
+      indexName.name,
+    ));
     const parsed = indexedColumns(statement, index, warnings);
     index = parsed.next;
     let where = '';
     const whereIndex = statement.findIndex((token, tokenIndex) => tokenIndex >= index && isKeyword(token, 'WHERE'));
     if (whereIndex >= 0) {
-      where = safeSqlFragment(renderExpressionTokens(statement.slice(whereIndex + 1)), '인덱스 WHERE');
+      where = safeSqlFragment(renderExpressionTokens(statement.slice(whereIndex + 1)), uiText('Index WHERE clause', '인덱스 WHERE'));
       index = statement.length;
     }
-    if (index < statement.length) addWarning(warnings, 'CREATE INDEX INCLUDE·WITH·TABLESPACE 옵션은 제외하고 저장했습니다.');
+    if (index < statement.length) addWarning(warnings, uiText(
+      'Skipped CREATE INDEX INCLUDE, WITH, and TABLESPACE options.',
+      'CREATE INDEX INCLUDE·WITH·TABLESPACE 옵션은 제외하고 저장했습니다.',
+    ));
     if (tableName.parts.length > 1) {
-      addWarning(warnings, `인덱스 대상 스키마 '${tableName.parts.slice(0, -1).join('.')}'는 제외했습니다.`);
+      addWarning(warnings, uiText(
+        'Skipped index target schema \'{0}\'.',
+        '인덱스 대상 스키마 \'{0}\'는 제외했습니다.',
+        tableName.parts.slice(0, -1).join('.'),
+      ));
     }
     return {
       tableName: tableName.name,
@@ -681,7 +768,7 @@ function createDdlImporter(erdColumn?: DdlColumnApi, erdSchema?: DdlSchemaApi) {
     if (/`[^`]+`|\bENGINE\s*=|\bAUTO_INCREMENT\b/i.test(text)) matches.push('MySQL');
     if (/\bUNLOGGED\b|\bSERIAL\b|\bTABLESPACE\b|::[A-Za-z_]/i.test(text)) matches.push('PostgreSQL');
     if (/\bPRAGMA\b|\bWITHOUT\s+ROWID\b|\bAUTOINCREMENT\b/i.test(text)) matches.push('SQLite');
-    return matches.length === 1 ? matches[0] : (matches.length ? '혼합/자동' : '표준/자동');
+    return matches.length === 1 ? matches[0] : (matches.length ? uiText('Mixed / automatic', '혼합/자동') : uiText('Standard / automatic', '표준/자동'));
   }
 
   function buildProject(tables: Table[], warnings: string[], options: Options, dialect: string) {
@@ -691,7 +778,7 @@ function createDdlImporter(erdColumn?: DdlColumnApi, erdSchema?: DdlSchemaApi) {
     const tableByName = new Map<string, Table & { modelId: string; viewId: string }>();
     const placedTables = tables.map((table, tableIndex) => {
       const key = table.name.toLocaleLowerCase();
-      if (tableByName.has(key)) throw new Error(`중복된 테이블 이름이 있습니다: ${table.name}`);
+      if (tableByName.has(key)) throw new Error(uiText('Duplicate table name: {0}', '중복된 테이블 이름이 있습니다: {0}', table.name));
       const modelId = `ddl_entity_${tableIndex + 1}`;
       const viewId = `ddl_view_${tableIndex + 1}`;
       const placedTable = { ...table, modelId, viewId };
@@ -705,7 +792,13 @@ function createDdlImporter(erdColumn?: DdlColumnApi, erdSchema?: DdlSchemaApi) {
             phys: column.name, logical: '', type: column.type,
           };
           const checked = validateColumn(candidate);
-          if (!checked.valid) throw new Error(`'${table.name}.${column.name}'을(를) 가져올 수 없습니다: ${checked.error}`);
+          if (!checked.valid) throw new Error(uiText(
+            'Could not import \'{0}.{1}\': {2}',
+            '\'{0}.{1}\'을(를) 가져올 수 없습니다: {2}',
+            table.name,
+            column.name,
+            checked.error,
+          ));
           return formatColumn(candidate);
         }),
       };
@@ -737,30 +830,54 @@ function createDdlImporter(erdColumn?: DdlColumnApi, erdSchema?: DdlSchemaApi) {
       sourceTable.foreignKeys.forEach(foreignKey => {
         const targetTable = tableByName.get(foreignKey.targetTable.toLocaleLowerCase());
         if (!targetTable) {
-          addWarning(warnings, `외부 참조 '${foreignKey.targetParts.join('.')}'는 관계선으로 연결하지 못했습니다.`);
+          addWarning(warnings, uiText(
+            'Skipped the relationship to external reference \'{0}\'.',
+            '외부 참조 \'{0}\'는 관계선으로 연결하지 못했습니다.',
+            foreignKey.targetParts.join('.'),
+          ));
           return;
         }
         const targetColumns = foreignKey.targetColumns.length
           ? foreignKey.targetColumns
           : targetTable.columns.filter(column => column.primaryKey).map(column => column.name);
         if (targetColumns.length !== 1) {
-          throw new Error(`'${sourceTable.name}'의 FK가 참조하는 '${targetTable.name}' 단일 PK를 결정할 수 없습니다.`);
+          throw new Error(uiText(
+            'Could not find the single-column primary key on \'{1}\' referenced by \'{0}\'.',
+            '\'{0}\'의 FK가 참조하는 \'{1}\' 단일 PK를 결정할 수 없습니다.',
+            sourceTable.name,
+            targetTable.name,
+          ));
         }
         const targetColumn = targetTable.columns.find(column =>
           column.name.toLocaleLowerCase() === targetColumns[0].toLocaleLowerCase());
         const targetPrimaryKeys = targetTable.columns.filter(column => column.primaryKey);
         if (!targetColumn) {
-          throw new Error(`'${targetTable.name}'에서 참조 컬럼을 찾을 수 없습니다: ${targetColumns[0]}`);
+          throw new Error(uiText(
+            'Referenced column on \'{0}\' not found: {1}',
+            '\'{0}\'에서 참조 컬럼을 찾을 수 없습니다: {1}',
+            targetTable.name,
+            targetColumns[0],
+          ));
         }
         if (!targetColumn.primaryKey || targetPrimaryKeys.length !== 1) {
           addWarning(warnings,
-            `참조 대상 '${targetTable.name}.${targetColumn.name}'이 단일 PK가 아니어서 FK 관계선을 만들지 않았습니다.`);
+            uiText(
+              'Skipped the foreign key relationship because \'{0}.{1}\' is not a single-column primary key.',
+              '참조 대상 \'{0}.{1}\'이 단일 PK가 아니어서 FK 관계선을 만들지 않았습니다.',
+              targetTable.name,
+              targetColumn.name,
+            ));
           return;
         }
         const sourceColumn = sourceTable.columns.find(column =>
           column.name.toLocaleLowerCase() === foreignKey.sourceColumns[0].toLocaleLowerCase());
         if (!sourceColumn) {
-          throw new Error(`'${sourceTable.name}'의 FOREIGN KEY 컬럼을 찾을 수 없습니다: ${foreignKey.sourceColumns[0]}`);
+          throw new Error(uiText(
+            'FOREIGN KEY column not found on \'{0}\': {1}',
+            '\'{0}\'의 FOREIGN KEY 컬럼을 찾을 수 없습니다: {1}',
+            sourceTable.name,
+            foreignKey.sourceColumns[0],
+          ));
         }
         relationIndex++;
         const modelId = `ddl_relation_${relationIndex}`;
@@ -803,9 +920,9 @@ function createDdlImporter(erdColumn?: DdlColumnApi, erdSchema?: DdlSchemaApi) {
 
   function parseDdl(source: unknown, options: Options = {}) {
     const text = String(source || '');
-    if (!text.trim()) throw new Error('DDL 내용이 비어 있습니다.');
+    if (!text.trim()) throw new Error(uiText('The DDL input is empty.', 'DDL 내용이 비어 있습니다.'));
     if (new TextEncoder().encode(text).length > MAX_SOURCE_BYTES) {
-      throw new Error('DDL은 10MB 이하만 가져올 수 있습니다.');
+      throw new Error(uiText('DDL input must be 10 MB or smaller.', 'DDL은 10MB 이하만 가져올 수 있습니다.'));
     }
     const warnings: string[] = [];
     const tables: Table[] = [];
@@ -816,12 +933,12 @@ function createDdlImporter(erdColumn?: DdlColumnApi, erdSchema?: DdlSchemaApi) {
         const table = parseCreateTable(statement, warnings);
         if (table) {
           tables.push(table);
-          if (tables.length > MAX_TABLES) throw new Error(`테이블 수가 제한(${MAX_TABLES})을 초과합니다.`);
+          if (tables.length > MAX_TABLES) throw new Error(uiText('DDL exceeds the limit of {0} tables.', '테이블 수가 제한({0})을 초과합니다.', MAX_TABLES));
           return;
         }
         if (isKeyword(statement[0], 'PRAGMA') || isKeyword(statement[0], 'SET')
           || isKeyword(statement[0], 'BEGIN') || isKeyword(statement[0], 'COMMIT')) {
-          addWarning(warnings, `${upper(statement[0])} 문장은 모델에 적용하지 않았습니다.`);
+          addWarning(warnings, uiText('Skipped {0} statement.', '{0} 문장은 모델에 적용하지 않았습니다.', upper(statement[0])));
           return;
         }
         const standaloneIndex = parseCreateIndex(statement, warnings);
@@ -829,19 +946,24 @@ function createDdlImporter(erdColumn?: DdlColumnApi, erdSchema?: DdlSchemaApi) {
           standaloneIndexes.push(standaloneIndex);
           return;
         }
-        throw new Error(`지원하지 않는 SQL 문장입니다: ${renderTokens(statement).slice(0, 120)}`);
+        throw new Error(uiText('Unsupported SQL statement: {0}', '지원하지 않는 SQL 문장입니다: {0}', renderTokens(statement).slice(0, 120)));
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         if (/^DDL \d+:\d+ · /.test(message)) throw error;
         throw locatedError(message, text, statement[0]?.start || 0);
       }
     });
-    if (!tables.length) throw new Error('가져올 CREATE TABLE 문이 없습니다.');
+    if (!tables.length) throw new Error(uiText('No CREATE TABLE statements to import.', '가져올 CREATE TABLE 문이 없습니다.'));
     standaloneIndexes.forEach(entry => {
       const table = tables.find(candidate => candidate.name.toLocaleLowerCase()
         === entry.tableName.toLocaleLowerCase());
       if (!table) {
-        addWarning(warnings, `외부 테이블 '${entry.tableName}'의 인덱스 '${entry.index.name}'은 연결하지 못했습니다.`);
+        addWarning(warnings, uiText(
+          'Skipped index \'{1}\' on external table \'{0}\'.',
+          '외부 테이블 \'{0}\'의 인덱스 \'{1}\'은 연결하지 못했습니다.',
+          entry.tableName,
+          entry.index.name,
+        ));
         return;
       }
       table.indexes.push(entry.index);

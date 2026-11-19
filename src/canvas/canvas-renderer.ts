@@ -75,6 +75,9 @@ declare var UMLCanvasRenderer: CanvasRendererApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createCanvasRendererModule);
 
 function createCanvasRendererModule() {
+  const { text: uiText } = globalThis.UMLLanguage
+    ?? require('../editor/language.js') as typeof UMLLanguage;
+
   const REQUIRED_FUNCTIONS = Object.freeze([
     'assignTemporalDepths',
     'bindingRoute',
@@ -512,11 +515,11 @@ function createCanvasRendererModule() {
       holder.style.display = 'inline-flex';
       holder.innerHTML = '';
       holder.setAttribute('role', 'group');
-      holder.setAttribute('aria-label', '시퀀스 표시 옵션');
+      holder.setAttribute('aria-label', uiText('Sequence display options', '시퀀스 표시 옵션'));
       const b = document.createElement('button');
-      b.textContent = '메시지 번호';
+      b.textContent = uiText('Message Numbers', '메시지 번호');
       if (d.seqNumbers !== false) b.className = 'mode-active';
-      b.title = '메시지 시퀀스 번호 표시/숨김';
+      b.title = uiText('Show or hide sequence message numbers', '메시지 시퀀스 번호 표시/숨김');
       b.setAttribute('aria-pressed', d.seqNumbers !== false ? 'true' : 'false');
       b.addEventListener('click', () => { snapshot(); d.seqNumbers = d.seqNumbers === false; render(); });
       holder.appendChild(b);
@@ -529,13 +532,13 @@ function createCanvasRendererModule() {
       const d = dg();
       if (d.type !== 'erd') { holder.innerHTML = ''; holder.style.display = 'none'; return; }
       holder.style.display = 'inline-flex';
-      holder.innerHTML = '<span class="erd-mode-label">표시</span>';
+      holder.innerHTML = uiText('<span class="erd-mode-label">Show</span>', '<span class="erd-mode-label">표시</span>');
       holder.setAttribute('role', 'group');
-      holder.setAttribute('aria-label', 'ERD 표시 모드');
+      holder.setAttribute('aria-label', uiText('ERD display mode', 'ERD 표시 모드'));
       ERD_VIEW_MODES.forEach(([mode, label]) => {
         const b = document.createElement('button');
         b.textContent = label;
-        b.title = `ERD ${label} 표시`;
+        b.title = uiText('Show ERD names in {0} mode', 'ERD {0} 표시', label);
         b.setAttribute('aria-pressed', erdMode() === mode ? 'true' : 'false');
         if (erdMode() === mode) b.className = 'mode-active';
         b.addEventListener('click', () => setErdMode(mode));
@@ -666,9 +669,9 @@ function createCanvasRendererModule() {
         : { x: (points.p1.x + points.p2.x) / 2, y: (points.p1.y + points.p2.y) / 2 };
       const scale = 1 / state.zoom;
       const controls = [
-        { action: 'move', x: center.x, label: '메시지 높이 이동', cursor: 'ns-resize',
+        { action: 'move', x: center.x, label: uiText('Move message vertically', '메시지 높이 이동'), cursor: 'ns-resize',
           icon: 'M 0 -6 V 6 M -3 -3 L 0 -6 L 3 -3 M -3 3 L 0 6 L 3 3' },
-        { action: 'edit', x: center.x + 26 * scale, label: '메시지 이름 편집', cursor: 'pointer',
+        { action: 'edit', x: center.x + 26 * scale, label: uiText('Edit message name', '메시지 이름 편집'), cursor: 'pointer',
           icon: 'M -6 5 L -5 1 L 3 -7 L 7 -3 L -1 5 Z M 1 -5 L 5 -1' },
       ];
       controls.forEach(({ action, x, label, cursor, icon }) => {

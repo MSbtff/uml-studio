@@ -48,7 +48,7 @@ test('Undo/Redo, 복사·붙여넣기와 모델 삭제가 실제 UI에서 동작
   await canvasElements(page).last().click();
   await page.getByRole('button', { name: 'Delete Model', exact: true }).click();
   await expect(canvasElements(page)).toHaveCount(0);
-  await expect(page.locator('#status-left')).toContainText('모델 1개');
+  await expect(page.locator('#status-left')).toContainText('Deleted 1 models');
 });
 
 test('시퀀스 라이프라인 복사본은 원본과 분리된 모델이 된다', async ({ studioPage: page }) => {
@@ -60,7 +60,7 @@ test('시퀀스 라이프라인 복사본은 원본과 분리된 모델이 된�
   await page.getByRole('button', { name: 'Copy', exact: true }).click();
   await page.getByRole('button', { name: 'Paste', exact: true }).click();
   await expect(canvasElements(page)).toHaveCount(2);
-  await expect(page.locator('#status-left')).toContainText('라이프라인 1개를 독립 모델로');
+  await expect(page.locator('#status-left')).toContainText('Pasted as independent models: lifeline: 1');
 
   // 붙여넣은 사본의 이름을 바꿔도 원본은 그대로여야 한다
   await page.getByLabel('Name', { exact: true }).fill('Copied');
@@ -97,10 +97,10 @@ test('두 탭의 stale revision 저장은 충돌 경고를 표시하고 최신�
 
   await canvasElements(secondPage).first().click();
   await renameSelectedElement(secondPage, 'WriterB_Stale');
-  await expect(secondPage.locator('#status-left')).toContainText('다른 탭에서 이 프로젝트가 변경되었습니다', {
+  await expect(secondPage.locator('#status-left')).toContainText('This project changed in another tab', {
     timeout: 12_000,
   });
-  await expect(secondPage.locator('#status-right')).toContainText('DB 저장 오류');
+  await expect(secondPage.locator('#status-right')).toContainText('Database save failed');
   await waitForStoredProject(
     firstPage,
     (data) =>
@@ -130,13 +130,13 @@ test('복구 이력에서 이전 revision을 선택해 화면 상태를 복원�
   await page.getByRole('button', { name: 'Projects', exact: true }).click();
   const activeProject = page.locator('#project-manager-modal .project-row.active');
   await expect(activeProject).toBeVisible();
-  await activeProject.getByRole('button', { name: /^복구 / }).click();
+  await activeProject.getByRole('button', { name: /^History / }).click();
   const history = page.locator('#recovery-history-modal');
   await expect(history).toBeVisible();
   const row = history.locator('.recovery-row').filter({ hasText: `Revision ${revision}` });
   await expect(row).toHaveCount(1);
   page.once('dialog', (dialog) => dialog.accept());
-  await row.getByRole('button', { name: /^이 버전 복원 / }).click();
+  await row.getByRole('button', { name: /^Restore This Version / }).click();
   await expect(history).toBeHidden();
   await expect(page.locator('#canvas')).toContainText('Snapshot_V1');
   await expect(page.locator('#canvas')).not.toContainText('Snapshot_V2');
@@ -150,8 +150,8 @@ test('잡히지 않은 오류는 상태 표시줄에 표시되고 자동저장�
   await page.evaluate(() => {
     window.dispatchEvent(new ErrorEvent('error', { message: 'Uncaught TypeError: render broke' }));
   });
-  await expect(page.locator('#status-left')).toContainText('⚠ 동작 중 오류: render broke');
-  await expect(page.locator('#status-right')).toContainText('⚠ 오류 1건');
+  await expect(page.locator('#status-left')).toContainText('⚠ Editor error: render broke');
+  await expect(page.locator('#status-right')).toContainText('⚠ Errors: 1');
 
   await page.evaluate(() => {
     window.dispatchEvent(
@@ -161,12 +161,12 @@ test('잡히지 않은 오류는 상태 표시줄에 표시되고 자동저장�
       }),
     );
   });
-  await expect(page.locator('#status-right')).toContainText('⚠ 오류 2건');
+  await expect(page.locator('#status-right')).toContainText('⚠ Errors: 2');
 
   // 오류 뒤에도 편집과 자동저장은 정상이다
   await createCanvasElement(page, 'Class', { x: 260, y: 200 });
   await renameSelectedElement(page, 'AfterError');
   await waitForStoredProject(page, (data) => Object.values(data.models).some((model) => model.name === 'AfterError'));
-  await expect(page.locator('#status-right')).toContainText('⚠ 오류 2건');
-  await expect(page.locator('#status-right')).toContainText('SQLite 저장');
+  await expect(page.locator('#status-right')).toContainText('⚠ Errors: 2');
+  await expect(page.locator('#status-right')).toContainText('Saved to SQLite');
 });

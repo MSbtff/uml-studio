@@ -114,6 +114,9 @@ type CanvasInteractionFrame = ReturnType<ReturnType<CanvasInteractionApi['create
 
 function createCanvasInteractionModule() {
   'use strict';
+  const { text: uiText } = globalThis.UMLLanguage
+    ?? require('../editor/language.js') as typeof UMLLanguage;
+
 
   const MESSAGE_PICK_RADIUS = 8;
   const DRAG_THRESHOLD = 3;
@@ -586,7 +589,10 @@ function createCanvasInteractionModule() {
     if (isCommMsg(tool)) {
       const connector = communicationConnectorAt(p);
       if (!connector) {
-        flashStatus('Communication Message는 먼저 만든 Connector 선을 클릭해 추가하세요');
+        flashStatus(uiText(
+          'Click an existing connector to add a communication message.',
+          'Communication Message는 먼저 만든 Connector 선을 클릭해 추가하세요',
+        ));
         return;
       }
       createCommunicationMessage(connector, tool);
@@ -960,13 +966,13 @@ function createCanvasInteractionModule() {
       /* dropped on another element → reconnect the relation to it */
       if (target && target.id !== curId && target.id !== otherId) {
         if (r.kind === 'transition' && !STATE_VERTEX_KINDS.has(target.kind)) {
-          flashStatus('Transition은 State 또는 Pseudostate에만 재연결할 수 있습니다');
+          flashStatus(uiText('Reconnect transitions to a state or pseudostate.', 'Transition은 State 또는 Pseudostate에만 재연결할 수 있습니다'));
         } else if ((r.kind === 'link' || r.kind === 'directedlink') && !INSTANCE_KINDS.has(target.kind)) {
-          flashStatus('Link는 Object 또는 Instance 사이에만 재연결할 수 있습니다');
+          flashStatus(uiText('Reconnect links between objects or instances.', 'Link는 Object 또는 Instance 사이에만 재연결할 수 있습니다'));
         } else if (r.kind === 'commconnector' && target.kind !== 'lifeline') {
-          flashStatus('Communication Connector는 Lifeline 사이에만 재연결할 수 있습니다');
+          flashStatus(uiText('Reconnect communication connectors between lifelines.', 'Communication Connector는 Lifeline 사이에만 재연결할 수 있습니다'));
         } else if (r.kind === 'timingmessage' && target.kind !== 'timesegment') {
-          flashStatus('Timing Message는 Time Segment 사이에만 재연결할 수 있습니다');
+          flashStatus(uiText('Reconnect timing messages between time segments.', 'Timing Message는 Time Segment 사이에만 재연결할 수 있습니다'));
         } else {
           const nextFrom = drag.end === 'src' ? target : byId(r.from);
           const nextTo = drag.end === 'dst' ? target : byId(r.to);

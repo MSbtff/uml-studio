@@ -17,6 +17,7 @@ test('the packed library converts SQL from a standalone project', (t) => {
     'README.md',
     'dist/index.cjs',
     'dist/index.d.cts',
+    'dist/shared/editor/language.js',
     'dist/shared/io/ddl-importer.js',
     'dist/shared/io/exporters.js',
     'dist/shared/model/erd-cardinality.js',

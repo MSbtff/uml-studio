@@ -192,9 +192,9 @@ assert.match(importExport, /function importSupportedFile\(/);
 assert.match(importPreview, /function openDrawioImportPreview\(/);
 assert.match(importExport, /function importedDiagramName\(/);
 assert.match(importExport, /drawioImporter\.analyzeImport/);
-assert.match(importExport, /\['keepBoth', '새 모델로 가져오기'\]/);
-assert.match(importExport, /\['reuse', '기존 모델 재사용'\]/);
-assert.match(importExport, /\['replace', '기존 모델 덮어쓰기'\]/);
+assert.match(importExport, /\['keepBoth', uiText\('[^']+', '새 모델로 가져오기'\)\]/);
+assert.match(importExport, /\['reuse', uiText\('[^']+', '기존 모델 재사용'\)\]/);
+assert.match(importExport, /\['replace', uiText\('[^']+', '기존 모델 덮어쓰기'\)\]/);
 assert.match(importPreview, /className = 'drawio-row-policy'/);
 assert.match(importPreview, /drawio-conflict-search/);
 assert.match(importPreview, /drawio-conflict-filter/);
@@ -207,9 +207,9 @@ assert.match(importPreview, /검색 결과 일괄 처리/);
 assert.match(importPreview, /개별 설정 \(혼합\)/);
 assert.match(importPreview, /modelPolicies: Object\.fromEntries\(perModelPolicies\)/);
 assert.match(importExport, /decision\.modelPolicies/);
-assert.match(importPreview, /새 모델 \$\{counts\.keepBoth\} · 기존 재사용 \$\{counts\.reuse\} · 덮어쓰기 \$\{counts\.replace\}/);
+assert.match(importPreview, /새 모델 \{0\} · 기존 재사용 \{1\} · 덮어쓰기 \{2\}/);
 assert.match(importPreview, /drawio-conflict-replace/);
-assert.match(importPreview, /가져오기 \(\$\{analysis\.diagrams\}\) · 덮어쓰기 \$\{counts\.replace\}/);
+assert.match(importPreview, /가져오기 \(\{0\}\) · 덮어쓰기 \{1\}/);
 assert.match(importExport, /MODEL_FIELDS\.forEach\(field => \{ delete target\[field\]; \}\)/,
   '덮어쓰기는 기존 의미 필드를 제거한 뒤 가져온 모델로 교체해야 합니다');
 assert.match(importExport, /draw\.io 병합 검증에 실패하여 변경을 되돌렸습니다/,
@@ -421,11 +421,11 @@ for (const [kind, label] of [
   ['artifactinstance', '인스턴스'], ['componentinstance', '인스턴스'], ['nodeinstance', '인스턴스'],
   ['node', '노드'], ['component', '컴포넌트'], ['artifact', '아티팩트'],
 ]) {
-  assert.match(selectionEditing, new RegExp(`${kind}: '${label}',`),
+  assert.match(selectionEditing, new RegExp(`${kind}: uiText\\('[^']+', '${label}'\\),`),
     `${kind} 복사는 원본과 독립된 의미 모델을 만들어야 합니다`);
 }
 for (const kind of ['class', 'interface', 'enumeration']) {
-  assert.doesNotMatch(selectionEditing, new RegExp(`\\n\\s*${kind}: '`),
+  assert.doesNotMatch(selectionEditing, new RegExp(`\\n\\s*${kind}: `),
     `${kind}는 여러 다이어그램이 공유하는 분류자이므로 복사해도 같은 모델이어야 합니다`);
 }
 assert.match(selectionEditing, /els\.some\(view => view\.kind in INDEPENDENT_COPY_KINDS\)/);
@@ -574,7 +574,7 @@ assert.match(app, /trigger.*guard.*effect/);
 assert.match(modelExplorer, /searchInput\.addEventListener\('input', render\)/);
 assert.match(modelExplorer, /searchInput\.removeEventListener\('input', render\)/);
 assert.match(modelExplorer, /function render\(\)/);
-assert.match(html, /id="explorer" role="tree" aria-label="모델 탐색기"/,
+assert.match(html, /id="explorer" role="tree" aria-label="Model Explorer"/,
   'Model Explorer는 tree 역할과 이름을 노출해야 합니다');
 assert.match(modelExplorer, /node\.setAttribute\('role', 'treeitem'\)/);
 assert.match(modelExplorer, /aria-level/);
@@ -661,12 +661,12 @@ for (const key of ['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Home', 'E
   assert.match(commandRouter, new RegExp(`case '${key}'`), `메뉴 ${key} 이동이 필요합니다`);
 }
 assert.match(css, /#menubar \.menu-list \{/);
-assert.match(html, /<div id="toolbar" role="toolbar" aria-label="주 도구 모음"/,
+assert.match(html, /<div id="toolbar" role="toolbar" aria-label="Main toolbar"/,
   '툴바는 toolbar 역할과 이름을 노출해야 합니다');
 assert.match(html, /<span class="sep" role="separator" aria-orientation="vertical">/);
-assert.match(html, /data-cmd="zoomout"[^>]*aria-label="축소"/,
+assert.match(html, /data-cmd="zoomout"[^>]*aria-label="Zoom Out"/,
   '기호만 있는 버튼은 읽을 수 있는 이름이 필요합니다');
-assert.match(html, /data-cmd="zoomin"[^>]*aria-label="확대"/);
+assert.match(html, /data-cmd="zoomin"[^>]*aria-label="Zoom In"/);
 assert.match(commandRouter, /function toolbarButtons\(/);
 assert.match(commandRouter, /function syncToolbarTabStops\(/,
   '툴바도 roving tabindex로 탭 정지점을 하나만 노출해야 합니다');
@@ -1150,7 +1150,7 @@ assert.match(selectionEditing, /복사한 요소를 이 다이어그램에 붙�
 assert.match(selectionEditing, /일부 요소는 이 다이어그램 타입에 맞지 않아 제외되었습니다/);
 assert.match(selectionEditing, /잘라내기 완료 — Ctrl\+V로 붙여넣기/);
 assert.match(selectionEditing, /Ctrl\+D는 클립보드를 건드리지 않음/);
-assert.match(selectionEditing, /모델 \$\{modelIds\.size\}개와 모든 다이어그램의 연결된 뷰를 삭제했습니다/);
+assert.match(selectionEditing, /모델 \{0\}개와 모든 다이어그램의 연결된 뷰를 삭제했습니다/);
 assert.match(selectionEditing, /자동 크기를 적용할 요소를 선택하세요/);
 assert.match(selectionEditing, /순서를 변경할 요소 또는 Binding Connector를 선택하세요/);
 assert.match(app, /UMLSelectionEditing\.create\(/);
@@ -1280,7 +1280,7 @@ assert.match(parametricBinding, /existingRoutes\.push\(route\.points\)/,
 assert.match(parametricBinding, /먼저 Constraint Block Type을 선택하세요/);
 assert.match(parametricBinding, /선택한 Constraint Block에 정의된 Parameter가 없습니다/);
 assert.match(parametricBinding, /모든 Constraint Parameter가 이미 동기화되어 있습니다/);
-assert.match(parametricBinding, /Constraint Parameter \$\{added\.length\}개를 추가했습니다/);
+assert.match(parametricBinding, /Constraint Parameter \{0\}개를 추가했습니다/);
 assert.match(app, /UMLParametricBinding\.create\(/);
 assert.match(app, /route: bindingRoute,/);
 assert.match(app, /computeRoutes: computeBindingRoutes,/);
@@ -1424,7 +1424,7 @@ assert.match(app, /UMLRuntimeErrors\.create\(provide\(UMLRuntimeErrors\)\)/);
 assert.match(app, /runtimeErrors\.attach\(\)/);
 assert.ok(html.indexOf('runtime-errors.js?v=') < html.indexOf('app.js?v='));
 assert.match(statusBar, /function runtimeErrorText\(/);
-assert.match(statusBar, /⚠ 오류 \$\{count\}건/);
+assert.match(statusBar, /⚠ 오류 \{0\}건/);
 assert.match(app, /UMLElementPlacement\.create\(provide\(UMLElementPlacement\)\)/,
   '배치 모듈은 앱 레벨 의존성만 쓰므로 app.js가 직접 만듭니다');
 assert.ok(html.indexOf('element-placement.js?v=') < html.indexOf('canvas-interaction.js?v='),
@@ -1497,26 +1497,26 @@ assert.match(app, /const \{ download \} = diagramExport;/,
    REQUIRED 목록에 선언되어 있어야 한다 — 빠지면 브라우저에서만 터진다. */
 [
   {
-    parent: require(path.join(root, 'src/editor/property-panel.ts')),
-    child: require(path.join(root, 'src/editor/erd-property-sections.ts')),
+    parent: require(path.join(root, 'dist/browser/editor/property-panel.js')),
+    child: require(path.join(root, 'dist/browser/editor/erd-property-sections.js')),
     parentName: 'property-panel',
     supplied: ['propRow', 'sectionHeading', 'renderProps'],
   },
   {
-    parent: require(path.join(root, 'src/editor/quick-edit.ts')),
-    child: require(path.join(root, 'src/editor/erd-column-editor.ts')),
+    parent: require(path.join(root, 'dist/browser/editor/quick-edit.js')),
+    child: require(path.join(root, 'dist/browser/editor/erd-column-editor.js')),
     parentName: 'quick-edit',
     supplied: ['closeOtherQuickEditors', 'nextFieldSequence', 'selectQuickEditTarget'],
   },
   {
-    parent: require(path.join(root, 'src/editor/quick-edit.ts')),
-    child: require(path.join(root, 'src/editor/relation-end-editor.ts')),
+    parent: require(path.join(root, 'dist/browser/editor/quick-edit.js')),
+    child: require(path.join(root, 'dist/browser/editor/relation-end-editor.js')),
     parentName: 'quick-edit',
     supplied: ['closeOtherQuickEditors', 'nextFieldSequence', 'selectQuickEditTarget'],
   },
   {
-    parent: require(path.join(root, 'src/io/project-import.ts')),
-    child: require(path.join(root, 'src/io/import-preview.ts')),
+    parent: require(path.join(root, 'dist/browser/io/project-import.js')),
+    child: require(path.join(root, 'dist/browser/io/import-preview.js')),
     parentName: 'project-import',
     supplied: ['DRAWIO_IMPORT_POLICIES'],
   },
@@ -1537,8 +1537,9 @@ for (const name of ['AUTO_LABEL', 'INSTANCE_CLASSIFIER_KINDS', 'REQUIREMENT_TYPE
 
 /* app.js는 모듈 생성과 의존성 연결을 담당하는 얇은 bootstrap이어야 한다 */
 assert.ok(app.split('\n').length < 1750, 'app.js는 분리한 모듈만큼 줄어야 합니다');
-assert.match(app, /^\/\* ── Init ─+ \*\/\nprojectStore\.restoreOnStartup\(\);\s*$/m,
-  'init은 Project Store 부팅 호출만 남겨야 합니다');
+assert.match(app, /const projectReady = projectStore\.restoreOnStartup\(\);/);
+assert.match(app, /UMLLanguageSettings\.attach\(settingsButton, projectStore, projectReady\)/,
+  '언어 설정은 프로젝트 복원이 끝난 후 사용할 수 있어야 합니다');
 assert.match(css, /#toolbar button[\s\S]*white-space: nowrap/);
 assert.match(css, /\.tb-tool[\s\S]*min-height: 32px/);
 assert.match(css, /\.tab-close[\s\S]*min-width: 24px[\s\S]*min-height: 28px/);

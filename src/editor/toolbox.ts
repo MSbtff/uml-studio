@@ -9,6 +9,9 @@ declare var UMLToolbox: ToolboxApi;
 
 function createToolboxModule() {
   'use strict';
+  const { label: uiLabel, text: uiText } = globalThis.UMLLanguage
+    ?? require('./language.js') as typeof UMLLanguage;
+
 
   const REQUIRED_FUNCTIONS = Object.freeze(['clearLinking', 'dg', 'diagramKindLabel', 'renderCanvas'] as const);
   const REQUIRED_VALUES = Object.freeze(['document', 'state', 'toolbox', 'DIAGRAM_TOOLS'] as const);
@@ -169,9 +172,9 @@ function createToolboxModule() {
       toolbox.innerHTML = '';
       const tools = DIAGRAM_TOOLS[dg().type];
       const groups = [
-        { title: 'Tools', items: ['select'] },
-        { title: 'Elements', items: tools.elements.filter(id => !(tools.hiddenElements || []).includes(id)) },
-        { title: 'Relationships', items: tools.relations },
+        { title: uiLabel('Tools', '도구'), items: ['select'] },
+        { title: uiLabel('Elements', '요소'), items: tools.elements.filter(id => !(tools.hiddenElements || []).includes(id)) },
+        { title: uiLabel('Relationships', '관계'), items: tools.relations },
       ];
       groups.forEach(group => {
         const title = document.createElement('div');
@@ -179,13 +182,13 @@ function createToolboxModule() {
         title.textContent = group.title;
         toolbox.appendChild(title);
         group.items.forEach(id => {
-          const label = id === 'select' ? 'Select' : diagramKindLabel(id);
+          const label = id === 'select' ? uiLabel('Select', '선택') : diagramKindLabel(id);
           const tool = document.createElement('button');
           tool.type = 'button';
           tool.className = 'tb-tool' + (state.tool === id ? ' active' : '');
           tool.dataset.toolId = id;
           tool.setAttribute('aria-pressed', String(state.tool === id));
-          tool.setAttribute('aria-label', `${label} 도구`);
+          tool.setAttribute('aria-label', uiText('{0} tool', '{0} 도구', label));
           tool.innerHTML = toolIcon(id) + `<span>${label}</span>`;
           tool.addEventListener('click', () => {
             clearLinking();

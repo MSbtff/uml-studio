@@ -36,7 +36,7 @@ async function setupSequence(page) {
 }
 
 async function zoomOut(page) {
-  const zoom = page.getByRole('button', { name: '축소', exact: true });
+  const zoom = page.getByRole('button', { name: 'Zoom Out', exact: true });
   for (let i = 0; i < 4; i++) await zoom.click();
   await expect(page.locator('#zoomLabel')).toHaveText('48%');
 }
@@ -85,7 +85,7 @@ test('연결 직후 이름을 쓰고 축소 화면에서 한 번 클릭으로 �
   const rel = await messages(page).first().getAttribute('data-rel');
   await expect(page.locator('[data-message-hover]')).toHaveAttribute('data-message-hover', rel);
   await page.mouse.click(box.x + box.width / 2, box.y + 6);
-  await page.getByRole('button', { name: '메시지 이름 편집', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit message name', exact: true }).click();
   await expect(messageInput(page)).toBeFocused();
   await expect(messageInput(page)).toHaveValue('fetch()');
   await messageInput(page).fill('load()');
@@ -164,7 +164,7 @@ test('Shift 드래그는 요소와 라벨의 축을 고정하고 Shift 클릭은
   await canvasElements(page)
     .nth(1)
     .click({ modifiers: ['Shift'] });
-  await expect(page.locator('#props')).toContainText('요소 2개 선택됨');
+  await expect(page.locator('#props')).toContainText('Selected elements: 2');
 
   await addDiagram(page, 'Sequence Diagram');
   await createCanvasElement(page, 'Lifeline', { x: 184, y: 100 });

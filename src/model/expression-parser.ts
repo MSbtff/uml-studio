@@ -11,6 +11,9 @@ declare var UMLExpressionParser: ExpressionParserApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createExpressionParser);
 
 function createExpressionParser() {
+  const { text: uiText } = globalThis.UMLLanguage
+    ?? require('../editor/language.js') as typeof UMLLanguage;
+
   const VISIBILITY = new Set(['+', '#', '-', '~']);
 
   const ok = <Fields extends object>(fields: Fields, normalized: string) => ({ valid: true as const, ...fields, normalized });
@@ -95,8 +98,8 @@ function createExpressionParser() {
   function parseName(source: unknown) {
     const parsed = prefix(source);
     const name = parsed.rest.trim();
-    if (!name) return fail('이름을 입력하세요.');
-    if (scan(name, () => false) === -2) return fail('괄호 또는 따옴표가 닫히지 않았습니다.');
+    if (!name) return fail(uiText('Enter a name.', '이름을 입력하세요.'));
+    if (scan(name, () => false) === -2) return fail(uiText('Unclosed parenthesis or quote.', '괄호 또는 따옴표가 닫히지 않았습니다.'));
     const normalized = [prefixText(parsed), name].filter(Boolean).join(' ');
     return ok({ stereotype: parsed.stereotype, visibility: parsed.visibility, name }, normalized);
   }
@@ -104,15 +107,18 @@ function createExpressionParser() {
   function parseAttribute(source: unknown) {
     const parsed = prefix(source);
     let rest = parsed.rest.trim();
-    if (!rest) return fail('속성 이름을 입력하세요.');
-    if (scan(rest, () => false) === -2) return fail('속성 표현식의 괄호 또는 따옴표가 닫히지 않았습니다.');
+    if (!rest) return fail(uiText('Enter an attribute name.', '속성 이름을 입력하세요.'));
+    if (scan(rest, () => false) === -2) return fail(uiText(
+      'Unclosed parenthesis or quote in the attribute expression.',
+      '속성 표현식의 괄호 또는 따옴표가 닫히지 않았습니다.',
+    ));
 
     let defaultValue = '';
     const equalAt = topLevelIndex(rest, '=');
     if (equalAt >= 0) {
       defaultValue = rest.slice(equalAt + 1).trim();
       rest = rest.slice(0, equalAt).trim();
-      if (!defaultValue) return fail('기본값을 입력하거나 = 기호를 제거하세요.');
+      if (!defaultValue) return fail(uiText('Enter a default value or remove the equals sign.', '기본값을 입력하거나 = 기호를 제거하세요.'));
     }
 
     let multiplicity = '';
@@ -121,7 +127,7 @@ function createExpressionParser() {
       multiplicity = multiplicityMatch[1].trim();
       rest = rest.slice(0, multiplicityMatch.index).trim();
       if (!/^(?:\d+|\*)(?:\s*\.\.\s*(?:\d+|\*))?$/.test(multiplicity)) {
-        return fail('Multiplicity는 1, *, 0..1, 0..* 형식이어야 합니다.');
+        return fail(uiText('Enter a multiplicity such as 1, *, 0..1, or 0..*.', 'Multiplicity는 1, *, 0..1, 0..* 형식이어야 합니다.'));
       }
       multiplicity = multiplicity.replace(/\s+/g, '');
     }
@@ -131,10 +137,10 @@ function createExpressionParser() {
     if (colonAt >= 0) {
       type = rest.slice(colonAt + 1).trim();
       rest = rest.slice(0, colonAt).trim();
-      if (!type) return fail('속성 타입을 입력하거나 : 기호를 제거하세요.');
+      if (!type) return fail(uiText('Enter an attribute type or remove the colon.', '속성 타입을 입력하거나 : 기호를 제거하세요.'));
     }
     const name = rest;
-    if (!validMemberName(name)) return fail('속성 이름에는 공백이나 괄호를 사용할 수 없습니다.');
+    if (!validMemberName(name)) return fail(uiText('Attribute names cannot contain spaces or parentheses.', '속성 이름에는 공백이나 괄호를 사용할 수 없습니다.'));
 
     const core = `${name}${type ? `: ${type}` : ''}${multiplicity ? ` [${multiplicity}]` : ''}${defaultValue ? ` = ${defaultValue}` : ''}`;
     const normalized = [prefixText(parsed), core].filter(Boolean).join(' ');
@@ -147,7 +153,7 @@ function createExpressionParser() {
   function parseOperation(source: unknown) {
     const parsed = prefix(source);
     let rest = parsed.rest.trim();
-    if (!rest) return fail('연산 이름을 입력하세요.');
+    if (!rest) return fail(uiText('Enter an operation name.', '연산 이름을 입력하세요.'));
 
     let properties = '';
     const propertyMatch = rest.match(/\s*(\{[^{}]+\})\s*$/);
@@ -161,26 +167,29 @@ function createExpressionParser() {
     const openAt = rest.indexOf('(');
     if (openAt >= 0) {
       const closeAt = matchingParen(rest, openAt);
-      if (closeAt < 0) return fail('연산 매개변수의 닫는 괄호가 없습니다.');
+      if (closeAt < 0) return fail(uiText('Missing closing parenthesis for operation parameters.', '연산 매개변수의 닫는 괄호가 없습니다.'));
       name = rest.slice(0, openAt).trim();
       parameters = rest.slice(openAt + 1, closeAt).trim();
       hasParentheses = true;
       const tail = rest.slice(closeAt + 1).trim();
       if (tail) {
-        if (!tail.startsWith(':')) return fail('연산 괄호 뒤에는 반환 타입만 올 수 있습니다.');
+        if (!tail.startsWith(':')) return fail(uiText(
+          'Only the return type can follow the operation parentheses.',
+          '연산 괄호 뒤에는 반환 타입만 올 수 있습니다.',
+        ));
         returnType = tail.slice(1).trim();
-        if (!returnType) return fail('반환 타입을 입력하거나 : 기호를 제거하세요.');
+        if (!returnType) return fail(uiText('Enter a return type or remove the colon.', '반환 타입을 입력하거나 : 기호를 제거하세요.'));
       }
     } else {
       const colonAt = topLevelIndex(rest, ':');
       if (colonAt >= 0) {
         name = rest.slice(0, colonAt).trim();
         returnType = rest.slice(colonAt + 1).trim();
-        if (!returnType) return fail('반환 타입을 입력하거나 : 기호를 제거하세요.');
+        if (!returnType) return fail(uiText('Enter a return type or remove the colon.', '반환 타입을 입력하거나 : 기호를 제거하세요.'));
       }
     }
-    if (!validMemberName(name)) return fail('연산 이름에는 공백이나 괄호를 사용할 수 없습니다.');
-    if (parameters && scan(parameters, () => false) === -2) return fail('매개변수 표현식이 올바르지 않습니다.');
+    if (!validMemberName(name)) return fail(uiText('Operation names cannot contain spaces or parentheses.', '연산 이름에는 공백이나 괄호를 사용할 수 없습니다.'));
+    if (parameters && scan(parameters, () => false) === -2) return fail(uiText('Invalid parameter expression.', '매개변수 표현식이 올바르지 않습니다.'));
 
     const signature = `${name}${hasParentheses ? `(${parameters})` : ''}${returnType ? `: ${returnType}` : ''}`;
     const normalized = [prefixText(parsed), signature, properties].filter(Boolean).join(' ');
@@ -193,25 +202,28 @@ function createExpressionParser() {
   function parseLifeline(source: unknown) {
     const parsed = prefix(source);
     let rest = parsed.rest.trim();
-    if (!rest) return fail('라이프라인 이름 또는 타입을 입력하세요.');
-    if (scan(rest, () => false) === -2) return fail('라이프라인 표현식의 괄호 또는 따옴표가 닫히지 않았습니다.');
+    if (!rest) return fail(uiText('Enter a lifeline name or type.', '라이프라인 이름 또는 타입을 입력하세요.'));
+    if (scan(rest, () => false) === -2) return fail(uiText(
+      'Unclosed parenthesis or quote in the lifeline expression.',
+      '라이프라인 표현식의 괄호 또는 따옴표가 닫히지 않았습니다.',
+    ));
 
     let type = '';
     const colonAt = topLevelIndex(rest, ':');
     if (colonAt >= 0) {
       type = rest.slice(colonAt + 1).trim();
       rest = rest.slice(0, colonAt).trim();
-      if (!type) return fail('라이프라인 타입을 입력하거나 : 기호를 제거하세요.');
+      if (!type) return fail(uiText('Enter a lifeline type or remove the colon.', '라이프라인 타입을 입력하거나 : 기호를 제거하세요.'));
     }
     let selector = '';
     const selectorMatch = rest.match(/\[([^\]]*)\]\s*$/);
     if (selectorMatch) {
       selector = selectorMatch[1].trim();
       rest = rest.slice(0, selectorMatch.index).trim();
-      if (!selector) return fail('Selector 값을 입력하거나 대괄호를 제거하세요.');
+      if (!selector) return fail(uiText('Enter a selector value or remove the brackets.', 'Selector 값을 입력하거나 대괄호를 제거하세요.'));
     }
     const name = rest;
-    if (!name && !type) return fail('라이프라인 이름 또는 타입이 필요합니다.');
+    if (!name && !type) return fail(uiText('A lifeline name or type is required.', '라이프라인 이름 또는 타입이 필요합니다.'));
     const core = `${name}${selector ? `[${selector}]` : ''}${type ? `${name ? ': ' : ': '}${type}` : ''}`;
     const normalized = [prefixText(parsed), core].filter(Boolean).join(' ');
     return ok({ stereotype: parsed.stereotype, visibility: parsed.visibility, name, selector, type }, normalized);
@@ -220,24 +232,24 @@ function createExpressionParser() {
   function parseMessage(source: unknown) {
     const parsed = prefix(source);
     let rest = parsed.rest.trim();
-    if (!rest) return fail('메시지 이름을 입력하세요.');
+    if (!rest) return fail(uiText('Enter a message name.', '메시지 이름을 입력하세요.'));
     let target = '';
     const equalAt = topLevelIndex(rest, '=');
     if (equalAt >= 0) {
       target = rest.slice(0, equalAt).trim();
       rest = rest.slice(equalAt + 1).trim();
-      if (!target || !rest) return fail('메시지 대입식은 target = message 형식이어야 합니다.');
+      if (!target || !rest) return fail(uiText('Use target = message for a message assignment.', '메시지 대입식은 target = message 형식이어야 합니다.'));
     }
     let name = rest, argumentsText = '', hasParentheses = false;
     const openAt = rest.indexOf('(');
     if (openAt >= 0) {
       const closeAt = matchingParen(rest, openAt);
-      if (closeAt < 0 || rest.slice(closeAt + 1).trim()) return fail('메시지 호출 괄호가 올바르지 않습니다.');
+      if (closeAt < 0 || rest.slice(closeAt + 1).trim()) return fail(uiText('Invalid message call parentheses.', '메시지 호출 괄호가 올바르지 않습니다.'));
       name = rest.slice(0, openAt).trim();
       argumentsText = rest.slice(openAt + 1, closeAt).trim();
       hasParentheses = true;
     }
-    if (!validMemberName(name)) return fail('메시지 이름에는 공백이나 괄호를 사용할 수 없습니다.');
+    if (!validMemberName(name)) return fail(uiText('Message names cannot contain spaces or parentheses.', '메시지 이름에는 공백이나 괄호를 사용할 수 없습니다.'));
     const call = `${name}${hasParentheses ? `(${argumentsText})` : ''}`;
     const core = target ? `${target} = ${call}` : call;
     const normalized = [prefixText(parsed), core].filter(Boolean).join(' ');

@@ -12,8 +12,8 @@ import {
 test('도구 팔레트와 다이어그램 탭을 키보드로 조작할 수 있다', async ({ studioPage: page }) => {
   await createEmptyProject(page);
 
-  const classTool = page.getByRole('button', { name: 'Class 도구', exact: true });
-  const selectTool = page.getByRole('button', { name: 'Select 도구', exact: true });
+  const classTool = page.getByRole('button', { name: 'Class tool', exact: true });
+  const selectTool = page.getByRole('button', { name: 'Select tool', exact: true });
   await expect(classTool).toHaveAttribute('aria-pressed', 'false');
   await classTool.focus();
   await page.keyboard.press('Enter');
@@ -30,9 +30,9 @@ test('도구 팔레트와 다이어그램 탭을 키보드로 조작할 수 있�
   expect(toolBox?.height).toBeGreaterThanOrEqual(24);
 
   await addDiagram(page, 'ER Diagram');
-  const tablist = page.getByRole('tablist', { name: '다이어그램 탭' });
+  const tablist = page.getByRole('tablist', { name: 'Diagram tabs' });
   await expect(tablist).toBeVisible();
-  await expect(page.getByRole('tabpanel', { name: '다이어그램 캔버스' })).toBeVisible();
+  await expect(page.getByRole('tabpanel', { name: 'Diagram canvas' })).toBeVisible();
   await expect(tablist.getByRole('tab')).toHaveCount(2);
 
   let classTab = tablist.getByRole('tab', { name: 'Class Diagram', exact: true });
@@ -56,7 +56,7 @@ test('도구 팔레트와 다이어그램 탭을 키보드로 조작할 수 있�
   await expect(classTab).toBeFocused();
 
   await page.keyboard.press('F2');
-  const rename = page.getByLabel('Class Diagram 다이어그램 이름 변경', { exact: true });
+  const rename = page.getByLabel('Rename Class Diagram diagram', { exact: true });
   await expect(rename).toBeFocused();
   await rename.fill('Keyboard Class');
   await page.keyboard.press('Enter');
@@ -64,12 +64,12 @@ test('도구 팔레트와 다이어그램 탭을 키보드로 조작할 수 있�
   await expect(renamedTab).toHaveAttribute('aria-selected', 'true');
   await expect(renamedTab).toBeFocused();
 
-  const closeButton = page.getByRole('button', { name: 'Keyboard Class 다이어그램 닫기', exact: true });
+  const closeButton = page.getByRole('button', { name: 'Close Keyboard Class diagram', exact: true });
   const closeBox = await closeButton.boundingBox();
   expect(closeBox?.width).toBeGreaterThanOrEqual(24);
   expect(closeBox?.height).toBeGreaterThanOrEqual(24);
 
-  const addButton = page.getByRole('button', { name: '새 다이어그램 추가', exact: true });
+  const addButton = page.getByRole('button', { name: 'Add Diagram', exact: true });
   await addButton.focus();
   await page.keyboard.press('Enter');
   const menu = page.locator('#tab-menu');
@@ -89,21 +89,21 @@ test('모달은 포커스를 가두고 닫은 뒤 호출 버튼으로 돌려보�
   const manager = page.getByRole('dialog', { name: 'Project Manager', exact: true });
   await expect(manager).toBeVisible();
   await expect(page.locator('#app')).toHaveAttribute('inert', '');
-  await expect(manager.getByRole('button', { name: '새 프로젝트', exact: true })).toBeFocused();
+  await expect(manager.getByRole('button', { name: 'New Project', exact: true })).toBeFocused();
 
   // 행 버튼 이름은 보이는 라벨 뒤에 프로젝트 이름이 붙는다
-  const renameButton = manager.getByRole('button', { name: /^이름 / }).first();
+  const renameButton = manager.getByRole('button', { name: /^Rename / }).first();
   await renameButton.click();
   const rename = page.getByRole('dialog', { name: 'Rename Project', exact: true });
-  const nameInput = rename.getByLabel('프로젝트 이름', { exact: true });
+  const nameInput = rename.getByLabel('Project Name', { exact: true });
   await expect(rename).toBeVisible();
   await expect(nameInput).toBeFocused();
   await expect(page.locator('#project-manager-modal')).toHaveAttribute('inert', '');
   await expect(page.locator('#project-manager-modal')).toHaveAttribute('aria-hidden', 'true');
 
-  await rename.getByRole('button', { name: '이름 변경', exact: true }).focus();
+  await rename.getByRole('button', { name: 'Rename', exact: true }).focus();
   await page.keyboard.press('Tab');
-  await expect(rename.getByRole('button', { name: 'Rename Project 닫기', exact: true })).toBeFocused();
+  await expect(rename.getByRole('button', { name: 'Close Rename Project', exact: true })).toBeFocused();
 
   await page.keyboard.press('Escape');
   await expect(rename).toBeHidden();
@@ -122,7 +122,7 @@ test('모달은 포커스를 가두고 닫은 뒤 호출 버튼으로 돌려보�
 test('메뉴바를 방향키로 이동하고 메뉴 항목을 키보드로 실행할 수 있다', async ({ studioPage: page }) => {
   await createEmptyProject(page);
 
-  const menubar = page.getByRole('menubar', { name: '주 메뉴' });
+  const menubar = page.getByRole('menubar', { name: 'Main menu' });
   await expect(menubar).toBeVisible();
   const fileMenu = menubar.getByRole('menuitem', { name: 'File', exact: true });
   const editMenu = menubar.getByRole('menuitem', { name: 'Edit', exact: true });
@@ -192,7 +192,7 @@ test('Model Explorer 트리를 방향키로 탐색하고 항목을 선택할 수
   await renameSelectedElement(page, 'Invoice');
   await addDiagram(page, 'ER Diagram');
 
-  const tree = page.getByRole('tree', { name: '모델 탐색기' });
+  const tree = page.getByRole('tree', { name: 'Model Explorer' });
   await expect(tree).toBeVisible();
   const classRoot = tree.getByRole('treeitem', { name: 'Class Diagram' });
   const erdRoot = tree.getByRole('treeitem', { name: 'ER Diagram' });
@@ -202,7 +202,7 @@ test('Model Explorer 트리를 방향키로 탐색하고 항목을 선택할 수
   await expect(erdRoot).toHaveAttribute('aria-posinset', '2');
   await expect(erdRoot).toHaveAttribute('aria-setsize', '2');
 
-  await page.getByLabel('Model Explorer 검색').focus();
+  await page.getByLabel('Search Model Explorer').focus();
   await page.keyboard.press('ArrowDown');
   await expect(classRoot).toBeFocused();
 
@@ -242,7 +242,7 @@ test('Model Explorer 트리를 방향키로 탐색하고 항목을 선택할 수
 test('툴바는 탭 정지점 하나로 들어가 방향키로 이동한다', async ({ studioPage: page }) => {
   await createEmptyProject(page);
 
-  const toolbar = page.getByRole('toolbar', { name: '주 도구 모음' });
+  const toolbar = page.getByRole('toolbar', { name: 'Main toolbar' });
   await expect(toolbar).toBeVisible();
   const newButton = toolbar.getByRole('button', { name: 'New', exact: true });
   const openButton = toolbar.getByRole('button', { name: 'Open', exact: true });
@@ -250,7 +250,7 @@ test('툴바는 탭 정지점 하나로 들어가 방향키로 이동한다', as
   await expect(toolbar.getByRole('button', { name: 'Projects', exact: true })).toHaveAttribute('tabindex', '0');
   await expect(newButton).toHaveAttribute('tabindex', '-1');
   await expect(openButton).toHaveAttribute('tabindex', '-1');
-  await expect(toolbar.getByRole('button', { name: '축소', exact: true })).toHaveAttribute('tabindex', '-1');
+  await expect(toolbar.getByRole('button', { name: 'Zoom Out', exact: true })).toHaveAttribute('tabindex', '-1');
   expect(await toolbar.locator('button:not([tabindex="-1"])').count()).toBe(1);
 
   await newButton.focus();
@@ -260,11 +260,11 @@ test('툴바는 탭 정지점 하나로 들어가 방향키로 이동한다', as
   await expect(newButton).toHaveAttribute('tabindex', '-1');
 
   await page.keyboard.press('End');
-  await expect(toolbar.getByRole('button', { name: '확대', exact: true })).toBeFocused();
+  await expect(toolbar.getByRole('button', { name: 'Zoom In', exact: true })).toBeFocused();
   await page.keyboard.press('ArrowRight');
   await expect(newButton).toBeFocused();
   await page.keyboard.press('ArrowLeft');
-  await expect(toolbar.getByRole('button', { name: '확대', exact: true })).toBeFocused();
+  await expect(toolbar.getByRole('button', { name: 'Zoom In', exact: true })).toBeFocused();
   await page.keyboard.press('Home');
   await expect(newButton).toBeFocused();
 
@@ -278,17 +278,17 @@ test('툴바는 탭 정지점 하나로 들어가 방향키로 이동한다', as
 
   // ERD 모드 버튼은 다시 그려져도 포커스와 탭 정지점을 유지한다
   await addDiagram(page, 'ER Diagram');
-  const erdGroup = page.getByRole('group', { name: 'ERD 표시 모드' });
+  const erdGroup = page.getByRole('group', { name: 'ERD display mode' });
   await expect(erdGroup).toBeVisible();
-  const logicalButton = erdGroup.getByRole('button', { name: '논리만', exact: true });
+  const logicalButton = erdGroup.getByRole('button', { name: 'Logical', exact: true });
   await expect(logicalButton).toHaveAttribute('tabindex', '-1');
   await logicalButton.focus();
   await page.keyboard.press('Enter');
   await expect(
-    page.getByRole('group', { name: 'ERD 표시 모드' }).getByRole('button', { name: '논리만', exact: true }),
+    page.getByRole('group', { name: 'ERD display mode' }).getByRole('button', { name: 'Logical', exact: true }),
   ).toBeFocused();
   await expect(
-    page.getByRole('group', { name: 'ERD 표시 모드' }).getByRole('button', { name: '논리만', exact: true }),
+    page.getByRole('group', { name: 'ERD display mode' }).getByRole('button', { name: 'Logical', exact: true }),
   ).toHaveAttribute('aria-pressed', 'true');
   expect(await toolbar.locator('button:not([tabindex="-1"])').count()).toBe(1);
 });
@@ -344,31 +344,31 @@ test('캔버스 요소를 Tab으로 순회하고 끝에서는 캔버스를 벗�
   await createCanvasElement(page, 'Class', { x: 560, y: 200 });
   await renameSelectedElement(page, 'Second');
 
-  const canvas = page.getByRole('tabpanel', { name: '다이어그램 캔버스' });
+  const canvas = page.getByRole('tabpanel', { name: 'Diagram canvas' });
   const name = page.getByLabel('Name', { exact: true });
   const status = page.locator('#status-left');
 
   // 선택을 지우고 캔버스에서 다시 키보드로 들어간다
   await canvas.focus();
   await page.keyboard.press('Escape');
-  await expect(page.locator('#props')).toContainText('선택된 요소가 없습니다');
+  await expect(page.locator('#props')).toContainText('Nothing selected.');
 
   await canvas.focus();
   await page.keyboard.press('Tab');
   await expect(name).toHaveValue('First');
-  await expect(status).toContainText('1/2 선택');
-  await expect(status).toContainText('Esc 해제');
+  await expect(status).toContainText('Selected 1/2');
+  await expect(status).toContainText('Esc clear selection');
   await expect(canvas).toBeFocused();
 
   await page.keyboard.press('Tab');
   await expect(name).toHaveValue('Second');
-  await expect(status).toContainText('2/2 선택');
+  await expect(status).toContainText('Selected 2/2');
 
   await page.keyboard.press('Shift+Tab');
   await expect(name).toHaveValue('First');
 
   await page.keyboard.press('Shift+Tab');
-  await expect(page.locator('#props')).toContainText('선택된 요소가 없습니다');
+  await expect(page.locator('#props')).toContainText('Nothing selected.');
   await expect(canvas).not.toBeFocused();
 
   // 선택한 요소는 방향키로 계속 옮길 수 있다
@@ -393,8 +393,8 @@ test('목록형 대화상자의 행 버튼은 어느 항목인지 이름으로 �
   await page.getByRole('button', { name: 'Models', exact: true }).click();
   const models = page.locator('#model-repository-modal');
   await expect(models).toBeVisible();
-  await expect(models.getByRole('searchbox', { name: '모델 이름 또는 종류 검색' })).toBeVisible();
-  const modelList = models.getByRole('list', { name: /^모델 \d+개$/ });
+  await expect(models.getByRole('searchbox', { name: 'Search by model name or type' })).toBeVisible();
+  const modelList = models.getByRole('list', { name: /^Models: \d+$/ });
   await expect(modelList).toBeVisible();
   await expect(modelList.getByRole('listitem')).not.toHaveCount(0);
   // 버튼 이름은 보이는 라벨로 시작하고 모델 이름이 뒤따른다
@@ -406,11 +406,11 @@ test('목록형 대화상자의 행 버튼은 어느 항목인지 이름으로 �
   await page.getByRole('button', { name: 'Projects', exact: true }).click();
   const projects = page.locator('#project-manager-modal');
   await expect(projects).toBeVisible();
-  const projectList = projects.getByRole('list', { name: /^저장된 프로젝트 \d+개$/ });
+  const projectList = projects.getByRole('list', { name: /^Saved projects: \d+$/ });
   await expect(projectList).toBeVisible();
   const firstRow = projectList.getByRole('listitem').first();
   const rowName = (await firstRow.locator('.project-name').textContent()).trim();
-  for (const label of ['열기', '복구', '이름', '복제', '삭제']) {
+  for (const label of ['Open', 'History', 'Rename', 'Duplicate', 'Delete']) {
     await expect(projects.getByRole('button', { name: `${label} ${rowName}`, exact: true })).toHaveCount(1);
   }
   await page.keyboard.press('Escape');

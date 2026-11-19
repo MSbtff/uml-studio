@@ -27,6 +27,9 @@ declare var UMLPersistence: PersistenceApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createPersistence);
 
 function createPersistence(environment: PersistenceEnvironment) {
+  const { text: uiText } = globalThis.UMLLanguage
+    ?? require('../editor/language.js') as typeof UMLLanguage;
+
   const DB_NAME = 'uml-studio-v7';
   const DB_VERSION = 2;
   const STORE_NAME = 'recovery';
@@ -74,22 +77,25 @@ function createPersistence(environment: PersistenceEnvironment) {
   function requestValue<Value>(request: IDBRequest<Value>) {
     return new Promise<Value>((resolve, reject) => {
       request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error || new Error('IndexedDB 요청에 실패했습니다.'));
+      request.onerror = () => reject(request.error || new Error(uiText('The IndexedDB request failed.', 'IndexedDB 요청에 실패했습니다.')));
     });
   }
 
   function transactionDone(transaction: IDBTransaction) {
     return new Promise<void>((resolve, reject) => {
       transaction.oncomplete = () => resolve();
-      transaction.onabort = () => reject(transaction.error || new Error('IndexedDB 트랜잭션이 중단되었습니다.'));
-      transaction.onerror = () => reject(transaction.error || new Error('IndexedDB 트랜잭션에 실패했습니다.'));
+      transaction.onabort = () => reject(transaction.error || new Error(uiText(
+        'The IndexedDB transaction was aborted.',
+        'IndexedDB 트랜잭션이 중단되었습니다.',
+      )));
+      transaction.onerror = () => reject(transaction.error || new Error(uiText('The IndexedDB transaction failed.', 'IndexedDB 트랜잭션에 실패했습니다.')));
     });
   }
 
   function openDatabase() {
     if (dbPromise) return dbPromise;
     const api = indexedDBApi();
-    if (!api) return Promise.reject(new Error('이 브라우저는 IndexedDB를 지원하지 않습니다.'));
+    if (!api) return Promise.reject(new Error(uiText('This browser does not support IndexedDB.', '이 브라우저는 IndexedDB를 지원하지 않습니다.')));
     dbPromise = new Promise<IDBDatabase>((resolve, reject) => {
       const request = api.open(DB_NAME, DB_VERSION);
       request.onupgradeneeded = () => {
@@ -112,18 +118,18 @@ function createPersistence(environment: PersistenceEnvironment) {
       };
       request.onerror = () => {
         dbPromise = null;
-        reject(request.error || new Error('IndexedDB를 열 수 없습니다.'));
+        reject(request.error || new Error(uiText('Could not open IndexedDB.', 'IndexedDB를 열 수 없습니다.')));
       };
       request.onblocked = () => {
         dbPromise = null;
-        reject(new Error('다른 탭이 데이터베이스 업그레이드를 막고 있습니다.'));
+        reject(new Error(uiText('Another tab is blocking a database upgrade.', '다른 탭이 데이터베이스 업그레이드를 막고 있습니다.')));
       };
     });
     return dbPromise;
   }
 
   async function writeAutosave(json: string, metadata: SaveMetadata) {
-    if (typeof json !== 'string' || !json.trim()) throw new Error('저장할 프로젝트 JSON이 없습니다.');
+    if (typeof json !== 'string' || !json.trim()) throw new Error(uiText('No project JSON to save.', '저장할 프로젝트 JSON이 없습니다.'));
     const db = await openDatabase();
     const transaction = db.transaction(STORE_NAME, 'readwrite');
     const store = transaction.objectStore(STORE_NAME);
@@ -171,7 +177,12 @@ function createPersistence(environment: PersistenceEnvironment) {
   }
 
   function conflictError(expected: unknown, actual: unknown) {
-    return Object.assign(new Error(`프로젝트가 다른 탭에서 변경되었습니다. (예상 ${expected}, 현재 ${actual})`), {
+    return Object.assign(new Error(uiText(
+      'The project changed in another tab (expected revision {0}, current revision {1}).',
+      '프로젝트가 다른 탭에서 변경되었습니다. (예상 {0}, 현재 {1})',
+      expected,
+      actual,
+    )), {
       code: 'revision_conflict',
       expectedRevision: expected,
       actualRevision: actual,
@@ -179,8 +190,8 @@ function createPersistence(environment: PersistenceEnvironment) {
   }
 
   async function writeProject(projectId: string, json: string, metadata: SaveMetadata) {
-    if (typeof projectId !== 'string' || !projectId.trim()) throw new Error('프로젝트 ID가 없습니다.');
-    if (typeof json !== 'string' || !json.trim()) throw new Error('저장할 프로젝트 JSON이 없습니다.');
+    if (typeof projectId !== 'string' || !projectId.trim()) throw new Error(uiText('Project ID is missing.', '프로젝트 ID가 없습니다.'));
+    if (typeof json !== 'string' || !json.trim()) throw new Error(uiText('No project JSON to save.', '저장할 프로젝트 JSON이 없습니다.'));
     const db = await openDatabase();
     const transaction = db.transaction([PROJECT_STORE, REVISION_STORE], 'readwrite');
     const projects = transaction.objectStore(PROJECT_STORE);
@@ -273,7 +284,7 @@ function createPersistence(environment: PersistenceEnvironment) {
     const record = await requestValue<ProjectRecord | undefined>(store.get(projectId));
     if (!record) {
       transaction.abort();
-      throw new Error('프로젝트를 찾을 수 없습니다.');
+      throw new Error(uiText('The project could not be found.', '프로젝트를 찾을 수 없습니다.'));
     }
     record.name = String(name || '').trim().slice(0, 200) || 'Untitled Project';
     store.put(record);
@@ -327,7 +338,7 @@ function createPersistence(environment: PersistenceEnvironment) {
 
   async function saveServerAutosave(json: string, metadata: SaveMetadata = {}): Promise<{ ok: boolean; savedAt: number; backend: 'sqlite' }> {
     if (serverAvailable === false || typeof environment.fetch !== 'function') {
-      throw new Error('SQLite 자동저장 서버를 사용할 수 없습니다.');
+      throw new Error(uiText('The SQLite autosave server is unavailable.', 'SQLite 자동저장 서버를 사용할 수 없습니다.'));
     }
     const response = await environment.fetch('/api/recovery/autosave', {
       method: 'PUT',
@@ -341,7 +352,7 @@ function createPersistence(environment: PersistenceEnvironment) {
     const isJson = (response.headers.get('content-type') || '').includes('application/json');
     if (!response.ok || !isJson) {
       serverAvailable = false;
-      throw new Error(`SQLite 자동저장 서버 응답 오류 (${response.status})`);
+      throw new Error(uiText('SQLite autosave server error ({0})', 'SQLite 자동저장 서버 응답 오류 ({0})', response.status));
     }
     serverAvailable = true;
     return response.json();
@@ -366,7 +377,7 @@ function createPersistence(environment: PersistenceEnvironment) {
       }
       if (!response.ok || !isJson) {
         if (response.status === 404) return null;
-        throw new Error(`SQLite 프로젝트 서버 응답 오류 (${response.status})`);
+        throw new Error(uiText('SQLite project server error ({0})', 'SQLite 프로젝트 서버 응답 오류 ({0})', response.status));
       }
       serverAvailable = true;
       return response.status === 204 ? null : response.json();
@@ -399,7 +410,7 @@ function createPersistence(environment: PersistenceEnvironment) {
         expectedRevision: metadata.expectedRevision,
       }),
     }).then(result => {
-      if (!result) throw new Error('SQLite 프로젝트 서버를 사용할 수 없습니다.');
+      if (!result) throw new Error(uiText('The SQLite project server is unavailable.', 'SQLite 프로젝트 서버를 사용할 수 없습니다.'));
       return result;
     });
   }

@@ -12,11 +12,14 @@ declare var UMLErdCardinality: ErdCardinalityApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createErdCardinality);
 
 function createErdCardinality() {
+  const { text: uiText } = globalThis.UMLLanguage
+    ?? require('../editor/language.js') as typeof UMLLanguage;
+
   const ERD_CARDINALITY_OPTIONS = [
-    ['0..1', '0..1 · 선택 한 개'],
-    ['1', '1 · 필수 한 개'],
-    ['0..N', '0..N · 선택 여러 개'],
-    ['1..N', '1..N · 필수 여러 개'],
+    ['0..1', uiText('0..1 · Zero or one', '0..1 · 선택 한 개')],
+    ['1', uiText('1 · Exactly one', '1 · 필수 한 개')],
+    ['0..N', uiText('0..N · Zero or more', '0..N · 선택 여러 개')],
+    ['1..N', uiText('1..N · One or more', '1..N · 필수 여러 개')],
   ];
   type Cardinality = '0..1' | '1' | '0..N' | '1..N';
   type ParsedCardinality = { min: 'zero' | 'one'; max: 'one' | 'many'; canonical: Cardinality };

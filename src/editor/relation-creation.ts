@@ -12,6 +12,9 @@ declare var UMLRelationCreation: RelationCreationApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createRelationCreationModule);
 
 function createRelationCreationModule() {
+  const { text: uiText } = globalThis.UMLLanguage
+    ?? require('./language.js') as typeof UMLLanguage;
+
   const REQUIRED_FUNCTIONS = Object.freeze([
     'adoptView',
     'byId',
@@ -39,10 +42,13 @@ function createRelationCreationModule() {
     'state',
   ] as const);
   const ENDPOINT_MESSAGES = Object.freeze({
-    transition: 'Transition은 상태 머신의 State 또는 Pseudostate 사이에만 연결할 수 있습니다',
-    link: 'Link는 Object 또는 Artifact/Component/Node Instance 사이에만 연결할 수 있습니다',
-    commconnector: 'Communication Connector는 Lifeline 사이에만 연결할 수 있습니다',
-    timingmessage: 'Timing Message는 Time Segment 사이에만 연결할 수 있습니다',
+    transition: uiText('Connect transitions between states or pseudostates.', 'Transition은 상태 머신의 State 또는 Pseudostate 사이에만 연결할 수 있습니다'),
+    link: uiText(
+      'Connect links between objects or artifact, component, or node instances.',
+      'Link는 Object 또는 Artifact/Component/Node Instance 사이에만 연결할 수 있습니다',
+    ),
+    commconnector: uiText('Connect communication connectors between lifelines.', 'Communication Connector는 Lifeline 사이에만 연결할 수 있습니다'),
+    timingmessage: uiText('Connect timing messages between time segments.', 'Timing Message는 Time Segment 사이에만 연결할 수 있습니다'),
   });
 
   interface CreatedRelation extends DiagramLink {

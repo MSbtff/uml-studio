@@ -9,6 +9,9 @@ declare var UMLModalFocus: ModalFocusApi;
 
 function createModalFocusModule() {
   'use strict';
+  const { text: uiText } = globalThis.UMLLanguage
+    ?? require('./language.js') as typeof UMLLanguage;
+
 
   const REQUIRED_VALUES = Object.freeze(['appRoot', 'document'] as const);
   const FOCUSABLE_SELECTOR = [
@@ -101,7 +104,7 @@ function createModalFocusModule() {
         if (!title.id) title.id = `uml-modal-title-${++titleSequence}`;
         dialog.setAttribute('aria-labelledby', title.id);
       } else {
-        dialog.setAttribute('aria-label', '대화상자');
+        dialog.setAttribute('aria-label', uiText('Dialog', '대화상자'));
       }
     }
 

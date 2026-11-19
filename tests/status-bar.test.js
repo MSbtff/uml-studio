@@ -119,7 +119,7 @@ function makeHarness(overrides = {}) {
 
 {
   const source = fs.readFileSync(path.join(__dirname, '..', 'dist', 'browser', 'editor', 'status-bar.js'), 'utf8');
-  const context = {};
+  const context = { UMLLanguage: require('../dist/browser/editor/language.js') };
   context.globalThis = context;
   vm.runInNewContext(source, context);
   assert.equal(typeof context.UMLStatusBar.create, 'function');

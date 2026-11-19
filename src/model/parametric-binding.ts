@@ -17,6 +17,9 @@ declare var UMLParametricBinding: ParametricBindingApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createParametricBindingModule);
 
 function createParametricBindingModule() {
+  const { text: uiText } = globalThis.UMLLanguage
+    ?? require('../editor/language.js') as typeof UMLLanguage;
+
   const REQUIRED_FUNCTIONS = Object.freeze([
     'adoptView',
     'byId',
@@ -145,12 +148,12 @@ function createParametricBindingModule() {
     function syncConstraintParameters(container: DiagramElement) {
       const classifier = instanceClassifier(container);
       if (!classifier || classifier.kind !== 'constraintblock') {
-        flashStatus('먼저 Constraint Block Type을 선택하세요');
+        flashStatus(uiText('Select a constraint block type first.', '먼저 Constraint Block Type을 선택하세요'));
         return;
       }
       const declarations = declaredParameters(classifier);
       if (!declarations.length) {
-        flashStatus('선택한 Constraint Block에 정의된 Parameter가 없습니다');
+        flashStatus(uiText('The selected constraint block has no parameters.', '선택한 Constraint Block에 정의된 Parameter가 없습니다'));
         return;
       }
       const existingNames = new Set(childViews(container.id)
@@ -161,7 +164,7 @@ function createParametricBindingModule() {
         .map((definition, index) => ({ ...definition, index }))
         .filter(definition => !existingNames.has(definition.name.toLowerCase()));
       if (!missing.length) {
-        flashStatus('모든 Constraint Parameter가 이미 동기화되어 있습니다');
+        flashStatus(uiText('All constraint parameters are already in sync.', '모든 Constraint Parameter가 이미 동기화되어 있습니다'));
         return;
       }
 
@@ -190,7 +193,7 @@ function createParametricBindingModule() {
       });
       setSelection(added.map(parameter => parameter.id));
       renderAll();
-      flashStatus(`Constraint Parameter ${added.length}개를 추가했습니다`);
+      flashStatus(uiText('Added {0} constraint parameters.', 'Constraint Parameter {0}개를 추가했습니다', added.length));
     }
 
     /* ── Route geometry ──────────────────────────────────────── */

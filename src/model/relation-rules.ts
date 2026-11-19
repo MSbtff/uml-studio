@@ -14,6 +14,9 @@ declare var UMLRelationRules: RelationRulesApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createRelationRulesModule);
 
 function createRelationRulesModule() {
+  const { text: uiText } = globalThis.UMLLanguage
+    ?? require('../editor/language.js') as typeof UMLLanguage;
+
   const REQUIRED_FUNCTIONS = Object.freeze([
     'activityAncestor',
     'bindingTypeCompatibility',
@@ -91,14 +94,20 @@ function createRelationRulesModule() {
     function transitionDirectionError(from: CandidateEndpoint, to: CandidateEndpoint) {
       if (!from || !to) return '';
       if (['statefinal', 'exitpoint', 'terminate'].includes(from.kind)) {
-        return `${KIND_META[from.kind].label}에서는 나가는 Transition을 만들 수 없습니다`;
+        return uiText('{0} cannot have outgoing transitions.', '{0}에서는 나가는 Transition을 만들 수 없습니다', KIND_META[from.kind].label);
       }
       if (from.kind === 'connectionpointref' && (from.referenceKind || 'entry') === 'entry') {
-        return 'Entry Connection Point Reference에서는 나가는 Transition을 만들 수 없습니다';
+        return uiText(
+          'Entry connection point references cannot have outgoing transitions.',
+          'Entry Connection Point Reference에서는 나가는 Transition을 만들 수 없습니다',
+        );
       }
-      if (to.kind === 'entrypoint') return 'Entry Point에는 들어오는 Transition을 만들 수 없습니다';
+      if (to.kind === 'entrypoint') return uiText('Entry points cannot have incoming transitions.', 'Entry Point에는 들어오는 Transition을 만들 수 없습니다');
       if (to.kind === 'connectionpointref' && (to.referenceKind || 'entry') === 'exit') {
-        return 'Exit Connection Point Reference에는 들어오는 Transition을 만들 수 없습니다';
+        return uiText(
+          'Exit connection point references cannot have incoming transitions.',
+          'Exit Connection Point Reference에는 들어오는 Transition을 만들 수 없습니다',
+        );
       }
       return '';
     }
@@ -106,10 +115,13 @@ function createRelationRulesModule() {
     function compositeRelationError(kind: string, from: CandidateEndpoint, to: CandidateEndpoint) {
       if (kind === 'csconnector' && (!from || !to
         || !COMPOSITE_CONNECTABLE_KINDS.has(from.kind) || !COMPOSITE_CONNECTABLE_KINDS.has(to.kind))) {
-        return 'Composite Structure Connector는 Part 또는 Port 사이에만 연결할 수 있습니다';
+        return uiText(
+          'Connect composite structure connectors between parts or ports.',
+          'Composite Structure Connector는 Part 또는 Port 사이에만 연결할 수 있습니다',
+        );
       }
       if (kind === 'rolebinding' && (!from || !to || from.kind !== 'collaborationuse' || to.kind !== 'part')) {
-        return 'Role Binding은 Collaboration Use에서 Part 방향으로 연결하세요';
+        return uiText('Connect a role binding from a collaboration use to a part.', 'Role Binding은 Collaboration Use에서 Part 방향으로 연결하세요');
       }
       return '';
     }
@@ -117,34 +129,50 @@ function createRelationRulesModule() {
     function activityRelationError(kind: string, from: CandidateEndpoint, to: CandidateEndpoint) {
       if (!['controlflow', 'objectflow', 'exceptionhandler', 'activityinterrupt'].includes(kind)) return '';
       if (!from || !to || !ACTIVITY_VERTEX_KINDS.has(from.kind) || !ACTIVITY_VERTEX_KINDS.has(to.kind)) {
-        return `${KIND_META[kind].label}는 Activity Node 사이에만 연결할 수 있습니다`;
+        return uiText('Connect {0} between activity nodes.', '{0}는 Activity Node 사이에만 연결할 수 있습니다', KIND_META[kind].label);
       }
-      if (from.id === to.id) return `${KIND_META[kind].label}는 같은 요소에 다시 연결할 수 없습니다`;
-      if (['final', 'flowfinal'].includes(from.kind)) return `${KIND_META[from.kind].label}에서는 나가는 흐름을 만들 수 없습니다`;
-      if (to.kind === 'initial') return 'Initial Node에는 들어오는 흐름을 만들 수 없습니다';
+      if (from.id === to.id) return uiText('{0} cannot connect an element to itself.', '{0}는 같은 요소에 다시 연결할 수 없습니다', KIND_META[kind].label);
+      if (['final', 'flowfinal'].includes(from.kind)) return uiText(
+        '{0} cannot have outgoing flows.',
+        '{0}에서는 나가는 흐름을 만들 수 없습니다',
+        KIND_META[from.kind].label,
+      );
+      if (to.kind === 'initial') return uiText('Initial nodes cannot have incoming flows.', 'Initial Node에는 들어오는 흐름을 만들 수 없습니다');
       if (kind === 'controlflow' && (ACTIVITY_OBJECT_KINDS.has(from.kind) || ACTIVITY_OBJECT_KINDS.has(to.kind))) {
-        return 'Object Node와 Pin에는 Object Flow를 사용하세요';
+        return uiText('Use object flows for object nodes and pins.', 'Object Node와 Pin에는 Object Flow를 사용하세요');
       }
       if (kind === 'objectflow') {
         const allowed = (view: Endpoint) => ACTIVITY_OBJECT_KINDS.has(view.kind)
           || ACTIVITY_ACTION_KINDS.has(view.kind) || view.kind === 'structuredactivity';
-        if (!allowed(from) || !allowed(to)) return 'Object Flow는 Action, Object Node, Pin 또는 Expansion Node 사이에 연결하세요';
+        if (!allowed(from) || !allowed(to)) return uiText(
+          'Connect object flows between actions, object nodes, pins, or expansion nodes.',
+          'Object Flow는 Action, Object Node, Pin 또는 Expansion Node 사이에 연결하세요',
+        );
         if (from.kind === 'inputpin' || from.kind === 'expansioninput') {
-          return `${KIND_META[from.kind].label}은 외부 Object Flow의 도착점으로 사용하세요`;
+          return uiText('Use {0} as the target of an external object flow.', '{0}은 외부 Object Flow의 도착점으로 사용하세요', KIND_META[from.kind].label);
         }
         if (to.kind === 'outputpin' || to.kind === 'expansionoutput') {
-          return `${KIND_META[to.kind].label}은 외부 Object Flow의 시작점으로 사용하세요`;
+          return uiText('Use {0} as the source of an external object flow.', '{0}은 외부 Object Flow의 시작점으로 사용하세요', KIND_META[to.kind].label);
         }
       }
       if (kind === 'exceptionhandler') {
         const actionLike = (view: Endpoint) => ACTIVITY_ACTION_KINDS.has(view.kind) || view.kind === 'structuredactivity';
-        if (!actionLike(from) || !actionLike(to)) return 'Exception Handler는 Action 또는 Structured Activity Node 사이에 연결하세요';
+        if (!actionLike(from) || !actionLike(to)) return uiText(
+          'Connect exception handlers between actions or structured activity nodes.',
+          'Exception Handler는 Action 또는 Structured Activity Node 사이에 연결하세요',
+        );
       }
       if (kind === 'activityinterrupt') {
         const region = activityAncestor(from, 'interruptibleregion');
-        if (!region) return 'Activity Interrupt는 Interruptible Activity Region 내부의 노드에서 시작해야 합니다';
+        if (!region) return uiText(
+          'Start an activity interrupt at a node inside an interruptible activity region.',
+          'Activity Interrupt는 Interruptible Activity Region 내부의 노드에서 시작해야 합니다',
+        );
         if (activityAncestor(to, 'interruptibleregion')?.id === region.id) {
-          return 'Activity Interrupt의 대상은 같은 Interruptible Activity Region 밖에 있어야 합니다';
+          return uiText(
+            'The activity interrupt target must be outside the source interruptible activity region.',
+            'Activity Interrupt의 대상은 같은 Interruptible Activity Region 밖에 있어야 합니다',
+          );
         }
       }
       return '';
@@ -153,15 +181,21 @@ function createRelationRulesModule() {
     function packageRelationError(kind: string, from: CandidateEndpoint, to: CandidateEndpoint) {
       if (kind === 'containment') {
         if (!from || !to || !PACKAGE_CONTAINER_KINDS.has(from.kind) || !PACKAGE_CONTAINER_KINDS.has(to.kind)) {
-          return 'Containment는 Package, Model 또는 Subsystem에서 컨테이너 방향으로 연결하세요';
+          return uiText(
+            'Connect containment from a package, model, or subsystem to its container.',
+            'Containment는 Package, Model 또는 Subsystem에서 컨테이너 방향으로 연결하세요',
+          );
         }
         if (from.id === to.id || isViewAncestor(from, to)) {
-          return 'Package 포함 관계가 순환할 수 없습니다';
+          return uiText('Package containment cannot create a cycle.', 'Package 포함 관계가 순환할 수 없습니다');
         }
       }
       if (kind === 'dependency' && dg().type === 'package'
         && (!from || !to || !PACKAGE_CONTAINER_KINDS.has(from.kind) || !PACKAGE_CONTAINER_KINDS.has(to.kind))) {
-        return 'Package Diagram의 Dependency는 Package, Model 또는 Subsystem 사이에 연결하세요';
+        return uiText(
+          'Connect package dependencies between packages, models, or subsystems.',
+          'Package Diagram의 Dependency는 Package, Model 또는 Subsystem 사이에 연결하세요',
+        );
       }
       return '';
     }
@@ -170,19 +204,19 @@ function createRelationRulesModule() {
       if (dg().type !== 'profile') return '';
       if (kind === 'extension') {
         if (!from || !to || from.kind !== 'stereotype' || to.kind !== 'metaclass') {
-          return 'Extension은 Stereotype에서 MetaClass 방향으로 연결하세요';
+          return uiText('Connect an extension from a stereotype to a metaclass.', 'Extension은 Stereotype에서 MetaClass 방향으로 연결하세요');
         }
         if (dg().relations.some(relation =>
           relation.id !== ignoredRelationId && relation.kind === 'extension'
           && relation.from === from.id && relation.to === to.id)) {
-          return '같은 Stereotype과 MetaClass 사이에 Extension이 이미 있습니다';
+          return uiText('An extension already connects this stereotype and metaclass.', '같은 Stereotype과 MetaClass 사이에 Extension이 이미 있습니다');
         }
       }
       if (kind === 'generalization') {
         if (!from || !to || from.kind !== 'stereotype' || to.kind !== 'stereotype') {
-          return 'Profile Diagram의 Generalization은 Stereotype 사이에만 연결하세요';
+          return uiText('Connect profile generalizations between stereotypes.', 'Profile Diagram의 Generalization은 Stereotype 사이에만 연결하세요');
         }
-        if (from.id === to.id) return 'Stereotype은 자기 자신을 일반화할 수 없습니다';
+        if (from.id === to.id) return uiText('A stereotype cannot generalize itself.', 'Stereotype은 자기 자신을 일반화할 수 없습니다');
         const graph = new Map<string, string[]>();
         dg().relations.filter(relation =>
           relation.id !== ignoredRelationId && relation.kind === 'generalization').forEach(relation => {
@@ -193,7 +227,7 @@ function createRelationRulesModule() {
         const pending = [to.id], seen = new Set();
         while (pending.length) {
           const current = pending.pop()!;
-          if (current === from.id) return 'Stereotype Generalization이 순환할 수 없습니다';
+          if (current === from.id) return uiText('Stereotype generalization cannot create a cycle.', 'Stereotype Generalization이 순환할 수 없습니다');
           if (seen.has(current)) continue;
           seen.add(current);
           pending.push(...(graph.get(current) || []));
@@ -205,9 +239,15 @@ function createRelationRulesModule() {
     function informationFlowRelationError(kind: string, from: CandidateEndpoint, to: CandidateEndpoint) {
       if (kind !== 'informationflow') return '';
       if (!from || !to || !INFORMATION_FLOW_ENDPOINT_KINDS.has(from.kind) || !INFORMATION_FLOW_ENDPOINT_KINDS.has(to.kind)) {
-        return 'Information Flow는 Class, Component, Actor, Node 같은 정보 송수신 주체 사이에 연결하세요';
+        return uiText(
+          'Connect information flows between senders and receivers such as classes, components, actors, or nodes.',
+          'Information Flow는 Class, Component, Actor, Node 같은 정보 송수신 주체 사이에 연결하세요',
+        );
       }
-      if (from.id === to.id) return 'Information Flow는 같은 요소에 다시 연결할 수 없습니다';
+      if (from.id === to.id) return uiText(
+        'An information flow cannot connect an element to itself.',
+        'Information Flow는 같은 요소에 다시 연결할 수 없습니다',
+      );
       return '';
     }
 
@@ -215,45 +255,58 @@ function createRelationRulesModule() {
       if (!REQUIREMENT_RELATION_KINDS.has(kind)) return '';
       if (!from || !to || !REQUIREMENT_MODEL_ELEMENT_KINDS.has(from.kind)
         || !REQUIREMENT_MODEL_ELEMENT_KINDS.has(to.kind)) {
-        return 'Requirement 관계는 Requirement 또는 추적 가능한 모델 요소 사이에 연결하세요';
+        return uiText(
+          'Connect requirement relationships between requirements or traceable model elements.',
+          'Requirement 관계는 Requirement 또는 추적 가능한 모델 요소 사이에 연결하세요',
+        );
       }
-      if (from.id === to.id) return 'Requirement 관계는 같은 요소로 되돌아갈 수 없습니다';
+      if (from.id === to.id) return uiText(
+        'A requirement relationship cannot connect an element to itself.',
+        'Requirement 관계는 같은 요소로 되돌아갈 수 없습니다',
+      );
       if (['reqcontainment', 'reqcopy', 'derivereqt'].includes(kind)
         && (from.kind !== 'requirement' || to.kind !== 'requirement')) {
-        return `${KIND_META[kind].label}는 Requirement 사이에만 연결할 수 있습니다`;
+        return uiText('Connect {0} between requirements.', '{0}는 Requirement 사이에만 연결할 수 있습니다', KIND_META[kind].label);
       }
       if (['verify', 'satisfy', 'refine'].includes(kind) && to.kind !== 'requirement') {
-        return `${KIND_META[kind].label}는 모델 요소에서 Requirement 방향으로 연결하세요`;
+        return uiText('Connect {0} from a model element to a requirement.', '{0}는 모델 요소에서 Requirement 방향으로 연결하세요', KIND_META[kind].label);
       }
       return '';
     }
 
     function bddRelationError(kind: string, from: CandidateEndpoint, to: CandidateEndpoint, ignoredRelationId = '') {
       if (dg().type !== 'bdd' || !BDD_RELATION_KINDS.has(kind)) return '';
-      if (!from || !to) return 'BDD 관계의 연결 대상을 찾을 수 없습니다';
+      if (!from || !to) return uiText('BDD relationship endpoint not found.', 'BDD 관계의 연결 대상을 찾을 수 없습니다');
       if (kind === 'notelink') {
         return from.kind === 'note' || to.kind === 'note'
           ? ''
-          : 'Note Link의 한쪽 끝은 Note여야 합니다';
+          : uiText('One endpoint of a note link must be a note.', 'Note Link의 한쪽 끝은 Note여야 합니다');
       }
-      if (from.id === to.id) return `${KIND_META[kind].label}는 같은 요소로 되돌아갈 수 없습니다`;
+      if (from.id === to.id) return uiText('{0} cannot connect an element to itself.', '{0}는 같은 요소로 되돌아갈 수 없습니다', KIND_META[kind].label);
       if (kind === 'connector') {
         return from.kind === 'port' && to.kind === 'port'
           ? ''
-          : 'BDD Connector는 Port 사이에 연결하세요';
+          : uiText('Connect BDD connectors between ports.', 'BDD Connector는 Port 사이에 연결하세요');
       }
       if (kind === 'generalization') {
         if (!BDD_CLASSIFIER_KINDS.has(from.kind) || from.kind !== to.kind) {
-          return 'BDD Generalization은 같은 종류의 Block Classifier 사이에 연결하세요';
+          return uiText(
+            'Connect BDD generalizations between block classifiers of the same kind.',
+            'BDD Generalization은 같은 종류의 Block Classifier 사이에 연결하세요',
+          );
         }
       } else if (kind === 'composition' || kind === 'aggregation') {
         if (!BDD_CLASSIFIER_KINDS.has(from.kind) || !BDD_CLASSIFIER_KINDS.has(to.kind)) {
-          return `${KIND_META[kind].label}은 Block Classifier 사이에 연결하세요`;
+          return uiText('Connect {0} between block classifiers.', '{0}은 Block Classifier 사이에 연결하세요', KIND_META[kind].label);
         }
       } else {
         const structural = (view: Endpoint) => BDD_CLASSIFIER_KINDS.has(view.kind) || view.kind === 'object';
         if (!structural(from) || !structural(to)) {
-          return `${KIND_META[kind].label}은 Block Classifier 또는 Object 사이에 연결하세요`;
+          return uiText(
+            'Connect {0} between block classifiers or objects.',
+            '{0}은 Block Classifier 또는 Object 사이에 연결하세요',
+            KIND_META[kind].label,
+          );
         }
       }
       if (kind === 'generalization' || kind === 'composition') {
@@ -269,8 +322,8 @@ function createRelationRulesModule() {
           const current = pending.pop()!;
           if (current === from.id) {
             return kind === 'generalization'
-              ? 'BDD Generalization이 순환할 수 없습니다'
-              : 'Block Composition 계층이 순환할 수 없습니다';
+              ? uiText('BDD generalization cannot create a cycle.', 'BDD Generalization이 순환할 수 없습니다')
+              : uiText('Block composition cannot create a cycle.', 'Block Composition 계층이 순환할 수 없습니다');
           }
           if (seen.has(current)) continue;
           seen.add(current);
@@ -282,41 +335,50 @@ function createRelationRulesModule() {
 
     function ibdRelationError(kind: string, from: CandidateEndpoint, to: CandidateEndpoint, ignoredRelationId = '') {
       if (dg().type !== 'ibd') return '';
-      if (!from || !to) return 'IBD 관계의 연결 대상을 찾을 수 없습니다';
+      if (!from || !to) return uiText('IBD relationship endpoint not found.', 'IBD 관계의 연결 대상을 찾을 수 없습니다');
       if (kind === 'notelink') {
         return from.kind === 'note' || to.kind === 'note'
           ? ''
-          : 'Note Link의 한쪽 끝은 Note여야 합니다';
+          : uiText('One endpoint of a note link must be a note.', 'Note Link의 한쪽 끝은 Note여야 합니다');
       }
-      if (kind !== 'connector') return 'Internal Block Diagram에서는 Connector와 Note Link만 사용할 수 있습니다';
+      if (kind !== 'connector') return uiText(
+        'Internal block diagrams allow connectors and note links.',
+        'Internal Block Diagram에서는 Connector와 Note Link만 사용할 수 있습니다',
+      );
       if (!IBD_CONNECTABLE_KINDS.has(from.kind) || !IBD_CONNECTABLE_KINDS.has(to.kind)) {
-        return 'IBD Connector는 Part, Reference 또는 Port 사이에 연결하세요';
+        return uiText('Connect IBD connectors between parts, references, or ports.', 'IBD Connector는 Part, Reference 또는 Port 사이에 연결하세요');
       }
-      if (from.id === to.id) return 'IBD Connector는 같은 요소로 되돌아갈 수 없습니다';
+      if (from.id === to.id) return uiText('An IBD connector cannot connect an element to itself.', 'IBD Connector는 같은 요소로 되돌아갈 수 없습니다');
       if (dg().relations.some(relation =>
         relation.id !== ignoredRelationId && relation.kind === 'connector'
         && ((relation.from === from.id && relation.to === to.id)
           || (relation.from === to.id && relation.to === from.id)))) {
-        return '같은 IBD 요소 사이에 Connector가 이미 있습니다';
+        return uiText('These IBD elements are already connected.', '같은 IBD 요소 사이에 Connector가 이미 있습니다');
       }
       return '';
     }
 
     function parametricRelationError(kind: string, from: CandidateEndpoint, to: CandidateEndpoint, ignoredRelationId = '') {
       if (dg().type !== 'parametric') return '';
-      if (!from || !to) return 'Parametric 관계의 연결 대상을 찾을 수 없습니다';
+      if (!from || !to) return uiText('Parametric relationship endpoint not found.', 'Parametric 관계의 연결 대상을 찾을 수 없습니다');
       if (kind === 'notelink') {
         return from.kind === 'note' || to.kind === 'note'
           ? ''
-          : 'Note Link의 한쪽 끝은 Note여야 합니다';
+          : uiText('One endpoint of a note link must be a note.', 'Note Link의 한쪽 끝은 Note여야 합니다');
       }
       if (kind !== 'bindingconnector') {
-        return 'Parametric Diagram에서는 Binding Connector와 Note Link만 사용할 수 있습니다';
+        return uiText(
+          'Parametric diagrams allow binding connectors and note links.',
+          'Parametric Diagram에서는 Binding Connector와 Note Link만 사용할 수 있습니다',
+        );
       }
       if (!PARAMETRIC_CONNECTABLE_KINDS.has(from.kind) || !PARAMETRIC_CONNECTABLE_KINDS.has(to.kind)) {
-        return 'Binding Connector는 Constraint Parameter 또는 Value Property 사이에 연결하세요';
+        return uiText(
+          'Connect binding connectors between constraint parameters or value properties.',
+          'Binding Connector는 Constraint Parameter 또는 Value Property 사이에 연결하세요',
+        );
       }
-      if (from.id === to.id) return 'Binding Connector는 같은 요소로 되돌아갈 수 없습니다';
+      if (from.id === to.id) return uiText('A binding connector cannot connect an element to itself.', 'Binding Connector는 같은 요소로 되돌아갈 수 없습니다');
       const compatibility = bindingTypeCompatibility(
         from.classifierModelId,
         to.classifierModelId,
@@ -327,7 +389,7 @@ function createRelationRulesModule() {
         relation.id !== ignoredRelationId && relation.kind === 'bindingconnector'
         && ((relation.from === from.id && relation.to === to.id)
           || (relation.from === to.id && relation.to === from.id)))) {
-        return '같은 Parameter/Value 사이에 Binding Connector가 이미 있습니다';
+        return uiText('These parameters or values are already connected.', '같은 Parameter/Value 사이에 Binding Connector가 이미 있습니다');
       }
       return '';
     }

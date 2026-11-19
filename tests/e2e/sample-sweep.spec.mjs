@@ -28,6 +28,6 @@ test('샘플 프로젝트의 모든 다이어그램이 그려지고 검증을 �
 
   await page.locator('#toolbar [data-cmd="validate"]').click();
   const summary = page.locator('#validation-summary');
-  await expect(summary).toContainText('문제가 없습니다', { timeout: 15_000 });
+  await expect(summary).toContainText('No issues found', { timeout: 15_000 });
   await expect(page.locator('#validation-results .validation-row')).toHaveCount(0);
 });

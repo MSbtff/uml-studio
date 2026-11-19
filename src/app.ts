@@ -11,6 +11,9 @@
 const SVGNS = 'http://www.w3.org/2000/svg';
 const CANVAS_W = 3000, CANVAS_H = 2000;
 
+const { text: uiText } = UMLLanguage;
+UMLLanguage.applyStaticLabels(document);
+
 /* ── Dependency wiring ─────────────────────────────────────── */
 /* One registry of everything the modules may ask for, filled in the order the
    file already runs: primitives first, then each module's own exports once it
@@ -529,7 +532,7 @@ register(relationCreation);
 
 /* ── ERD logical / physical model ────────────────────────── */
 const ERD_VIEW_MODES = [
-  ['physical', '물리만'], ['logical', '논리만'], ['both', '논리 + 물리'],
+  ['physical', uiText('Physical', '물리만')], ['logical', uiText('Logical', '논리만')], ['both', uiText('Both', '논리 + 물리')],
 ] as const;
 register({ ERD_VIEW_MODES });
 function setErdMode(mode: string) {
@@ -539,7 +542,7 @@ function setErdMode(mode: string) {
   dg().erdMode = mode;
   render(); renderProps();
   const label = ERD_VIEW_MODES.find(([value]) => value === mode)?.[1] || mode;
-  flashStatus(`ERD 표시를 '${label}' 모드로 변경했습니다`);
+  flashStatus(uiText('Changed the ERD display mode to \'{0}\'.', 'ERD 표시를 \'{0}\' 모드로 변경했습니다', label));
   return true;
 }
 
@@ -919,7 +922,7 @@ const commands = {
   zoomin() { setZoom(state.zoom * 1.2); },
   zoomout() { setZoom(state.zoom / 1.2); },
   zoomreset() { setZoom(1); },
-  about() { alert('UML Studio\nWeb modeler · Project format v30'); },
+  about() { alert(UMLLanguage.label('UML Studio\nWeb modeler · Project format v30', 'UML Studio\n웹 모델러 · 프로젝트 형식 v30')); },
 };
 
 register({ commands });
@@ -927,4 +930,6 @@ const commandRouter = UMLCommandRouter.create(provide(UMLCommandRouter));
 commandRouter.attach();
 
 /* ── Init ──────────────────────────────────────────────────── */
-projectStore.restoreOnStartup();
+const projectReady = projectStore.restoreOnStartup();
+const settingsButton = document.querySelector<HTMLButtonElement>('#language-settings');
+if (settingsButton) UMLLanguageSettings.attach(settingsButton, projectStore, projectReady);

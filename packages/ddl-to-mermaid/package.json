@@ -17,6 +17,7 @@
   "files": [
     "dist/index.cjs",
     "dist/index.d.cts",
+    "dist/shared/editor/language.js",
     "dist/shared/io/ddl-importer.js",
     "dist/shared/io/exporters.js",
     "dist/shared/model/erd-cardinality.js",

@@ -539,8 +539,8 @@ textarea.inline-editor { resize: none; line-height: 1.45; }
 .project-dialog-header { display: flex; align-items: center; gap: 8px; padding: 12px 14px 9px; }
 .project-dialog-header strong { flex: 1; font-size: 14px; }
 .project-dialog-hint { padding: 0 14px 10px; color: var(--text-dim); font-size: 10.5px; line-height: 1.5; }
-.project-rename-body { display: flex; flex-direction: column; gap: 5px; padding: 8px 14px 18px; }
-.project-rename-body label { color: var(--text-dim); font-size: 10.5px; }
+.project-rename-body, .language-settings-field { display: flex; flex-direction: column; gap: 5px; padding: 8px 14px 18px; }
+.project-rename-body label, .language-settings-field label { color: var(--text-dim); font-size: 10.5px; }
 .project-name-input { padding: 7px 9px; border: 1px solid var(--border-strong); border-radius: 5px; color: var(--text); font: inherit; }
 .project-name-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(26,115,232,.12); }
 .project-dialog-footer { display: flex; justify-content: flex-end; gap: 7px; padding: 10px 14px; border-top: 1px solid var(--border); background: #f7f8fa; }
@@ -711,3 +711,21 @@ input[type=color] { width: 40px; height: 24px; border: 1px solid var(--border-st
 .validation-location { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-dim); }
 .validation-empty { padding: 28px; text-align: center; color: #2e8555; font-weight: 600; }
 .validation-stale { color: #b06d13 !important; }
+
+#language-settings {
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 4px 9px;
+  border-radius: 4px;
+  background: transparent;
+  border: 1px solid transparent;
+}
+#language-settings:hover { background: rgba(255,255,255,.12); }
+#language-settings:focus-visible {
+  outline: 2px solid #6db3ff;
+  outline-offset: -2px;
+}
+#language-settings-modal .project-dialog { width: min(420px, calc(100vw - 32px)); }
+#language-settings-modal .project-dialog-hint:empty { display: none; }
+#language-settings-modal [role="alert"] { color: #b42318; }

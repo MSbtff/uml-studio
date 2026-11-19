@@ -14,6 +14,9 @@ declare var UMLDiagramExport: DiagramExportApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createDiagramExportModule);
 
 function createDiagramExportModule() {
+  const { label: uiLabel, text: uiText } = globalThis.UMLLanguage
+    ?? require('../editor/language.js') as typeof UMLLanguage;
+
   const REQUIRED_FUNCTIONS = Object.freeze([
     'contentBBox',
     'dg',
@@ -172,54 +175,54 @@ function createDiagramExportModule() {
     /* ── Toolbar / menu export commands ──────────────────────── */
     function exportSvgFile() {
       const out = exportSvg();
-      if (!out) { alert('내보낼 요소가 없습니다.'); return false; }
+      if (!out) { alert(uiText('There are no elements to export.', '내보낼 요소가 없습니다.')); return false; }
       download(exportName(dg()) + '.svg', new Blob([out.data], { type: 'image/svg+xml' }));
       return true;
     }
 
     function exportPngFile() {
-      if (!dg().elements.length) { alert('내보낼 요소가 없습니다.'); return false; }
+      if (!dg().elements.length) { alert(uiText('There are no elements to export.', '내보낼 요소가 없습니다.')); return false; }
       exportPngActive();
       return true;
     }
 
     function exportMermaidFile() {
-      if (!dg().elements.length) { alert('내보낼 요소가 없습니다.'); return false; }
+      if (!dg().elements.length) { alert(uiText('There are no elements to export.', '내보낼 요소가 없습니다.')); return false; }
       const source = exporters.exportMermaid(dg(), state.models);
       download(exportName(dg()) + '.mmd', new Blob([source], { type: 'text/plain;charset=utf-8' }));
       const nativeTypes = new Set(['class', 'sequence', 'state', 'requirement', 'bdd']);
       flashStatus(nativeTypes.has(dg().type)
-        ? 'Mermaid 전용 다이어그램 문법으로 내보냈습니다'
-        : 'Mermaid flowchart 문법으로 내보냈습니다');
+        ? uiText('Exported using Mermaid diagram syntax.', 'Mermaid 전용 다이어그램 문법으로 내보냈습니다')
+        : uiText('Exported using Mermaid flowchart syntax.', 'Mermaid flowchart 문법으로 내보냈습니다'));
       return true;
     }
 
     function exportDrawioFile() {
-      if (!dg().elements.length) { alert('내보낼 요소가 없습니다.'); return false; }
+      if (!dg().elements.length) { alert(uiText('There are no elements to export.', '내보낼 요소가 없습니다.')); return false; }
       const source = exporters.exportDrawio(dg(), state.models);
       download(exportName(dg()) + '.drawio', new Blob([source], { type: 'application/xml;charset=utf-8' }));
-      flashStatus('draw.io에서 편집 가능한 XML로 내보냈습니다');
+      flashStatus(uiText('Exported editable draw.io XML.', 'draw.io에서 편집 가능한 XML로 내보냈습니다'));
       return true;
     }
 
     function exportErdDdlFile(dialectId: string) {
       const diagram = dg();
       if (diagram.type !== 'erd') {
-        alert('ER Diagram에서만 DDL을 내보낼 수 있습니다.');
+        alert(uiText('DDL export is available for ER diagrams.', 'ER Diagram에서만 DDL을 내보낼 수 있습니다.'));
         return false;
       }
       const dialect = exporters.ERD_DDL_DIALECTS[dialectId];
       if (!dialect) {
-        alert(`지원하지 않는 DDL 방언입니다: ${dialectId}`);
+        alert(uiText('Unsupported DDL dialect: {0}', '지원하지 않는 DDL 방언입니다: {0}', dialectId));
         return false;
       }
       try {
         const source = exporters.exportErdDdl(diagram, state.models, dialectId);
         download(`${exportName(diagram)}.${dialect.fileTag}.sql`, new Blob([source], { type: 'text/sql;charset=utf-8' }));
-        flashStatus(`${dialect.label} CREATE TABLE DDL로 내보냈습니다`);
+        flashStatus(uiText('Exported {0} CREATE TABLE DDL.', '{0} CREATE TABLE DDL로 내보냈습니다', dialect.label));
         return true;
       } catch (error) {
-        alert(`DDL을 내보낼 수 없습니다: ${error instanceof Error ? error.message : String(error)}`);
+        alert(uiText('Could not export DDL: {0}', 'DDL을 내보낼 수 없습니다: {0}', error instanceof Error ? error.message : String(error)));
         return false;
       }
     }
@@ -227,23 +230,26 @@ function createDiagramExportModule() {
     function openErdDdlExportDialog() {
       const diagram = dg();
       if (diagram.type !== 'erd') {
-        alert('ER Diagram에서만 DDL을 내보낼 수 있습니다.');
+        alert(uiText('DDL export is available for ER diagrams.', 'ER Diagram에서만 DDL을 내보낼 수 있습니다.'));
         return false;
       }
       const hasEntity = diagram.elements.some(element =>
         (element.kind || state.models[element.modelId]?.kind) === 'entity');
       if (!hasEntity) {
-        alert('DDL로 내보낼 Entity가 없습니다.');
+        alert(uiText('No entities to export as DDL.', 'DDL로 내보낼 Entity가 없습니다.'));
         return false;
       }
-      const { overlay, dialog, modal } = projectModal('Export ERD DDL', 'erd-ddl-export-modal');
+      const { overlay, dialog, modal } = projectModal(uiLabel('Export ERD DDL', 'ERD DDL 내보내기'), 'erd-ddl-export-modal');
       dialog.classList.add('erd-ddl-export-dialog');
       dialog.setAttribute('role', 'dialog');
       dialog.setAttribute('aria-modal', 'true');
       const body = document.createElement('div');
       body.className = 'erd-ddl-export-body';
       const intro = document.createElement('p');
-      intro.textContent = '대상 데이터베이스를 선택하세요. Entity의 물리명과 컬럼 정의로 CREATE TABLE 문을 생성합니다.';
+      intro.textContent = uiText(
+        'Choose a target database. CREATE TABLE statements use each entity\'s physical name and column definitions.',
+        '대상 데이터베이스를 선택하세요. Entity의 물리명과 컬럼 정의로 CREATE TABLE 문을 생성합니다.',
+      );
       const choices = document.createElement('div');
       choices.className = 'erd-ddl-dialect-choices';
       Object.values(exporters.ERD_DDL_DIALECTS).forEach(dialect => {
@@ -258,7 +264,10 @@ function createDiagramExportModule() {
       });
       const note = document.createElement('p');
       note.className = 'erd-ddl-export-note';
-      note.textContent = 'FK 대상 컬럼이 아직 연결되지 않은 FK 플래그는 주석으로 표시하며 제약조건으로 추측하지 않습니다.';
+      note.textContent = uiText(
+        'Foreign-key flags with no linked target column appear as comments.',
+        'FK 대상 컬럼이 아직 연결되지 않은 FK 플래그는 주석으로 표시하며 제약조건으로 추측하지 않습니다.',
+      );
       body.append(intro, choices, note);
       dialog.appendChild(body);
       modal.focusInitial(choices.children[0]);
