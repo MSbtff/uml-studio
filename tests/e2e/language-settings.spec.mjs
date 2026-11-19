@@ -26,6 +26,11 @@ test('defaults to English and persists Korean without dropping project edits', a
   await expect(page.getByRole('toolbar', { name: '주 도구 모음' })).toBeVisible();
   await expect(page.locator('#canvas')).toContainText('남기는 모델');
   await expect(page.locator('#status-left')).toContainText('Enter 편집');
+  await page.getByRole('button', { name: '프로젝트', exact: true }).click();
+  const manager = page.getByRole('dialog', { name: '프로젝트 관리', exact: true });
+  await expect(manager.getByRole('button', { name: '파일 열기…', exact: true })).toBeEnabled();
+  await expect(manager.getByRole('button', { name: /^복제 / }).first()).toBeVisible();
+  await page.keyboard.press('Escape');
   const chooser = page.waitForEvent('filechooser');
   await page.getByRole('button', { name: 'DDL 가져오기', exact: true }).click();
   await (

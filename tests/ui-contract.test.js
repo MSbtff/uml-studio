@@ -809,7 +809,8 @@ assert.match(app, /exportmermaid: \(\) => diagramExport\.exportMermaidFile\(\)/)
 assert.match(app, /exportdrawio: \(\) => diagramExport\.exportDrawioFile\(\)/);
 assert.match(app, /exportddl: \(\) => diagramExport\.openErdDdlExportDialog\(\)/);
 assert.match(app, /exportall: \(\) => diagramExport\.exportAllPngFiles\(\)/);
-assert.match(app, /open: \(\) => importExport\.openProjectFileDialog\(\)/);
+assert.match(app, /open: openProjectFileDialog/);
+assert.match(app, /projects: \(\) => openProjectManager\(openProjectFileDialog\)/);
 assert.match(app, /importdrawio: \(\) => importExport\.openDrawioAppendDialog\(\)/);
 assert.match(app, /importddl: \(\) => importExport\.openDdlAppendDialog\(\)/);
 assert.match(historyController, /function rollbackLastSnapshot\(/);

@@ -527,7 +527,7 @@ assert.throws(() => create({}), /serialize/);
       ]),
     },
   });
-  await controller.openProjectManager();
+  await controller.openProjectManager(() => {});
   const overlay = body.children.at(-1);
   const nodes = descendants(overlay);
   const rows = nodes.filter(n => String(n.className).startsWith('project-row'));
@@ -559,17 +559,24 @@ assert.throws(() => create({}), /serialize/);
         '보이는 라벨이 앞에 오고 프로젝트 이름이 뒤따라야 합니다');
     });
   });
-  const buttonIds = descendants(overlay).filter(n => n.className === 'project-action').map(n => n.id);
+  const buttonIds = rows.flatMap(row => row.querySelectorAll('button').map(button => button.id));
   assert.equal(new Set(buttonIds).size, buttonIds.length, '버튼 id는 행마다 달라야 합니다');
 }
 {
   const { controller, body } = harness();
-  await controller.openProjectManager();
+  let fileDialogOpened = false;
+  await controller.openProjectManager(() => {
+    fileDialogOpened = true;
+  });
   const overlay = body.children.at(-1);
-  const empty = descendants(overlay).find(n => n.className === 'project-empty');
+  const nodes = descendants(overlay);
+  const empty = nodes.find(n => n.className === 'project-empty');
   assert.equal(empty.textContent, '저장된 프로젝트가 없습니다.');
-  assert.equal(descendants(overlay).find(n => n.className === 'project-list').getAttribute('role'), null,
+  assert.equal(nodes.find(n => n.className === 'project-list').getAttribute('role'), null,
     'list 역할은 listitem만 담을 수 있으므로 빈 상태에서는 걷어냅니다');
+  nodes.find(n => n.textContent === '파일 열기…').click();
+  assert.equal(fileDialogOpened, true);
+  assert.equal(overlay.isConnected, false);
 }
 {
   const { controller, body, persistence } = harness({
