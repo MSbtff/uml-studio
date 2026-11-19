@@ -1,7 +1,7 @@
 'use strict';
 
 /* ═══════════════════════════════════════════════════════════════
-   UML Studio V7 Professional — web diagram editor
+   UML Studio — web diagram editor
    UML 2.5: Class · Use Case · Activity · Sequence · Component ·
    Deployment · State Machine · Package · Profile · Interaction Overview ·
    Information Flow · SysML Requirement · SysML Block Definition ·
@@ -476,13 +476,13 @@ function markDirty() {
   state.dirty = true;
   projectStore.markRecoveryDirty();
   state.validationStale = true;
-  document.title = `● ${state.projectName} — UML Studio V7 Professional`;
+  document.title = `● ${state.projectName} — UML Studio`;
   validationPanelController.updateSummary();
   scheduleRecoverySave();
 }
 function markSaved() {
   state.dirty = false;
-  document.title = `${state.projectName} — UML Studio V7 Professional`;
+  document.title = `${state.projectName} — UML Studio`;
   renderStatus();
 }
 
@@ -919,7 +919,7 @@ const commands = {
   zoomin() { setZoom(state.zoom * 1.2); },
   zoomout() { setZoom(state.zoom / 1.2); },
   zoomreset() { setZoom(1); },
-  about() { alert('UML Studio V7 Professional\nWeb modeler · Project format v30'); },
+  about() { alert('UML Studio\nWeb modeler · Project format v30'); },
 };
 
 register({ commands });

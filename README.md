@@ -74,9 +74,9 @@ For a static preview, run `npm run preview` and open [http://127.0.0.1:8765](htt
 
 Choose **Import DDL** to preview a `.sql` file and add it to the current project as a new ER diagram. The preview lists tables, columns, foreign-key links, `CHECK` constraints, indexes, and any import warnings. From an ER diagram, choose **DDL** to export `CREATE TABLE` statements for PostgreSQL, MySQL, or SQLite.
 
-![ER diagram exported from UML Studio showing customers, orders, order items, and products linked by foreign keys](docs/images/sql-import-erd.png)
+![UML Studio displaying an imported ER diagram with customers, orders, order items, and products linked by foreign keys](docs/images/sql-import-erd.png)
 
-_An online store schema imported from SQL and exported as an ER diagram._
+_An online store schema imported from SQL into the ER diagram editor._
 
 - The importer handles common PostgreSQL, MySQL, and SQLite `CREATE TABLE` syntax, including primary keys, `NOT NULL`, single-column foreign keys, `UNIQUE`, `DEFAULT`, `CHECK`, and simple column indexes. It parses files up to 10 MB in the browser without executing SQL.
 - The column editor exposes single-column uniqueness and defaults. The entity properties expose `CHECK`, composite `UNIQUE`, and regular or unique indexes. Relationship properties expose `ON DELETE` and `ON UPDATE` actions. `SET NULL` requires a nullable FK column. `SET DEFAULT` requires a default for a non-nullable FK column, and MySQL export rejects that action because the target is InnoDB.
