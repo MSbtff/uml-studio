@@ -34,6 +34,20 @@ let seq = 1;
 const nextId = () => `m${seq++}`;
 
 {
+  const boundary = { id: 'boundary', kind: 'boundary', name: 'External' };
+  const project = {
+    version: 10,
+    diagrams: [{ id: 'deployment', type: 'deployment', elements: [boundary], relations: [] }],
+  };
+  const deploymentOptions = { diagramTypes: ['deployment'], elementKinds: ['boundary'] };
+  assert.equal(validateProjectData(project, deploymentOptions), true);
+  boundary.borderStyle = 'dashed';
+  assert.equal(validateProjectData(project, deploymentOptions), true);
+  boundary.borderStyle = 'invalid';
+  assert.throws(() => validateProjectData(project, deploymentOptions), /경계 테두리 스타일/);
+}
+
+{
   const project = legacyProject();
   assert.equal(validateProjectData(project, options), true);
   const models = hydrateProject(project.diagrams, {}, nextId);

@@ -57,6 +57,7 @@ function createToolboxModule() {
       actor: `<circle cx="10" cy="5" r="2.5" ${s}/><path d="M10 7.5 L10 12 M5.5 9.5 L14.5 9.5 M10 12 L6.5 17 M10 12 L13.5 17" ${s}/>`,
       usecase: `<ellipse cx="10" cy="10" rx="7.5" ry="5" ${s} fill="#fffbd8"/>`,
       boundary: `<rect x="3" y="3" width="14" height="14" ${s}/><line x1="3" y1="7" x2="17" y2="7" ${s}/>`,
+      database: `<path d="M4 6 V14 A6 2.5 0 0 0 16 14 V6" ${s}/><ellipse cx="10" cy="6" rx="6" ry="2.5" ${s}/>`,
       action: `<rect x="3" y="5" width="14" height="10" rx="4.5" ${s} fill="#fffbd8"/>`,
       sendsignal: `<path d="M3 5 L14 5 L18 10 L14 15 L3 15 Z" ${s} fill="#fffbd8"/>`,
       acceptsignal: `<path d="M3 5 L17 5 L17 15 L3 15 L7 10 Z" ${s} fill="#fffbd8"/>`,

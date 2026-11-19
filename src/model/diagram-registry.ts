@@ -116,7 +116,7 @@ function createDiagramRegistry() {
       relations: ['connector', 'dependency', 'realization', 'directed', 'notelink'],
     },
     deployment: {
-      elements: ['node', 'artifact', 'component', 'note'],
+      elements: ['node', 'artifact', 'component', 'database', 'boundary', 'note'],
       relations: ['commpath', 'deploy', 'dependency', 'notelink'],
     },
     erd: {

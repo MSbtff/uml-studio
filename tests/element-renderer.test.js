@@ -114,6 +114,19 @@ const timeConstraint = render({
 assert.equal(timeConstraint.children[0].attrs.x2, 180);
 assert.equal(timeConstraint.children.at(-1).attrs.value, '{t < 20ms}');
 
+diagram = { type: 'deployment', elements: [], relations: [] };
+const database = render({ ...base('database'), name: 'uml-studio.db', stereotype: 'SQLite' }).group;
+assert.deepEqual(database.children.map(child => child.tag), ['path', 'ellipse', 'text', 'text']);
+assert.deepEqual(database.children.slice(2).map(child => child.textContent), ['SQLite', 'uml-studio.db']);
+assert.equal(render(base('database')).group.children.length, 3);
+
+const external = render({ ...base('boundary'), borderStyle: 'dashed', fill: '#faf7ff' }).group;
+assert.equal(external.children[0].attrs['stroke-dasharray'], '6 4');
+assert.equal(external.children[0].attrs.fill, '#faf7ff');
+assert.equal(render(base('boundary')).group.children[0].attrs['stroke-dasharray'], undefined);
+diagram = { type: 'usecase', elements: [], relations: [] };
+assert.equal(render({ ...base('boundary'), borderStyle: 'dashed' }).group.children[0].attrs['stroke-dasharray'], undefined);
+
 diagram = { type: 'erd', elements: [], relations: [] };
 const entity = render(base('entity', {
   headH: 24, primaryTitle: 'Order', secondaryTitle: 'orders', RH: 18,

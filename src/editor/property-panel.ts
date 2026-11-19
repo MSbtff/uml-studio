@@ -1015,6 +1015,22 @@ function createPropertyPanelModule() {
             '예: device, executionEnvironment',
           )));
         }
+        if (e.kind === 'database') {
+          box.appendChild(propRow(uiLabel('Database Type', '데이터베이스 종류'), textInput(e.stereotype, v => e.stereotype = v),
+            uiText('Optional label, such as SQLite or PostgreSQL.', '선택 항목입니다. 예: SQLite, PostgreSQL')));
+        }
+        const deploymentBoundary = e.kind === 'boundary' && dg().type === 'deployment';
+        if (deploymentBoundary) {
+          const dashed = document.createElement('input');
+          dashed.type = 'checkbox';
+          dashed.checked = e.borderStyle === 'dashed';
+          dashed.addEventListener('change', () => {
+            snapshot();
+            e.borderStyle = dashed.checked ? 'dashed' : 'solid';
+            render();
+          });
+          box.appendChild(propRow(uiLabel('Dashed Border', '점선 테두리'), dashed));
+        }
         if (e.kind === 'timingstate') {
           const owner = byId(e.parentId);
           const hint = document.createElement('div');
@@ -1370,7 +1386,7 @@ function createPropertyPanelModule() {
             '한 줄에 하나씩 가드 조건을 입력하세요. 프레임 안의 점선을 위아래로 드래그해 구역 높이를 조절합니다.',
           )));
         }
-        if (!['fragment', 'actor', 'initial', 'final', 'flowfinal', 'forkbar', 'joinbar', 'inputpin', 'outputpin',
+        if (deploymentBoundary || !['fragment', 'actor', 'initial', 'final', 'flowfinal', 'forkbar', 'joinbar', 'inputpin', 'outputpin',
           'expansioninput', 'expansionoutput', 'boundary', 'entity', 'frame', 'stateinvariant', 'execution',
           'stateinitial', 'statefinal', 'choice', 'junction', 'statefork', 'shallowhistory', 'deephistory', 'region',
           'entrypoint', 'exitpoint', 'terminate', 'connectionpointref', 'timingstate', 'timetick',

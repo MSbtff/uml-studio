@@ -377,6 +377,8 @@ function createElementMeasureModule() {
           return { minW: 20, minH: 20 };
         case 'artifact':
           return { minW: snapUp(Math.max(104, tw(e.name, FONT13B) + 44)), minH: 56 };
+        case 'database':
+          return { minW: snapUp(Math.max(120, tw(e.name, FONT13B) + 32, tw(e.stereotype || '', FONT12) + 32)), minH: 80 };
         case 'node': {
           let w = Math.max(128, tw(e.name, FONT13B) + 48);
           if (e.stereotype) w = Math.max(w, tw(`«${e.stereotype}»`, FONT12) + 48);

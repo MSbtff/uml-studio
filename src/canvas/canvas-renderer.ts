@@ -286,6 +286,9 @@ function createCanvasRendererModule() {
           return order || containmentDepth(a, d) - containmentDepth(b, d);
         });
       }
+      if (d.type === 'deployment') {
+        return d.elements.slice().sort((a, b) => Number(b.kind === 'boundary') - Number(a.kind === 'boundary'));
+      }
       if (CONTAINMENT_ORDERED_TYPES.includes(d.type)) {
         return d.elements.slice().sort((a, b) => containmentDepth(a, d) - containmentDepth(b, d));
       }

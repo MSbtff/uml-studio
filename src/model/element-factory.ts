@@ -40,6 +40,7 @@ function createElementFactoryModule() {
     expansioninput: 'input', expansionoutput: 'output',
     lifeline: ':Object', seqactor: 'Actor', fragment: 'Fragment',
     component: 'Component', interfaceball: 'Interface', artifact: 'Artifact', node: 'Node',
+    database: 'Database',
     entity: 'Entity', process: 'Process', external: 'External', datastore: 'DataStore', mindnode: 'Topic',
     state: 'State', compositestate: 'CompositeState', submachinestate: 'SubmachineState', region: 'Region',
     stateinitial: 'Initial', statefinal: 'Final', choice: 'Choice', junction: 'Junction',
@@ -185,6 +186,8 @@ function createElementFactoryModule() {
       });
       if (kind === 'continuation') Object.assign(base, { w: 120, h: 30 });
       if (kind === 'boundary') Object.assign(base, { w: 280, h: 200 });
+      if (kind === 'boundary' && dg().type === 'deployment') base.fill = '#ffffff';
+      if (kind === 'database') base.fill = '#dff0e5';
       if (kind === 'node') Object.assign(base, { stereotype: 'device' });
       if (kind === 'entity') base.columns = ['PK id: INTEGER'];
       if (kind === 'mindnode') base.fill = '#d7e6f7';

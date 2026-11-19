@@ -92,7 +92,7 @@ function createValidation(iconScript?: ValidationIconApi, erdColumn?: Validation
   const ER_RELATION_KINDS = new Set(['erd-11', 'erd-1n', 'erd-nm']);
   const NAME_REQUIRED = new Set([
     'class', 'interface', 'enumeration', 'package', 'model', 'subsystem', 'metaclass', 'stereotype', 'actor', 'usecase', 'boundary',
-    'lifeline', 'component', 'interfaceball', 'artifact', 'node', 'entity',
+    'lifeline', 'component', 'interfaceball', 'artifact', 'node', 'database', 'entity',
     'process', 'external', 'datastore', 'mindnode', 'stateinvariant', 'continuation', 'state', 'compositestate', 'submachinestate',
     'object', 'artifactinstance', 'componentinstance', 'nodeinstance',
     'collaboration', 'part', 'reference', 'value', 'port', 'collaborationuse',

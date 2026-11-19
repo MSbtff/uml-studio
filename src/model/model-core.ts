@@ -293,6 +293,10 @@ function createModelCore(erdSchema?: ModelSchemaValidation) {
             throw new Error(uiText('Invalid element coordinate: {0}.{1}', '잘못된 요소 좌표: {0}.{1}', view.id, key));
           }
         }
+        if (kind === 'boundary' && view.borderStyle !== undefined
+          && !matchesOneOf(view.borderStyle, ['solid', 'dashed'])) {
+          throw new Error(uiText('Invalid boundary border style: {0}', '경계 테두리 스타일이 올바르지 않습니다: {0}', view.id));
+        }
         if ((version || 0) >= 11 && !referencedModel(view, models)) throw new Error(uiText(
           'Element model not found: {0}',
           '요소 모델을 찾을 수 없습니다: {0}',

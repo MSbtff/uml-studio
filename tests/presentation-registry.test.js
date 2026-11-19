@@ -19,7 +19,7 @@ assert.deepEqual(DASH_PATTERNS, {
   selection: '3 2',
 });
 
-assert.equal(Object.keys(KIND_META).length, 141);
+assert.equal(Object.keys(KIND_META).length, 142);
 assert.equal(Object.keys(REL_STYLE).length, 47);
 assert.deepEqual(
   Object.keys(KIND_META).sort(),

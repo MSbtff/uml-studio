@@ -130,6 +130,7 @@ function createPresentationRegistry() {
     interfaceball:{ label: 'Interface (ball)', labelKo: '인터페이스 (원형)', icon: 'O', color: '#7b46d3' },
     artifact:     { label: 'Artifact', labelKo: '아티팩트', icon: 'A',  color: '#3f7f7f' },
     node:         { label: 'Node', labelKo: '노드', icon: 'N',  color: '#3f7f7f' },
+    database:     { label: 'Database', labelKo: '데이터베이스', icon: 'DB', color: '#3f7f7f' },
     entity:       { label: 'Entity', labelKo: '엔티티', icon: 'E',  color: '#b3417a' },
     process:      { label: 'Process', labelKo: '프로세스', icon: 'P',  color: '#3a8fb0' },
     external:     { label: 'External Entity', labelKo: '외부 엔티티', icon: 'X',  color: '#3a8fb0' },

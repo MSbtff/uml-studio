@@ -51,7 +51,7 @@ function createElementRendererModule() {
     activity: Object.freeze(["swimlanev","swimlaneh","interruptibleregion","structuredactivity","expansionregion","inputpin","outputpin","expansioninput","expansionoutput","action","sendsignal","acceptsignal","timeevent","initial","final","flowfinal","decision","merge","forkbar","joinbar","objectnode","activityparameter","centralbuffer","activitydatastore"]),
     state: Object.freeze(["state","compositestate","submachinestate","region","stateinitial","statefinal","choice","junction","statefork","shallowhistory","deephistory","entrypoint","exitpoint","terminate","connectionpointref"]),
     interaction: Object.freeze(["timingstate","timesegment","timetick","timeconstraint","durationconstraint","lifeline","fragment","frame","interactionuse","interactioninline","stateinvariant","continuation","execution"]),
-    runtime: Object.freeze(["object","componentinstance","artifactinstance","nodeinstance","component","interfaceball","artifact","node","entity","process","external","datastore","mindnode"]),
+    runtime: Object.freeze(["object","componentinstance","artifactinstance","nodeinstance","component","interfaceball","artifact","node","database","entity","process","external","datastore","mindnode"]),
   });
   const FAMILY_BY_KIND: Readonly<Partial<Record<string, keyof typeof FAMILY_KINDS>>> = Object.freeze(Object.fromEntries(
     Object.entries(FAMILY_KINDS).flatMap(([family, kinds]) =>
@@ -415,6 +415,15 @@ function createElementRendererModule() {
       text(g, e.name, cx, cy + 4, { bold: true, size: 13, anchor: 'middle' });
       return;
     case 'boundary':
+      if (currentDiagram()?.type === 'deployment') {
+        el('rect', {
+          x: e.x, y: e.y, width: e.w, height: e.h, rx: 6, fill, stroke: STROKE, 'stroke-width': 1.2,
+          ...(e.borderStyle === 'dashed' ? { 'stroke-dasharray': DASH_REL } : {}),
+        }, g);
+        text(g, e.name, e.x + 16, e.y + 24, { bold: true, size: 14 });
+        el('line', { x1: e.x, y1: e.y + 36, x2: e.x + e.w, y2: e.y + 36, stroke: STROKE, 'stroke-width': 1 }, g);
+        return;
+      }
       el('rect', { x: e.x, y: e.y, width: e.w, height: e.h, fill: '#ffffff', stroke: STROKE, 'stroke-width': 1 }, g);
       text(g, e.name, cx, e.y + 17, { bold: true, size: 13, anchor: 'middle' });
       el('line', { x1: e.x, y1: e.y + 24, x2: e.x + e.w, y2: e.y + 24, stroke: STROKE, 'stroke-width': 1 }, g);
@@ -1039,6 +1048,17 @@ function createElementRendererModule() {
       el('path', { d: `M ${ix + IW - FD} ${iy} L ${ix + IW - FD} ${iy + FD} L ${ix + IW} ${iy + FD}`, fill: 'none', stroke: STROKE, 'stroke-width': 1 }, g);
       text(g, '«artifact»', cx, cy - 4, { anchor: 'middle' });
       text(g, e.name, cx, cy + 12, { bold: true, size: 13, anchor: 'middle' });
+      return;
+    }
+    case 'database': {
+      const cap = 10, right = e.x + e.w, bottom = e.y + e.h;
+      el('path', {
+        d: `M ${e.x} ${e.y + cap} V ${bottom - cap} A ${e.w / 2} ${cap} 0 0 0 ${right} ${bottom - cap} V ${e.y + cap} Z`,
+        fill, stroke: STROKE, 'stroke-width': 1.2,
+      }, g);
+      el('ellipse', { cx, cy: e.y + cap, rx: e.w / 2, ry: cap, fill, stroke: STROKE, 'stroke-width': 1.2 }, g);
+      if (e.stereotype) text(g, e.stereotype, cx, cy + 2, { size: 11, anchor: 'middle' });
+      text(g, e.name, cx, cy + (e.stereotype ? 20 : 10), { bold: true, size: 13, anchor: 'middle' });
       return;
     }
     case 'node': {
