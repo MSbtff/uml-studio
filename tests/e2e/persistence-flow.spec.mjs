@@ -51,6 +51,34 @@ test('Undo/Redo, 복사·붙여넣기와 모델 삭제가 실제 UI에서 동작
   await expect(page.locator('#status-left')).toContainText('Deleted 1 models');
 });
 
+test('opens a JSON backup from the Project Manager with the keyboard', async ({ studioPage: page }) => {
+  await createEmptyProject(page);
+  const backup = JSON.parse((await downloadFromToolbar(page, 'save')).text);
+  backup.projectId = 'project-manager-backup';
+  backup.projectName = 'Imported Backup';
+  backup.diagrams[0].name = 'Backup Diagram';
+
+  await page.getByRole('button', { name: 'Projects', exact: true }).click();
+  const manager = page.getByRole('dialog', { name: 'Project Manager', exact: true });
+  await expect(manager.getByRole('button', { name: 'New Project', exact: true })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(manager.getByRole('button', { name: 'Open File…', exact: true })).toBeFocused();
+  const chooser = page.waitForEvent('filechooser');
+  await page.keyboard.press('Enter');
+  await (
+    await chooser
+  ).setFiles({
+    name: 'Backup.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(backup)),
+  });
+
+  await expect(manager).toBeHidden();
+  await expect(page.locator('#tabs .tab.active .tab-name')).toHaveText('Backup Diagram');
+  const stored = await waitForStoredProject(page, (data) => data.projectName === 'Imported Backup');
+  expect(stored.data.projectId).toBe(backup.projectId);
+});
+
 test('시퀀스 라이프라인 복사본은 원본과 분리된 모델이 된다', async ({ studioPage: page }) => {
   await createEmptyProject(page);
   await addDiagram(page, 'Sequence Diagram');

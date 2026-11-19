@@ -883,13 +883,13 @@ const diagramExport = UMLDiagramExport.create(provide(UMLDiagramExport));
 const { download } = diagramExport;
 
 const importExport = UMLProjectImport.create(provide(UMLProjectImport));
-const { importSupportedFile } = importExport;
+const { importSupportedFile, openProjectFileDialog } = importExport;
 register({ importSupportedFile });
 importExport.attach();
 
 const commands = {
   new() { createNewProject(); },
-  open: () => importExport.openProjectFileDialog(),
+  open: openProjectFileDialog,
   importddl: () => importExport.openDdlAppendDialog(),
   importdrawio: () => importExport.openDrawioAppendDialog(),
   save() {
@@ -897,7 +897,7 @@ const commands = {
     download(filename, new Blob([serialize()], { type: 'application/json' }));
     markSaved();
   },
-  projects: openProjectManager,
+  projects: () => openProjectManager(openProjectFileDialog),
   recovery: () => openRecoveryHistory(),
   undo, redo,
   selectall: selectAllViews,

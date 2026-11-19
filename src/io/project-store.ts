@@ -449,13 +449,18 @@ function createProjectStoreModule() {
       ? `${(Number(value) / 1024 / 1024).toFixed(1)} MB`
       : `${Math.max(0, Math.round(Number(value || 0) / 1024))} KB`;
 
-    async function openProjectManager() {
+    async function openProjectManager(openProjectFileDialog: () => void) {
       const { overlay, dialog, header, modal } = projectModal(uiLabel('Project Manager', '프로젝트 관리'), 'project-manager-modal');
       const create = projectActionButton(uiText('New Project', '새 프로젝트'), async () => {
         await createNewProject('Untitled Project', false);
         modal.close();
       });
       create.classList.add('project-primary'); header.insertBefore(create, header.lastChild);
+      const openFile = projectActionButton(uiText('Open File…', '파일 열기…'), () => {
+        modal.close();
+        openProjectFileDialog();
+      });
+      header.insertBefore(openFile, header.lastChild);
       modal.focusInitial(create);
       const hint = document.createElement('div'); hint.className = 'project-dialog-hint';
       hint.textContent = uiText(
