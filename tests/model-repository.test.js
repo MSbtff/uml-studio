@@ -480,8 +480,8 @@ DERIVED_VIEW_KINDS.concat(['timingstate']).forEach(kind => {
     const overlay = h.repo.open();
     return overlay.children[0].children[2].textContent;
   };
-  assert.match(hintOf('informationflow'), /Information Flow의 송신·수신 주체/);
-  assert.match(hintOf('requirement'), /Satisfy, Verify, Refine, Trace/);
+  assert.match(hintOf('informationflow'), /정보 흐름의 송신·수신 주체/);
+  assert.match(hintOf('requirement'), /충족, 검증, 구체화, 추적/);
   assert.match(hintOf('class'), /이름과 속성이 함께 동기화됩니다/);
 }
 

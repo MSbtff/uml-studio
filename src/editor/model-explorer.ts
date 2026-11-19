@@ -246,7 +246,7 @@ function createModelExplorerModule() {
             .filter(column => column.phys || column.logical);
           return {
             columns,
-            label: [physical || '(unnamed)', logical].filter(Boolean).join(' · '),
+            label: [physical || uiText('(unnamed)', '(이름 없음)'), logical].filter(Boolean).join(' · '),
             searchText: [physical, logical, ...columns.flatMap(column => [column.phys, column.logical])]
               .filter(Boolean)
               .join(' '),
@@ -257,9 +257,9 @@ function createModelExplorerModule() {
           if (view.name) return view.name;
           if (view.kind === 'timesegment') {
             const owner = diagram.elements.find(element => element.id === view.parentId);
-            return owner?.name || 'Time Segment';
+            return owner?.name || diagramKindLabel(view.kind, diagram.type);
           }
-          return KIND_META[view.kind]?.label || '?';
+          return diagramKindLabel(view.kind, diagram.type);
         };
         containmentOrder(diagram).forEach(element => {
           const erdInfo = erdSearchInfo(element);
@@ -267,7 +267,7 @@ function createModelExplorerModule() {
             id: element.id,
             modelId: element.modelId,
             kind: element.kind,
-            label: erdInfo?.label || element.name || '(unnamed)',
+            label: erdInfo?.label || element.name || uiText('(unnamed)', '(이름 없음)'),
             searchText: erdInfo?.searchText || element.name || '',
             searchColumns: erdInfo?.columns || [],
             depth: containmentDepth(element, diagram),
@@ -286,7 +286,7 @@ function createModelExplorerModule() {
           });
         });
         const matches = query
-          ? items.filter(item => `${item.label} ${item.searchText} ${diagramKindLabel(item.kind, diagram.type)}`
+          ? items.filter(item => `${item.label} ${item.searchText} ${diagramKindLabel(item.kind, diagram.type)} ${KIND_META[item.kind]?.label || ''}`
             .toLowerCase().includes(query))
           : items;
         const diagramMatches = diagram.name.toLowerCase().includes(query);

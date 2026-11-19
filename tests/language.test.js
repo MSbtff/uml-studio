@@ -25,10 +25,16 @@ test('browser locale uses the saved value and defaults to English when storage i
   assert.equal(english.current, 'en');
   assert.equal(english.locale, 'en-US');
   assert.equal(english.text('{1} has {0} rows.', '{1}: {0}행', 2, 'Orders'), 'Orders has 2 rows.');
+  const tool = { label: 'Lifeline', labelKo: '라이프라인' };
+  assert.equal(english.displayLabel(tool), 'Lifeline');
   english.save('ko');
 
   const korean = loadBrowserLanguage(storage);
   assert.equal(korean.current, 'ko');
+  assert.equal(korean.displayLabel(tool), '라이프라인');
+  assert.equal(korean.displayLabel({ label: 'Custom' }), 'Custom');
+  assert.equal(korean.displayLabel(undefined, 'unknown'), 'unknown');
+  assert.equal(korean.label('{0} view', '뷰 {0}개', 1), '뷰 1개');
   assert.equal(korean.label('Settings', '설정'), '설정');
   assert.equal(korean.text('{1} has {0} rows.', '{1}: {0}행', 2, 'Orders'), 'Orders: 2행');
   assert.equal(loadBrowserLanguage(undefined).current, 'en');

@@ -111,7 +111,7 @@ const dependencies = {
   normalizeErdChecks,
   normalizeErdIndexes,
   safeSqlFragment,
-  diagramKindLabel: kind => kind,
+  diagramKindLabel: kind => dependencies.KIND_META[kind]?.label || kind,
   bindingTypeCompatibility: () => ({ status: 'compatible', message: 'compatible' }),
   lockBindingRoute: noop,
   bindingConnectorStackInfo: () => ({ index: 0, total: 1 }),

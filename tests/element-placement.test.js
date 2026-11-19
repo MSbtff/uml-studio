@@ -137,7 +137,7 @@ assert.throws(() => create({ ...harness().deps, state: undefined }), /state/);
   assert.equal(diagram.elements.length, 0);
   assert.equal(called('snapshot').length, 0, '거절된 배치는 Undo 스냅샷을 남기지 않습니다');
   assert.equal(state.tool, 'class', '도구도 그대로 둡니다');
-  assert.match(statuses.at(-1), /라이프라인\(점선\) 위에서 클릭/);
+  assert.match(statuses.at(-1), /라이프라인의 점선을 클릭/);
 }
 {
   const life = { id: 'life-1', x: 100, y: 40, w: 80, h: 30 };
@@ -154,7 +154,7 @@ assert.throws(() => create({ ...harness().deps, state: undefined }), /state/);
   const { placement, diagram } = harness();
   placement.placeElementForTool({ x: 40, y: 40 }, 'connectionpointref', null);
   assert.equal(diagram.elements.length, 0);
-  assert.match(statuses.at(-1), /Submachine State의 테두리/);
+  assert.match(statuses.at(-1), /하위 상태 머신의 테두리/);
 }
 {
   const owner = { id: 'sub', kind: 'submachinestate' };
@@ -170,11 +170,11 @@ const owner = (kind, extra = {}) => ({ id: `${kind}-owner`, kind, x: 40, y: 60, 
 
 [
   { tool: 'part', type: 'class', dep: 'compositeContainerAtPoint', hostKind: 'class',
-    reject: /Class 또는 Collaboration 내부/, attach: 'attachPartToCompositeContainer' },
+    reject: /클래스 또는 협업 안/, attach: 'attachPartToCompositeContainer' },
   { tool: 'part', type: 'ibd', dep: 'ibdContainerAtPoint', hostKind: 'ibdframe',
-    reject: /IBD Frame 또는 Part\/Reference 내부/, attach: 'attachToInternalBlockContainer' },
+    reject: /내부 블록 프레임, 파트 또는 참조 안/, attach: 'attachToInternalBlockContainer' },
   { tool: 'constraintproperty', type: 'parametric', dep: 'parametricContainerAtPoint',
-    hostKind: 'parametricframe', reject: /Parametric Frame 내부/, attach: 'attachToParametricContainer' },
+    hostKind: 'parametricframe', reject: /파라메트릭 프레임 안/, attach: 'attachToParametricContainer' },
 ].forEach(({ tool, type, dep, hostKind, reject, attach }) => {
   {
     const { placement, diagram, state } = harness({ diagram: { type } });
@@ -197,11 +197,11 @@ const owner = (kind, extra = {}) => ({ id: `${kind}-owner`, kind, x: 40, y: 60, 
 
 /* 테두리에 붙는 도구는 borderAnchor 비율을 함께 저장한다 */
 [
-  { tool: 'port', dep: 'compositePortOwnerAtPoint', type: 'class', reject: /Class, Collaboration 또는 Part의 테두리/ },
+  { tool: 'port', dep: 'compositePortOwnerAtPoint', type: 'class', reject: /클래스, 협업 또는 파트의 테두리/ },
   { tool: 'constraintparameter', dep: 'parametricContainerAtPoint', type: 'parametric',
-    reject: /Parametric Frame 또는 Constraint Property의 테두리/ },
+    reject: /파라메트릭 프레임 또는 제약 속성의 테두리/ },
   { tool: 'inputpin', dep: 'activityAttachmentOwnerAtPoint', type: 'activity',
-    reject: /Action 또는 Signal\/Time Event Action의 테두리/ },
+    reject: /동작 또는 신호·시간 이벤트 동작의 테두리/ },
 ].forEach(({ tool, dep, type, reject }) => {
   {
     const { placement, diagram } = harness({ diagram: { type } });
@@ -222,7 +222,7 @@ const owner = (kind, extra = {}) => ({ id: `${kind}-owner`, kind, x: 40, y: 60, 
 ['bdd', 'ibd'].forEach(type => {
   const { placement } = harness({ diagram: { type } });
   placement.placeElementForTool({ x: 10, y: 10 }, 'port', null);
-  assert.match(statuses.at(-1), type === 'bdd' ? /Block, Interface Block/ : /IBD Frame, Part 또는 Reference/);
+  assert.match(statuses.at(-1), type === 'bdd' ? /블록, 인터페이스 블록/ : /내부 블록 프레임, 파트 또는 참조/);
 });
 
 /* ── Timing ────────────────────────────────────────────────── */
@@ -230,7 +230,7 @@ const owner = (kind, extra = {}) => ({ id: `${kind}-owner`, kind, x: 40, y: 60, 
   const { placement, diagram } = harness({ diagram: { type: 'timing' } });
   placement.placeElementForTool({ x: 10, y: 10 }, 'timingstate', null);
   assert.equal(diagram.elements.length, 0);
-  assert.match(statuses.at(-1), /Timing Lifeline 내부/);
+  assert.match(statuses.at(-1), /타이밍 라이프라인 내부/);
 }
 {
   const life = owner('timinglifeline');
@@ -247,7 +247,7 @@ const owner = (kind, extra = {}) => ({ id: `${kind}-owner`, kind, x: 40, y: 60, 
   const { placement, diagram } = harness({ diagram: { type: 'timing' } });
   placement.placeElementForTool({ x: 10, y: 10 }, 'timesegment', null);
   assert.equal(diagram.elements.length, 0);
-  assert.match(statuses.at(-1), /State \/ Condition 행을 클릭/);
+  assert.match(statuses.at(-1), /상태·조건 행을 클릭/);
 }
 {
   const row = owner('timingstate', { x: 30, y: 90, w: 400 });
@@ -262,7 +262,7 @@ const owner = (kind, extra = {}) => ({ id: `${kind}-owner`, kind, x: 40, y: 60, 
   const { placement, diagram } = harness({ diagram: { type: 'timing' } });
   placement.placeElementForTool({ x: 10, y: 10 }, 'timeconstraint', null);
   assert.equal(diagram.elements.length, 0);
-  assert.match(statuses.at(-1), /Time Segment 또는 Message 위/);
+  assert.match(statuses.at(-1), /시간 구간 또는 메시지를 클릭/);
 }
 {
   const segment = { id: 'seg-1', kind: 'timesegment', x: 100, y: 90, w: 200, h: 20 };
@@ -286,7 +286,7 @@ const owner = (kind, extra = {}) => ({ id: `${kind}-owner`, kind, x: 40, y: 60, 
   const { placement, diagram } = harness({ diagram: { type: 'state' } });
   placement.placeElementForTool({ x: 10, y: 10 }, 'region', null);
   assert.equal(diagram.elements.length, 0);
-  assert.match(statuses.at(-1), /Composite State 내부/);
+  assert.match(statuses.at(-1), /복합 상태 내부/);
 }
 {
   const { placement, diagram } = harness({
@@ -321,7 +321,7 @@ const owner = (kind, extra = {}) => ({ id: `${kind}-owner`, kind, x: 40, y: 60, 
   const [frame] = diagram.elements;
   assert.equal(frame.interactionDiagramId, sequence.id);
   assert.equal(frame.name, sequence.name);
-  assert.match(statuses.at(-1), /인라인 Sequence Diagram을 만들었습니다/);
+  assert.match(statuses.at(-1), /인라인 시퀀스 다이어그램을 만들었습니다/);
 }
 
 console.log('element placement tests: ok');

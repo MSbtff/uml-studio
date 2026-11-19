@@ -456,7 +456,7 @@ function createErdNameToolsModule(
       const hint = document.createElement('p'); hint.className = 'erd-name-tools-hint';
       hint.textContent = uiText(
         'Preview and validate changes across the project. Undo reverses the entire rename in one step.',
-        '프로젝트 전체의 엔터티와 컬럼을 미리 검증한 뒤 한 번의 Undo 작업으로 변경합니다.',
+        '프로젝트 전체의 엔터티와 컬럼 변경 사항을 미리 검증합니다. 실행 취소 한 번으로 모든 이름을 되돌릴 수 있습니다.',
       );
       const controls = document.createElement('div'); controls.className = 'erd-name-tools-controls';
       const scope = document.createElement('select'); scope.setAttribute('aria-label', uiText('Rename Target', '변환 대상'));

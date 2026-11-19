@@ -79,7 +79,7 @@ declare var UMLQuickEdit: QuickEditApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createQuickEditModule);
 
 function createQuickEditModule() {
-  const { text: uiText } = globalThis.UMLLanguage
+  const { label: uiLabel, text: uiText } = globalThis.UMLLanguage
     ?? require('./language.js') as typeof UMLLanguage;
 
   /* every field caption needs a stable id so its control can point at it */
@@ -225,15 +225,19 @@ function createQuickEditModule() {
     } = deps;
 
     const MEMBER_QUICK_EDIT_LABELS = {
-      attribute: 'Attribute', operation: 'Operation', literal: 'Enumeration Literal',
-      reception: 'Reception', column: 'Column', slot: 'Slot',
+      attribute: uiLabel('Attribute', '속성'),
+      operation: uiLabel('Operation', '연산'),
+      literal: uiLabel('Enumeration Literal', '열거형 리터럴'),
+      reception: uiLabel('Reception', '수신 신호'),
+      column: uiLabel('Column', '컬럼'),
+      slot: uiLabel('Slot', '슬롯'),
     };
 
     function prepareQuickEditExpression(kind: string, value: string): PreparedExpression {
       if (!value || kind === 'column') return { valid: true, value: value || '' };
       const result = parseQuickEditExpression(kind, value);
       if (!result.valid) {
-        flashStatus(uiText('Invalid QuickEdit expression: {0}', 'QuickEdit 표현식 오류: {0}', result.error));
+        flashStatus(uiText('Invalid QuickEdit expression: {0}', '빠른 편집 표현식 오류: {0}', result.error));
         return result;
       }
       return { valid: true, value: result.normalized };
@@ -275,7 +279,7 @@ function createQuickEditModule() {
       const old = isNew ? '' : list.arr[index];
       const rh = e.kind === 'entity' ? ((e._m && e._m.RH) || 17) : LINE_H;
       const rowY = e.y + list.top + Math.min(index, list.arr.length) * rh + 2;
-      const label = MEMBER_QUICK_EDIT_LABELS[listKind] || 'Member';
+      const label = MEMBER_QUICK_EDIT_LABELS[listKind] || uiLabel('Member', '멤버');
       const reopen = (nextIndex: number) => openMemberRowQuickEdit(e, listKind, nextIndex);
 
       openInlineEditor(e.x * state.zoom + 4, rowY * state.zoom, (e.w - 8) * state.zoom, old, value => {
@@ -292,7 +296,7 @@ function createQuickEditModule() {
       }, {
         align: 'left',
         size: 12,
-        ariaLabel: `${label} QuickEdit`,
+        ariaLabel: uiLabel('{0} QuickEdit', '{0} 빠른 편집', label),
         prepare: value => prepareQuickEditExpression(listKind, value),
         onAddBelow(value) {
           const fresh = memberListByKind(e, listKind);
@@ -417,7 +421,7 @@ function createQuickEditModule() {
           }
         }, {
           size: 12,
-          ariaLabel: expressionKind === 'message' ? 'Message Expression QuickEdit' : 'Relationship QuickEdit',
+          ariaLabel: expressionKind === 'message' ? uiLabel('Message Expression QuickEdit', '메시지 표현식 빠른 편집') : uiLabel('Relationship QuickEdit', '관계 빠른 편집'),
           ...(expressionKind ? { prepare: value => prepareQuickEditExpression(expressionKind, value) } : {}),
         });
         return true;
@@ -463,7 +467,7 @@ function createQuickEditModule() {
           render(); renderProps();
         }
       }, {
-        ariaLabel: isInteractionMsg(r.kind) ? 'Message Expression QuickEdit' : 'Relationship QuickEdit',
+        ariaLabel: isInteractionMsg(r.kind) ? uiLabel('Message Expression QuickEdit', '메시지 표현식 빠른 편집') : uiLabel('Relationship QuickEdit', '관계 빠른 편집'),
         prepare: value => prepareQuickEditExpression(isInteractionMsg(r.kind) ? 'message' : 'name', value),
       });
       return true;
@@ -557,7 +561,7 @@ function createQuickEditModule() {
           render(); renderProps();
         }
       }, {
-        ariaLabel: 'Name Expression QuickEdit',
+        ariaLabel: uiLabel('Name Expression QuickEdit', '이름 표현식 빠른 편집'),
         prepare: value => prepareQuickEditExpression('name', value),
       });
       return true;
@@ -643,7 +647,7 @@ function createQuickEditModule() {
         render(); renderProps();
         flashStatus(uiText('Changed the lifeline expression to \'{0}\'.', '라이프라인 표현식을 \'{0}\'(으)로 변경했습니다', value));
       }, {
-        ariaLabel: 'Lifeline Expression QuickEdit',
+        ariaLabel: uiLabel('Lifeline Expression QuickEdit', '라이프라인 표현식 빠른 편집'),
         prepare: value => prepareQuickEditExpression('lifeline', value),
       });
     }
@@ -654,7 +658,7 @@ function createQuickEditModule() {
       closeInlineEditor();
       const input: HTMLInputElement | HTMLTextAreaElement = document.createElement(opts.multiline ? 'textarea' : 'input');
       input.className = 'inline-editor';
-      input.setAttribute('aria-label', opts.ariaLabel || 'QuickEdit');
+      input.setAttribute('aria-label', opts.ariaLabel || uiLabel('QuickEdit', '빠른 편집'));
       input.value = value ?? '';
       input.style.left = (x + 2) + 'px';
       input.style.top = y + 'px';

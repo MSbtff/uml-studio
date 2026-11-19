@@ -14,7 +14,7 @@ declare var UMLRelationRules: RelationRulesApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createRelationRulesModule);
 
 function createRelationRulesModule() {
-  const { text: uiText } = globalThis.UMLLanguage
+  const { displayLabel, text: uiText } = globalThis.UMLLanguage
     ?? require('../editor/language.js') as typeof UMLLanguage;
 
   const REQUIRED_FUNCTIONS = Object.freeze([
@@ -94,7 +94,7 @@ function createRelationRulesModule() {
     function transitionDirectionError(from: CandidateEndpoint, to: CandidateEndpoint) {
       if (!from || !to) return '';
       if (['statefinal', 'exitpoint', 'terminate'].includes(from.kind)) {
-        return uiText('{0} cannot have outgoing transitions.', '{0}에서는 나가는 Transition을 만들 수 없습니다', KIND_META[from.kind].label);
+        return uiText('{0} cannot have outgoing transitions.', '{0}에서는 나가는 Transition을 만들 수 없습니다', displayLabel(KIND_META[from.kind]));
       }
       if (from.kind === 'connectionpointref' && (from.referenceKind || 'entry') === 'entry') {
         return uiText(
@@ -129,13 +129,13 @@ function createRelationRulesModule() {
     function activityRelationError(kind: string, from: CandidateEndpoint, to: CandidateEndpoint) {
       if (!['controlflow', 'objectflow', 'exceptionhandler', 'activityinterrupt'].includes(kind)) return '';
       if (!from || !to || !ACTIVITY_VERTEX_KINDS.has(from.kind) || !ACTIVITY_VERTEX_KINDS.has(to.kind)) {
-        return uiText('Connect {0} between activity nodes.', '{0}는 Activity Node 사이에만 연결할 수 있습니다', KIND_META[kind].label);
+        return uiText('Connect {0} between activity nodes.', '{0}는 Activity Node 사이에만 연결할 수 있습니다', displayLabel(KIND_META[kind]));
       }
-      if (from.id === to.id) return uiText('{0} cannot connect an element to itself.', '{0}는 같은 요소에 다시 연결할 수 없습니다', KIND_META[kind].label);
+      if (from.id === to.id) return uiText('{0} cannot connect an element to itself.', '{0}는 같은 요소에 다시 연결할 수 없습니다', displayLabel(KIND_META[kind]));
       if (['final', 'flowfinal'].includes(from.kind)) return uiText(
         '{0} cannot have outgoing flows.',
         '{0}에서는 나가는 흐름을 만들 수 없습니다',
-        KIND_META[from.kind].label,
+        displayLabel(KIND_META[from.kind]),
       );
       if (to.kind === 'initial') return uiText('Initial nodes cannot have incoming flows.', 'Initial Node에는 들어오는 흐름을 만들 수 없습니다');
       if (kind === 'controlflow' && (ACTIVITY_OBJECT_KINDS.has(from.kind) || ACTIVITY_OBJECT_KINDS.has(to.kind))) {
@@ -149,10 +149,10 @@ function createRelationRulesModule() {
           'Object Flow는 Action, Object Node, Pin 또는 Expansion Node 사이에 연결하세요',
         );
         if (from.kind === 'inputpin' || from.kind === 'expansioninput') {
-          return uiText('Use {0} as the target of an external object flow.', '{0}은 외부 Object Flow의 도착점으로 사용하세요', KIND_META[from.kind].label);
+          return uiText('Use {0} as the target of an external object flow.', '{0}은 외부 Object Flow의 도착점으로 사용하세요', displayLabel(KIND_META[from.kind]));
         }
         if (to.kind === 'outputpin' || to.kind === 'expansionoutput') {
-          return uiText('Use {0} as the source of an external object flow.', '{0}은 외부 Object Flow의 시작점으로 사용하세요', KIND_META[to.kind].label);
+          return uiText('Use {0} as the source of an external object flow.', '{0}은 외부 Object Flow의 시작점으로 사용하세요', displayLabel(KIND_META[to.kind]));
         }
       }
       if (kind === 'exceptionhandler') {
@@ -266,10 +266,10 @@ function createRelationRulesModule() {
       );
       if (['reqcontainment', 'reqcopy', 'derivereqt'].includes(kind)
         && (from.kind !== 'requirement' || to.kind !== 'requirement')) {
-        return uiText('Connect {0} between requirements.', '{0}는 Requirement 사이에만 연결할 수 있습니다', KIND_META[kind].label);
+        return uiText('Connect {0} between requirements.', '{0}는 Requirement 사이에만 연결할 수 있습니다', displayLabel(KIND_META[kind]));
       }
       if (['verify', 'satisfy', 'refine'].includes(kind) && to.kind !== 'requirement') {
-        return uiText('Connect {0} from a model element to a requirement.', '{0}는 모델 요소에서 Requirement 방향으로 연결하세요', KIND_META[kind].label);
+        return uiText('Connect {0} from a model element to a requirement.', '{0}는 모델 요소에서 Requirement 방향으로 연결하세요', displayLabel(KIND_META[kind]));
       }
       return '';
     }
@@ -282,7 +282,7 @@ function createRelationRulesModule() {
           ? ''
           : uiText('One endpoint of a note link must be a note.', 'Note Link의 한쪽 끝은 Note여야 합니다');
       }
-      if (from.id === to.id) return uiText('{0} cannot connect an element to itself.', '{0}는 같은 요소로 되돌아갈 수 없습니다', KIND_META[kind].label);
+      if (from.id === to.id) return uiText('{0} cannot connect an element to itself.', '{0}는 같은 요소로 되돌아갈 수 없습니다', displayLabel(KIND_META[kind]));
       if (kind === 'connector') {
         return from.kind === 'port' && to.kind === 'port'
           ? ''
@@ -297,7 +297,7 @@ function createRelationRulesModule() {
         }
       } else if (kind === 'composition' || kind === 'aggregation') {
         if (!BDD_CLASSIFIER_KINDS.has(from.kind) || !BDD_CLASSIFIER_KINDS.has(to.kind)) {
-          return uiText('Connect {0} between block classifiers.', '{0}은 Block Classifier 사이에 연결하세요', KIND_META[kind].label);
+          return uiText('Connect {0} between block classifiers.', '{0}은 Block Classifier 사이에 연결하세요', displayLabel(KIND_META[kind]));
         }
       } else {
         const structural = (view: Endpoint) => BDD_CLASSIFIER_KINDS.has(view.kind) || view.kind === 'object';
@@ -305,7 +305,7 @@ function createRelationRulesModule() {
           return uiText(
             'Connect {0} between block classifiers or objects.',
             '{0}은 Block Classifier 또는 Object 사이에 연결하세요',
-            KIND_META[kind].label,
+            displayLabel(KIND_META[kind]),
           );
         }
       }

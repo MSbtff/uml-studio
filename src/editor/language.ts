@@ -24,13 +24,22 @@ function createStudioLanguage() {
   const current = browser ? storedLanguage() : 'ko';
   const locale = current === 'ko' ? 'ko-KR' : 'en-US';
 
-  function text(english: string, korean: string, ...values: unknown[]): string {
-    const message = current === 'ko' ? korean : english;
+  function interpolate(message: string, values: unknown[]) {
     return values.length ? message.replace(/\{(\d+)\}/g, (_, index: string) => String(values[Number(index)])) : message;
   }
 
-  function label(english: string, korean: string): string {
-    return browser && current === 'ko' ? korean : english;
+  function text(english: string, korean: string, ...values: unknown[]): string {
+    return interpolate(current === 'ko' ? korean : english, values);
+  }
+
+  function label(english: string, korean: string, ...values: unknown[]): string {
+    return interpolate(browser && current === 'ko' ? korean : english, values);
+  }
+
+  // Registry labels are also used as default names in project data.
+  function displayLabel(meta: { label: string; labelKo?: string } | undefined, fallback = ''): string {
+    if (!meta) return fallback;
+    return label(meta.label, meta.labelKo ?? meta.label);
   }
 
   function applyStaticLabels(root: Document) {
@@ -56,5 +65,5 @@ function createStudioLanguage() {
     localStorage.setItem(storageKey, language);
   }
 
-  return Object.freeze({ current, locale, text, label, applyStaticLabels, save });
+  return Object.freeze({ current, locale, text, label, displayLabel, applyStaticLabels, save });
 }

@@ -14,7 +14,7 @@ declare var UMLImportPreview: ImportPreviewApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createImportPreviewModule);
 
 function createImportPreviewModule() {
-  const { label: uiLabel, text: uiText } = globalThis.UMLLanguage
+  const { displayLabel, label: uiLabel, text: uiText } = globalThis.UMLLanguage
     ?? require('../editor/language.js') as typeof UMLLanguage;
 
   const REQUIRED_FUNCTIONS = Object.freeze([
@@ -135,7 +135,7 @@ function createImportPreviewModule() {
         meta.textContent = uiText(
           '{0} · Elements {1} · Relationships {2}',
           '{0} · 요소 {1} · 관계 {2}',
-          DIAGRAM_META[item.type]?.label || item.type || 'Unknown',
+          displayLabel(DIAGRAM_META[item.type], item.type) || uiLabel('Unknown', '알 수 없음'),
           item.elements,
           item.relations,
         );
@@ -240,7 +240,7 @@ function createImportPreviewModule() {
             page.items.forEach((conflict, index) => {
               const row = document.createElement('tr');
               const importedCell = document.createElement('td');
-              importedCell.textContent = `${conflict.importedName || uiText('(Unnamed)', '(이름 없음)')} · ${KIND_META[conflict.importedKind]?.label || conflict.importedKind}`;
+              importedCell.textContent = `${conflict.importedName || uiText('(Unnamed)', '(이름 없음)')} · ${displayLabel(KIND_META[conflict.importedKind], conflict.importedKind)}`;
               const existingCell = document.createElement('td'); existingCell.textContent = conflict.matchName || conflict.matchModelId;
               const typeCell = document.createElement('td');
               typeCell.textContent = conflict.type === 'exact' ? uiText('Matching Original ID', '원본 ID 일치') : conflict.type === 'semantic' ? uiText(
@@ -351,7 +351,7 @@ function createImportPreviewModule() {
           help.textContent = counts.replace
             ? uiText(
               'Overwriting {0} models changes their properties and linked views. Use Undo to revert the import.',
-              '덮어쓰기 {0}건은 기존 모델의 속성과 연결된 모든 뷰를 변경합니다. 가져오기 후 Undo로 되돌릴 수 있습니다.',
+              '덮어쓰기 {0}건은 기존 모델의 속성과 연결된 모든 뷰를 변경합니다. 가져오기 후 실행 취소로 되돌릴 수 있습니다.',
               counts.replace,
             )
             : uiText(

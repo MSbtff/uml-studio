@@ -37,7 +37,6 @@ type PropertyPanelDependencies = Omit<NonNullable<Parameters<ErdPropertySections
   relationSupportsEndQuickEdit: RelationRendererDependencies['relationSupportsEndQuickEdit'];
   erdPropertySections: ErdPropertySectionsApi;
   state: PropertyPanelState;
-  KIND_META: Partial<Record<string, { label: string }>>;
   PACKAGE_CONTAINER_KINDS: ReadonlySet<string>;
   ACTIVITY_PIN_KINDS: ReadonlySet<string>;
   AUTO_LABEL: Partial<Record<string, string>>;
@@ -134,7 +133,6 @@ function createPropertyPanelModule() {
   "document",
   "erdPropertySections",
   "state",
-  "KIND_META",
   "PACKAGE_CONTAINER_KINDS",
   "ACTIVITY_PIN_KINDS",
   "AUTO_LABEL",
@@ -212,7 +210,6 @@ function createPropertyPanelModule() {
       document,
       erdPropertySections,
       state,
-      KIND_META,
       PACKAGE_CONTAINER_KINDS,
       ACTIVITY_PIN_KINDS,
       AUTO_LABEL,
@@ -342,7 +339,7 @@ function createPropertyPanelModule() {
           end === 'source' ? uiText('Source', '출발') : uiText('Target', '도착'),
           endpoint?.name || uiText('Entity', '엔티티'),
         )
-        : `${end === 'source' ? 'Source' : 'Target'} End`;
+        : end === 'source' ? uiLabel('Source End', '출발점') : uiLabel('Target End', '도착점');
       title.dataset.relationEnd = end;
       box.setAttribute('aria-labelledby', title.id);
       box.appendChild(title);
@@ -465,12 +462,12 @@ function createPropertyPanelModule() {
         box.appendChild(propRow(label, node, hint));
       };
       if (!erd) {
-        addSelect('Navigability', `${prefix}Navigability`, relationEndNavigability(r, end), [
-          ['unspecified', 'Unspecified'], ['navigable', 'Navigable'], ['notNavigable', 'Not Navigable'],
+        addSelect(uiLabel('Navigability', '탐색 가능성'), `${prefix}Navigability`, relationEndNavigability(r, end), [
+          ['unspecified', uiLabel('Unspecified', '미지정')], ['navigable', uiLabel('Navigable', '탐색 가능')], ['notNavigable', uiLabel('Not Navigable', '탐색 불가')],
         ], uiText('Arrows and crosses show navigability.', '화살표/금지 표기로 탐색 가능성을 표시합니다.'));
-        addSelect('Aggregation', `${prefix}Aggregation`, relationEndAggregation(r, end), [
-          ['none', 'None'], ['shared', 'Shared'], ['composite', 'Composite'],
-        ], uiText('Shared uses an open diamond. Composite uses a filled diamond.', 'Shared는 빈 마름모, Composite는 채운 마름모입니다.'));
+        addSelect(uiLabel('Aggregation', '집합 관계'), `${prefix}Aggregation`, relationEndAggregation(r, end), [
+          ['none', uiLabel('None', '없음')], ['shared', uiLabel('Shared', '공유')], ['composite', uiLabel('Composite', '합성')],
+        ], uiText('Shared uses an open diamond. Composite uses a filled diamond.', '공유는 빈 마름모, 합성은 채운 마름모입니다.'));
         if (ASSOCIATION_QUALIFIER_KINDS.has(r.kind)) {
           box.appendChild(propRow(uiLabel('Qualifiers', '한정자'), textArea(
             (r[`${prefix}Qualifiers`] || []).join('\n'),
@@ -480,7 +477,7 @@ function createPropertyPanelModule() {
       }
       const quickEdit = document.createElement('button');
       quickEdit.type = 'button'; quickEdit.className = 'prop-btn';
-      quickEdit.textContent = `${end === 'source' ? 'Source' : 'Target'} End QuickEdit…`;
+      quickEdit.textContent = end === 'source' ? uiLabel('Source End QuickEdit…', '출발점 빠른 편집…') : uiLabel('Target End QuickEdit…', '도착점 빠른 편집…');
       quickEdit.addEventListener('click', () => openRelationEndQuickEdit(r, end));
       const actions = document.createElement('div'); actions.className = 'prop-row'; actions.appendChild(quickEdit);
       box.appendChild(actions);
@@ -494,7 +491,7 @@ function createPropertyPanelModule() {
     function classifierProperty(e: DiagramElement, label: string, allowedKinds: readonly string[]) {
       const select = document.createElement('select');
       const none = document.createElement('option');
-      none.value = ''; none.textContent = uiText('(No classifier selected)', '(Classifier 선택 안 함)');
+      none.value = ''; none.textContent = uiText('(No classifier selected)', '(분류자 선택 안 함)');
       select.appendChild(none);
       Object.values(state.models)
         .filter(model => allowedKinds.includes(model.kind))
@@ -502,7 +499,7 @@ function createPropertyPanelModule() {
         .forEach(model => {
           const option = document.createElement('option');
           option.value = model.id;
-          option.textContent = `${KIND_META[model.kind]?.label || model.kind} · ${model.name || '(unnamed)'}`;
+          option.textContent = `${diagramKindLabel(model.kind)} · ${model.name || uiLabel('(unnamed)', '(이름 없음)')}`;
           if (e.classifierModelId === model.id) option.selected = true;
           select.appendChild(option);
         });
@@ -514,7 +511,7 @@ function createPropertyPanelModule() {
       });
       return propRow(label, select, uiText(
         'Uses a classifier from the project. Renaming the classifier updates this view.',
-        '프로젝트 모델 저장소의 실제 Classifier를 참조하며 이름 변경도 표기에 동기화됩니다.',
+        '프로젝트 모델 저장소의 실제 분류자를 참조하며 이름 변경도 표기에 동기화됩니다.',
       ));
     }
     
@@ -529,7 +526,7 @@ function createPropertyPanelModule() {
         .forEach(model => {
           const option = document.createElement('option');
           option.value = model.id;
-          option.textContent = `${KIND_META[model.kind]?.label || model.kind} · ${model.name || '(unnamed)'}`;
+          option.textContent = `${diagramKindLabel(model.kind)} · ${model.name || uiLabel('(unnamed)', '(이름 없음)')}`;
           if (e[field] === model.id) option.selected = true;
           select.appendChild(option);
         });
@@ -545,7 +542,7 @@ function createPropertyPanelModule() {
     function interactionDiagramProperty(e: DiagramElement) {
       const select = document.createElement('select');
       const none = document.createElement('option');
-      none.value = ''; none.textContent = uiText('(Select a sequence diagram)', '(Sequence Diagram 선택)');
+      none.value = ''; none.textContent = uiText('(Select a sequence diagram)', '(시퀀스 다이어그램 선택)');
       select.appendChild(none);
       state.diagrams
         .filter(diagram => diagram.type === 'sequence')
@@ -569,16 +566,16 @@ function createPropertyPanelModule() {
         e.kind === 'interactioninline'
           ? uiText(
             'Shows a compact sequence in the frame. Adding an inline interaction creates a sequence diagram.',
-            '프레임 안에 축약된 Sequence를 표시합니다. 새 inline 요소를 만들면 Sequence Diagram도 자동 생성됩니다.',
+            '프레임 안에 축약된 시퀀스를 표시합니다. 새 인라인 요소를 만들면 시퀀스 다이어그램도 자동 생성됩니다.',
           )
           : uiText(
             'References the interaction to run. Interaction overviews show it as a ref frame.',
-            '실행할 Interaction을 참조합니다. Interaction Overview에서는 ref 프레임으로 표시됩니다.',
+            '실행할 상호작용을 참조합니다. 상호작용 개요에서는 ref 프레임으로 표시됩니다.',
           ));
       const open = document.createElement('button');
       open.type = 'button';
       open.className = 'prop-action';
-      open.textContent = 'Open Sequence Diagram';
+      open.textContent = uiLabel('Open Sequence Diagram', '시퀀스 다이어그램 열기');
       open.disabled = !referencedInteraction(e);
       open.addEventListener('click', () => {
         const diagram = referencedInteraction(e);
@@ -612,12 +609,12 @@ function createPropertyPanelModule() {
     function renderElementProperties(box: HTMLElement, e: DiagramElement) {
         const kind = document.createElement('span');
         kind.className = 'prop-kind';
-        kind.textContent = (e.kind === 'lifeline' && e.isActor) ? 'Actor' : KIND_META[e.kind]?.label || e.kind;
+        kind.textContent = diagramKindLabel(e.kind === 'lifeline' && e.isActor ? 'actor' : e.kind);
         box.appendChild(kind);
         const usage = document.createElement('div');
         usage.className = 'prop-hint model-usage';
         const viewCount = state.diagrams.reduce((n, d) => n + d.elements.filter(v => v.modelId === e.modelId).length, 0);
-        usage.textContent = `Model ${e.modelId} · ${viewCount} view${viewCount === 1 ? '' : 's'}`;
+        usage.textContent = uiLabel('Model {0} · {1} view{2}', '모델 {0} · 뷰 {1}개', e.modelId, viewCount, viewCount === 1 ? '' : 's');
         box.appendChild(usage);
     
         if (!NO_NAME_RENDER.has(e.kind) || e.kind === 'initial' || e.kind === 'final' || e.kind === 'forkbar') {
@@ -626,8 +623,8 @@ function createPropertyPanelModule() {
         if (dg().type === 'package' && PACKAGE_CONTAINER_KINDS.has(e.kind)) {
           const visibility = document.createElement('select');
           [
-            ['public', 'Public (+)'], ['protected', 'Protected (#)'],
-            ['private', 'Private (-)'], ['package', 'Package (~)'],
+            ['public', uiLabel('Public (+)', '공개 (+)')], ['protected', uiLabel('Protected (#)', '보호 (#)')],
+            ['private', uiLabel('Private (-)', '비공개 (-)')], ['package', uiLabel('Package (~)', '패키지 (~)')],
           ].forEach(([value, label]) => {
             const option = document.createElement('option');
             option.value = value; option.textContent = label;
@@ -653,8 +650,8 @@ function createPropertyPanelModule() {
           hint.className = 'prop-hint';
           hint.textContent = uiText(
             'Owner: {0} · Contained elements: {1} · Place or drop elements inside to nest them.',
-            'Owner: {0} · 포함 요소 {1}개 · 내부에 생성하거나 드롭하면 자동으로 중첩됩니다.',
-            owner ? owner.name : '(root)',
+            '소유 요소: {0} · 포함 요소 {1}개 · 내부에 생성하거나 드롭하면 자동으로 중첩됩니다.',
+            owner ? owner.name : uiLabel('(root)', '(최상위)'),
             children.length,
           );
           box.appendChild(hint);
@@ -662,8 +659,8 @@ function createPropertyPanelModule() {
         if (dg().type === 'profile' && (e.kind === 'metaclass' || e.kind === 'stereotype')) {
           const visibility = document.createElement('select');
           [
-            ['public', 'Public (+)'], ['protected', 'Protected (#)'],
-            ['private', 'Private (-)'], ['package', 'Package (~)'],
+            ['public', uiLabel('Public (+)', '공개 (+)')], ['protected', uiLabel('Protected (#)', '보호 (#)')],
+            ['private', uiLabel('Private (-)', '비공개 (-)')], ['package', uiLabel('Package (~)', '패키지 (~)')],
           ].forEach(([value, label]) => {
             const option = document.createElement('option');
             option.value = value; option.textContent = label;
@@ -682,12 +679,12 @@ function createPropertyPanelModule() {
               relation.kind === 'extension' && relation.to === e.id).length;
             const hint = document.createElement('div');
             hint.className = 'prop-hint';
-            hint.textContent = uiText('Stereotypes extending this UML metaclass: {0}', '이 UML MetaClass를 확장하는 Stereotype {0}개', extensionCount);
+            hint.textContent = uiText('Stereotypes extending this UML metaclass: {0}', '이 UML 메타클래스를 확장하는 스테레오타입 {0}개', extensionCount);
             box.appendChild(hint);
           } else {
             box.appendChild(propRow(uiLabel('Attributes', '속성'), textArea((e.attributes || []).join('\n'), value => {
               e.attributes = value.split('\n').filter(line => line.trim() !== '');
-            }), uiText('Stereotype tag definition, e.g. + tableName: String', 'Stereotype의 tag definition · 예: + tableName: String')));
+            }), uiText('Stereotype tag definition, e.g. + tableName: String', '스테레오타입의 태그 정의 · 예: + tableName: String')));
             box.appendChild(propRow(uiLabel('Operations', '연산'), textArea((e.operations || []).join('\n'), value => {
               e.operations = value.split('\n').filter(line => line.trim() !== '');
             }), uiText('One per line, e.g. + validate(): Boolean', '한 줄에 하나씩 · 예: + validate(): Boolean')));
@@ -719,8 +716,8 @@ function createPropertyPanelModule() {
         if (e.kind === 'informationitem') {
           const visibility = document.createElement('select');
           [
-            ['public', 'Public (+)'], ['protected', 'Protected (#)'],
-            ['private', 'Private (-)'], ['package', 'Package (~)'],
+            ['public', uiLabel('Public (+)', '공개 (+)')], ['protected', uiLabel('Protected (#)', '보호 (#)')],
+            ['private', uiLabel('Private (-)', '비공개 (-)')], ['package', uiLabel('Package (~)', '패키지 (~)')],
           ].forEach(([value, label]) => {
             const option = document.createElement('option');
             option.value = value; option.textContent = label;
@@ -750,8 +747,8 @@ function createPropertyPanelModule() {
         if (e.kind === 'requirement') {
           const visibility = document.createElement('select');
           [
-            ['public', 'Public (+)'], ['protected', 'Protected (#)'],
-            ['private', 'Private (-)'], ['package', 'Package (~)'],
+            ['public', uiLabel('Public (+)', '공개 (+)')], ['protected', uiLabel('Protected (#)', '보호 (#)')],
+            ['private', uiLabel('Private (-)', '비공개 (-)')], ['package', uiLabel('Package (~)', '패키지 (~)')],
           ].forEach(([value, label]) => {
             const option = document.createElement('option');
             option.value = value; option.textContent = label;
@@ -767,9 +764,17 @@ function createPropertyPanelModule() {
           )));
     
           const type = document.createElement('select');
+          const requirementLabels: Record<string, string> = {
+            requirement: '요구사항',
+            functionalRequirement: '기능 요구사항',
+            interfaceRequirement: '인터페이스 요구사항',
+            performanceRequirement: '성능 요구사항',
+            physicalRequirement: '물리 요구사항',
+            designConstraint: '설계 제약',
+          };
           REQUIREMENT_TYPES.forEach(value => {
             const option = document.createElement('option');
-            option.value = value; option.textContent = value;
+            option.value = value; option.textContent = uiLabel(value, requirementLabels[value] ?? value);
             if ((e.requirementType || 'requirement') === value) option.selected = true;
             type.appendChild(option);
           });
@@ -779,7 +784,7 @@ function createPropertyPanelModule() {
           box.appendChild(propRow(uiLabel('Requirement Type', '요구사항 종류'), type,
             uiText(
               'SysML requirement type, e.g. functional, interface, performance, physical, design constraint',
-              'SysML Requirement 종류 · functional, interface, performance, physical, design constraint',
+              'SysML 요구사항의 종류를 선택하세요.',
             )));
           box.appendChild(propRow('ID', textInput(e.requirementId, value => {
             e.requirementId = value; e.w = 0; e.h = 0;
@@ -789,9 +794,13 @@ function createPropertyPanelModule() {
           }), uiText('Write a verifiable shall statement.', '검증 가능한 shall 문장으로 작성합니다.')));
     
           const risk = document.createElement('select');
-          ['Low', 'Medium', 'High'].forEach(value => {
+          [
+            ['Low', uiLabel('Low', '낮음')],
+            ['Medium', uiLabel('Medium', '보통')],
+            ['High', uiLabel('High', '높음')],
+          ].forEach(([value, label]) => {
             const option = document.createElement('option');
-            option.value = value; option.textContent = value;
+            option.value = value; option.textContent = label;
             if ((e.risk || 'Medium') === value) option.selected = true;
             risk.appendChild(option);
           });
@@ -801,9 +810,14 @@ function createPropertyPanelModule() {
           box.appendChild(propRow(uiLabel('Risk', '위험도'), risk));
     
           const method = document.createElement('select');
-          ['Analysis', 'Inspection', 'Test', 'Demonstration'].forEach(value => {
+          [
+            ['Analysis', uiLabel('Analysis', '분석')],
+            ['Inspection', uiLabel('Inspection', '검사')],
+            ['Test', uiLabel('Test', '시험')],
+            ['Demonstration', uiLabel('Demonstration', '시연')],
+          ].forEach(([value, label]) => {
             const option = document.createElement('option');
-            option.value = value; option.textContent = value;
+            option.value = value; option.textContent = label;
             if ((e.verificationMethod || 'Analysis') === value) option.selected = true;
             method.appendChild(option);
           });
@@ -813,14 +827,14 @@ function createPropertyPanelModule() {
           box.appendChild(propRow(uiLabel('Verification Method', '검증 방법'), method,
             uiText(
               'Uses the Mermaid requirement values Analysis, Inspection, Test, and Demonstration.',
-              'Mermaid Requirement Diagram과 동일한 Analysis · Inspection · Test · Demonstration 값입니다.',
+              'Mermaid 요구사항 다이어그램과 같은 검증 방법을 사용합니다.',
             )));
         }
         if (BDD_CLASSIFIER_KINDS.has(e.kind)) {
           const visibility = document.createElement('select');
           [
-            ['public', 'Public (+)'], ['protected', 'Protected (#)'],
-            ['private', 'Private (-)'], ['package', 'Package (~)'],
+            ['public', uiLabel('Public (+)', '공개 (+)')], ['protected', uiLabel('Protected (#)', '보호 (#)')],
+            ['private', uiLabel('Private (-)', '비공개 (-)')], ['package', uiLabel('Package (~)', '패키지 (~)')],
           ].forEach(([value, label]) => {
             const option = document.createElement('option');
             option.value = value; option.textContent = label;
@@ -842,7 +856,7 @@ function createPropertyPanelModule() {
           abstractCheck.addEventListener('change', () => {
             snapshot(); e.isAbstract = abstractCheck.checked; render(); renderProps();
           });
-          abstract.append(abstractCheck, document.createTextNode(uiText('Abstract (italic name)', 'Abstract (이탤릭 이름)')));
+          abstract.append(abstractCheck, document.createTextNode(uiText('Abstract (italic name)', '추상 (이탤릭체 이름)')));
           const abstractRow = document.createElement('div');
           abstractRow.className = 'prop-row'; abstractRow.appendChild(abstract);
           box.appendChild(abstractRow);
@@ -853,7 +867,7 @@ function createPropertyPanelModule() {
               e.w = 0; e.h = 0;
             }), hint));
           };
-          listArea('Constraints', 'constraints', uiText(
+          listArea(uiLabel('Constraints', '제약'), 'constraints', uiText(
             'One per line, e.g. { renderTime <= frameBudget }',
             '한 줄에 하나씩 · 예: { renderTime <= frameBudget }',
           ));
@@ -864,42 +878,42 @@ function createPropertyPanelModule() {
             box.appendChild(propRow(uiLabel('Quantity Kind', '물리량 종류'), textInput(e.quantityKind, value => {
               e.quantityKind = value; e.w = 0; e.h = 0;
             }), uiText('Examples: Time, Mass, Voltage', '예: Time, Mass, Voltage')));
-            listArea('Attributes', 'properties', uiText(
+            listArea(uiLabel('Attributes', '속성'), 'properties', uiText(
               'Value type attribute, e.g. + magnitude: Real',
-              'Value Type의 속성 · 예: + magnitude: Real',
+              '값 유형의 속성 · 예: + magnitude: Real',
             ));
           } else if (e.kind === 'constraintblock') {
-            listArea('Parameters', 'constraintParameters', uiText(
+            listArea(uiLabel('Parameters', '매개변수'), 'constraintParameters', uiText(
               'Constraint parameter, e.g. renderTime: Milliseconds',
-              'Constraint Parameter · 예: renderTime: Milliseconds',
+              '제약 매개변수 · 예: renderTime: Milliseconds',
             ));
-            listArea('Properties', 'properties', uiText('General properties, one per line.', '일반 Property · 한 줄에 하나씩'));
+            listArea(uiLabel('Properties', '속성'), 'properties', uiText('General properties, one per line.', '일반 속성 · 한 줄에 하나씩'));
           } else {
-            listArea('Parts', 'parts', uiText(
+            listArea(uiLabel('Parts', '파트'), 'parts', uiText(
               'Composite part property, e.g. canvas: CanvasSubsystem [1]',
-              '합성 Part Property · 예: canvas: CanvasSubsystem [1]',
+              '합성 파트 속성 · 예: canvas: CanvasSubsystem [1]',
             ));
-            listArea('References', 'references', uiText(
+            listArea(uiLabel('References', '참조'), 'references', uiText(
               'Reference property, e.g. metrics: MetricsService [0..1]',
-              'Reference Property · 예: metrics: MetricsService [0..1]',
+              '참조 속성 · 예: metrics: MetricsService [0..1]',
             ));
-            listArea('Values', 'values', uiText(
+            listArea(uiLabel('Values', '값'), 'values', uiText(
               'Value property, e.g. frameBudget: Milliseconds = 100',
-              'Value Property · 예: frameBudget: Milliseconds = 100',
+              '값 속성 · 예: frameBudget: Milliseconds = 100',
             ));
-            listArea('Flow Properties', 'flowProperties', uiText(
+            listArea(uiLabel('Flow Properties', '흐름 속성'), 'flowProperties', uiText(
               'Include the direction, e.g. in document: DiagramDocument',
               '방향 포함 · 예: in document: DiagramDocument',
             ));
-            listArea('Constraint Properties', 'constraintProperties', uiText('Example: budget: RenderBudget', '예: budget: RenderBudget'));
-            listArea('Properties', 'properties', uiText('Other properties, one per line.', '기타 Property · 한 줄에 하나씩'));
+            listArea(uiLabel('Constraint Properties', '제약 속성'), 'constraintProperties', uiText('Example: budget: RenderBudget', '예: budget: RenderBudget'));
+            listArea(uiLabel('Properties', '속성'), 'properties', uiText('Other properties, one per line.', '기타 속성 · 한 줄에 하나씩'));
           }
-          listArea('Operations', 'operations', uiText(
+          listArea(uiLabel('Operations', '연산'), 'operations', uiText(
             'Example: + render(document: DiagramDocument): RenderedFrame',
             '예: + render(document: DiagramDocument): RenderedFrame',
           ));
           if (e.kind !== 'constraintblock') {
-            listArea('Receptions', 'receptions', uiText('Accepted signals, one per line.', '수신 가능한 Signal · 한 줄에 하나씩'));
+            listArea(uiLabel('Receptions', '수신 신호'), 'receptions', uiText('Accepted signals, one per line.', '수신 가능한 Signal · 한 줄에 하나씩'));
           }
         }
         if (e.kind === 'lifeline') {
@@ -921,7 +935,7 @@ function createPropertyPanelModule() {
           box.appendChild(propRow(uiLabel('Stereotype («»)', '스테레오타입 («»)'), textInput(e.stereotype, v => { e.stereotype = v; e.w = 0; e.h = 0; }),
             uiText('Stereotype label, e.g. boundary, control, entity', '<< >> 주석 · 예: boundary, control, entity')));
           if (dg().type === 'communication' || dg().type === 'timing') {
-            box.appendChild(classifierProperty(e, 'Classifier',
+            box.appendChild(classifierProperty(e, uiLabel('Classifier', '분류자'),
               ['class', 'interface', 'enumeration', 'component', 'artifact', 'node']));
           }
         }
@@ -937,7 +951,7 @@ function createPropertyPanelModule() {
           hint.className = 'prop-hint';
           hint.textContent = uiText(
             'Once a sequence is linked, double-click the frame to open it.',
-            '참조가 설정되면 프레임을 더블클릭해서 해당 Sequence Diagram을 열 수 있습니다.',
+            '참조가 설정되면 프레임을 더블클릭해서 해당 시퀀스 다이어그램을 열 수 있습니다.',
           );
           box.appendChild(hint);
         }
@@ -957,7 +971,7 @@ function createPropertyPanelModule() {
           const c = document.createElement('input');
           c.type = 'checkbox'; c.checked = !!e.isAbstract;
           c.addEventListener('change', () => { snapshot(); e.isAbstract = c.checked; render(); });
-          chk.appendChild(c); chk.appendChild(document.createTextNode(uiText('Abstract (italic name)', 'Abstract (이탤릭 이름)')));
+          chk.appendChild(c); chk.appendChild(document.createTextNode(uiText('Abstract (italic name)', '추상 (이탤릭체 이름)')));
           const row = document.createElement('div'); row.className = 'prop-row'; row.appendChild(chk);
           box.appendChild(row);
           box.appendChild(propRow(uiLabel('Attributes', '속성'), textArea((e.attributes || []).join('\n'), v => {
@@ -988,7 +1002,7 @@ function createPropertyPanelModule() {
         }
         if (e.kind === 'entity') {
           box.appendChild(erdDisplayModeProperty());
-          box.appendChild(propRow(uiText('Logical Name', 'Logical Name (논리명)'), textInput(e.logicalName, v => e.logicalName = v), uiText(
+          box.appendChild(propRow(uiText('Logical Name', '논리명'), textInput(e.logicalName, v => e.logicalName = v), uiText(
             'Name shown in the logical model, e.g. Member',
             '논리 모델 보기에서 표시되는 이름 · 예: 회원',
           )));
@@ -1007,8 +1021,8 @@ function createPropertyPanelModule() {
           hint.className = 'prop-hint';
           hint.textContent = uiText(
             'Owner: {0} · Click this row to add a time segment.',
-            'Owner: {0} · 이 행을 클릭해 Time Segment를 추가할 수 있습니다.',
-            owner ? owner.name : '(missing)',
+            '소유 요소: {0} · 이 행을 클릭해 시간 구간을 추가할 수 있습니다.',
+            owner ? owner.name : uiLabel('(missing)', '(찾을 수 없음)'),
           );
           box.appendChild(hint);
         }
@@ -1020,8 +1034,8 @@ function createPropertyPanelModule() {
           hint.className = 'prop-hint';
           hint.textContent = uiText(
             'State / Condition: {0} · Drag horizontally to move or use the end handles to resize.',
-            'State / Condition: {0} · 좌우로 이동하거나 양 끝 핸들로 기간을 조절합니다.',
-            owner ? owner.name : '(missing)',
+            '상태·조건: {0} · 좌우로 이동하거나 양 끝 핸들로 기간을 조절합니다.',
+            owner ? owner.name : uiLabel('(missing)', '(찾을 수 없음)'),
           );
           box.appendChild(hint);
         }
@@ -1031,14 +1045,14 @@ function createPropertyPanelModule() {
           hint.className = 'prop-hint';
           hint.textContent = uiText(
             'Contained activity elements: {0} · Place or drop elements inside to move them together.',
-            '포함된 Activity 요소 {0}개 · 내부에 요소를 만들거나 드롭하면 함께 이동합니다.',
+            '포함된 활동 요소 {0}개 · 내부에 요소를 만들거나 드롭하면 함께 이동합니다.',
             childCount,
           );
           box.appendChild(hint);
         }
         if (e.kind === 'expansionregion') {
           const select = document.createElement('select');
-          [['parallel', 'Parallel'], ['iterative', 'Iterative'], ['stream', 'Stream']].forEach(([value, label]) => {
+          [['parallel', uiLabel('Parallel', '병렬')], ['iterative', uiLabel('Iterative', '반복')], ['stream', uiLabel('Stream', '스트림')]].forEach(([value, label]) => {
             const option = document.createElement('option');
             option.value = value; option.textContent = label;
             if ((e.expansionMode || 'parallel') === value) option.selected = true;
@@ -1058,8 +1072,8 @@ function createPropertyPanelModule() {
           hint.className = 'prop-hint';
           hint.textContent = uiText(
             'Owner: {0} · Drag along the owner\'s border.',
-            'Owner: {0} · 드래그하면 소유 요소의 테두리를 따라 이동합니다.',
-            owner ? owner.name : '(missing)',
+            '소유 요소: {0} · 드래그하면 소유 요소의 테두리를 따라 이동합니다.',
+            owner ? owner.name : uiLabel('(missing)', '(찾을 수 없음)'),
           );
           box.appendChild(hint);
         }
@@ -1077,61 +1091,61 @@ function createPropertyPanelModule() {
             const target = byId(e.constrainedViewId) || relById(e.constrainedViewId);
             const hint = document.createElement('div');
             hint.className = 'prop-hint';
-            hint.textContent = `Attached to: ${target ? (KIND_META[target.kind]?.label || target.kind) : '(missing)'}`;
+            hint.textContent = uiLabel('Attached to: {0}', '연결 대상: {0}', target ? diagramKindLabel(target.kind) : uiLabel('(missing)', '(찾을 수 없음)'));
             box.appendChild(hint);
           }
         }
         if (e.kind === 'ibdframe') {
-          box.appendChild(classifierProperty(e, 'Owning Block', ['block']));
+          box.appendChild(classifierProperty(e, uiLabel('Owning Block', '소유 블록'), ['block']));
           const hint = document.createElement('div');
           hint.className = 'prop-hint';
           hint.textContent = uiText(
             'The internal block diagram shows the selected block\'s internal structure.',
-            'Internal Block Diagram은 선택한 Block의 내부 구조를 나타냅니다.',
+            '내부 블록 다이어그램은 선택한 블록의 내부 구조를 나타냅니다.',
           );
           box.appendChild(hint);
         }
         if (e.kind === 'parametricframe') {
-          box.appendChild(classifierProperty(e, 'Owning Constraint Block', ['constraintblock']));
+          box.appendChild(classifierProperty(e, uiLabel('Owning Constraint Block', '소유 제약 블록'), ['constraintblock']));
           const hint = document.createElement('div');
           hint.className = 'prop-hint';
           hint.textContent = uiText(
             'The parametric diagram shows equations and parameters for the selected constraint block.',
-            'Parametric Diagram은 선택한 Constraint Block의 수식과 매개변수 관계를 분석합니다.',
+            '파라메트릭 다이어그램은 선택한 제약 블록의 수식과 매개변수 관계를 분석합니다.',
           );
           box.appendChild(hint);
           const sync = document.createElement('button');
           sync.type = 'button'; sync.className = 'prop-btn';
-          sync.textContent = uiText('Sync Constraint Parameters', 'Constraint Parameters 동기화');
+          sync.textContent = uiText('Sync Constraint Parameters', '제약 매개변수 동기화');
           sync.disabled = instanceClassifier(e)?.kind !== 'constraintblock';
           sync.addEventListener('click', () => syncConstraintParameters(e));
           box.appendChild(sync);
         }
         if (e.kind === 'constraintproperty') {
-          box.appendChild(classifierProperty(e, 'Constraint Block Type', ['constraintblock']));
+          box.appendChild(classifierProperty(e, uiLabel('Constraint Block Type', '제약 블록 유형'), ['constraintblock']));
           const equations = constraintPropertyEquations(e);
           const hint = document.createElement('div');
           hint.className = 'prop-hint';
           hint.textContent = equations.length
-            ? `Equation: ${equations.join(' · ')}`
-            : uiText('Select a constraint block type to show its equations.', 'Constraint Block Type을 선택하면 정의된 수식이 자동 표시됩니다.');
+            ? uiLabel('Equation: {0}', '수식: {0}', equations.join(' · '))
+            : uiText('Select a constraint block type to show its equations.', '제약 블록 유형을 선택하면 정의된 수식이 자동 표시됩니다.');
           box.appendChild(hint);
           const sync = document.createElement('button');
           sync.type = 'button'; sync.className = 'prop-btn';
-          sync.textContent = uiText('Sync Constraint Parameters', 'Constraint Parameters 동기화');
+          sync.textContent = uiText('Sync Constraint Parameters', '제약 매개변수 동기화');
           sync.disabled = instanceClassifier(e)?.kind !== 'constraintblock';
           sync.addEventListener('click', () => syncConstraintParameters(e));
           box.appendChild(sync);
         }
         if (e.kind === 'constraintparameter') {
-          box.appendChild(classifierProperty(e, 'Type', ['block', 'valuetype']));
+          box.appendChild(classifierProperty(e, uiLabel('Type', '유형'), ['block', 'valuetype']));
           const owner = byId(e.parentId);
           const hint = document.createElement('div');
           hint.className = 'prop-hint';
           hint.textContent = uiText(
             'Owner: {0} · Drag along the owner\'s border.',
-            'Owner: {0} · 드래그하면 소유 요소의 테두리를 따라 이동합니다.',
-            owner ? owner.name : '(missing)',
+            '소유 요소: {0} · 드래그하면 소유 요소의 테두리를 따라 이동합니다.',
+            owner ? owner.name : uiLabel('(missing)', '(찾을 수 없음)'),
           );
           box.appendChild(hint);
         }
@@ -1143,15 +1157,15 @@ function createPropertyPanelModule() {
             : dg().type === 'bdd'
               ? ['block', 'valuetype', 'interfaceblock', 'constraintblock']
               : ['class', 'interface', 'enumeration', 'component', 'artifact', 'node'];
-          box.appendChild(classifierProperty(e, 'Type',
+          box.appendChild(classifierProperty(e, uiLabel('Type', '유형'),
             allowedKinds));
           const owner = byId(e.parentId);
           const hint = document.createElement('div');
           hint.className = 'prop-hint';
-          hint.textContent = `Owner: ${owner ? owner.name : '(missing)'}${e.kind === 'port' ? uiText(
+          hint.textContent = uiLabel('Owner: {0}', '소유 요소: {0}', owner ? owner.name : uiLabel('(missing)', '(찾을 수 없음)')) + (e.kind === 'port' ? uiText(
             ' · Drag along the owner\'s border.',
             ' · 드래그하면 소유 요소의 테두리를 따라 이동합니다.',
-          ) : ''}`;
+          ) : '');
           box.appendChild(hint);
         }
         if (e.kind === 'value' && dg().type === 'parametric') {
@@ -1165,7 +1179,7 @@ function createPropertyPanelModule() {
           const updateUnitHint = () => {
             const compatibility = defaultValueUnitCompatibility(e.defaultValue, instanceClassifier(e));
             unitHint.dataset.compatibility = compatibility.status;
-            unitHint.textContent = `Default Unit · ${compatibility.message}`;
+            unitHint.textContent = uiLabel('Default Unit · {0}', '기본 단위 · {0}', compatibility.message);
             unitHint.style.color = (compatibilityColors[compatibility.status] || '');
           };
           defaultInput.addEventListener('input', updateUnitHint);
@@ -1174,28 +1188,28 @@ function createPropertyPanelModule() {
           box.appendChild(defaultRow);
         }
         if (e.kind === 'port') {
-          box.appendChild(modelReferenceProperty(e, 'providedInterfaceModelId', 'Provided Interface', ['interface', 'interfaceblock'],
-            uiText('(No provided interface)', '(제공 인터페이스 없음)'), uiText('A provided interface displays a lollipop outside the port.', '선택하면 Port 바깥쪽에 lollipop 표기가 나타납니다.')));
-          box.appendChild(modelReferenceProperty(e, 'requiredInterfaceModelId', 'Required Interface', ['interface', 'interfaceblock'],
-            uiText('(No required interface)', '(요구 인터페이스 없음)'), uiText('A required interface displays a socket outside the port.', '선택하면 Port 바깥쪽에 socket 표기가 나타납니다.')));
+          box.appendChild(modelReferenceProperty(e, 'providedInterfaceModelId', uiLabel('Provided Interface', '제공 인터페이스'), ['interface', 'interfaceblock'],
+            uiText('(No provided interface)', '(제공 인터페이스 없음)'), uiText('A provided interface displays a lollipop outside the port.', '선택하면 포트 바깥쪽에 막대 끝에 원형 표기가 나타납니다.')));
+          box.appendChild(modelReferenceProperty(e, 'requiredInterfaceModelId', uiLabel('Required Interface', '요구 인터페이스'), ['interface', 'interfaceblock'],
+            uiText('(No required interface)', '(요구 인터페이스 없음)'), uiText('A required interface displays a socket outside the port.', '선택하면 포트 바깥쪽에 반원형 표기가 나타납니다.')));
         }
         if (e.kind === 'collaborationuse') {
-          box.appendChild(modelReferenceProperty(e, 'collaborationModelId', 'Collaboration', ['collaboration'],
-            uiText('(Select a collaboration)', '(Collaboration 선택)'), uiText('References a collaboration from the project model.', '프로젝트 모델 저장소의 실제 Collaboration을 참조합니다.')));
+          box.appendChild(modelReferenceProperty(e, 'collaborationModelId', uiLabel('Collaboration', '협업'), ['collaboration'],
+            uiText('(Select a collaboration)', '(협업 선택)'), uiText('References a collaboration from the project model.', '프로젝트 모델 저장소의 실제 협업을 참조합니다.')));
           const owner = byId(e.parentId);
           const hint = document.createElement('div');
           hint.className = 'prop-hint';
           hint.textContent = uiText(
             'Owner: {0} · Connect part roles with role bindings.',
-            'Owner: {0} · Role Binding으로 Part 역할을 연결하세요.',
-            owner ? owner.name : '(missing)',
+            '소유 요소: {0} · 역할 바인딩으로 파트 역할을 연결하세요.',
+            owner ? owner.name : uiLabel('(missing)', '(찾을 수 없음)'),
           );
           box.appendChild(hint);
         }
         if (INSTANCE_KINDS.has(e.kind)) {
           const select = document.createElement('select');
           const none = document.createElement('option');
-          none.value = ''; none.textContent = uiText('(No classifier selected)', '(Classifier 선택 안 함)');
+          none.value = ''; none.textContent = uiText('(No classifier selected)', '(분류자 선택 안 함)');
           select.appendChild(none);
           const allowedKinds = INSTANCE_CLASSIFIER_KINDS[e.kind] || [];
           Object.values(state.models)
@@ -1204,7 +1218,7 @@ function createPropertyPanelModule() {
             .forEach(model => {
               const option = document.createElement('option');
               option.value = model.id;
-              option.textContent = `${KIND_META[model.kind]?.label || model.kind} · ${model.name || '(unnamed)'}`;
+              option.textContent = `${diagramKindLabel(model.kind)} · ${model.name || uiLabel('(unnamed)', '(이름 없음)')}`;
               if (e.classifierModelId === model.id) option.selected = true;
               select.appendChild(option);
             });
@@ -1213,10 +1227,10 @@ function createPropertyPanelModule() {
             e.classifierModelId = select.value;
             render(); renderProps();
           });
-          box.appendChild(propRow(e.kind === 'object' ? 'Classifier' : 'Type', select,
+          box.appendChild(propRow(e.kind === 'object' ? uiLabel('Classifier', '분류자') : uiLabel('Type', '유형'), select,
             uiText(
               'References a classifier from the project model. Renaming it updates the instance label.',
-              '프로젝트 모델 저장소의 실제 Classifier를 참조합니다. 이름 변경도 인스턴스 표기에 동기화됩니다.',
+              '프로젝트 모델 저장소의 실제 분류자를 참조합니다. 이름 변경도 인스턴스 표기에 동기화됩니다.',
             )));
           if (e.kind === 'object') {
             box.appendChild(propRow(uiLabel('Slots', '슬롯'), textArea((e.slots || []).join('\n'), value => {
@@ -1250,12 +1264,12 @@ function createPropertyPanelModule() {
             hint.textContent = regionCount > 1
               ? uiText(
                 'Orthogonal composite state · {0} regions can be active in parallel.',
-                'Orthogonal Composite State · Region {0}개가 동시에 활성화될 수 있습니다.',
+                '직교 복합 상태 · 영역 {0}개가 동시에 활성화될 수 있습니다.',
                 regionCount,
               )
               : uiText(
                 'Composite state · {0} regions · Use the Region tool to add orthogonal regions.',
-                'Composite State · Region {0}개 · Toolbox의 Region으로 직교 영역을 추가할 수 있습니다.',
+                '복합 상태 · 영역 {0}개 · 도구 모음에서 영역을 선택해 직교 영역을 추가할 수 있습니다.',
                 regionCount,
               );
             box.appendChild(hint);
@@ -1263,7 +1277,7 @@ function createPropertyPanelModule() {
           if (e.kind === 'submachinestate') {
             const select = document.createElement('select');
             const none = document.createElement('option');
-            none.value = ''; none.textContent = uiText('(Select a state machine)', '(State Machine 선택)');
+            none.value = ''; none.textContent = uiText('(Select a state machine)', '(상태 머신 선택)');
             select.appendChild(none);
             state.diagrams.filter(diagram => diagram.type === 'state').forEach(diagram => {
               const option = document.createElement('option');
@@ -1279,7 +1293,7 @@ function createPropertyPanelModule() {
             box.appendChild(propRow(uiLabel('Referenced State Machine', '참조 상태 머신'), select,
               uiText(
                 'Select the state machine to call. Attach connection point references to this state\'s border.',
-                '이 상태가 호출할 State Machine을 지정합니다. Connection Point Reference는 이 상태의 테두리에만 부착됩니다.',
+                '이 상태가 호출할 상태 머신을 지정합니다. 접점 참조는 이 상태의 테두리에만 부착됩니다.',
               )));
           }
         }
@@ -1289,14 +1303,14 @@ function createPropertyPanelModule() {
           hint.className = 'prop-hint';
           hint.textContent = uiText(
             'Owner: {0} · Place or drop states inside the region to nest them.',
-            'Owner: {0} · Region 안에 상태를 생성하거나 드롭하면 자동으로 포함됩니다.',
-            owner ? owner.name : '(missing)',
+            '소유 요소: {0} · 영역 안에 상태를 생성하거나 드롭하면 자동으로 포함됩니다.',
+            owner ? owner.name : uiLabel('(missing)', '(찾을 수 없음)'),
           );
           box.appendChild(hint);
         }
         if (e.kind === 'connectionpointref') {
           const select = document.createElement('select');
-          [['entry', 'Entry reference'], ['exit', 'Exit reference']].forEach(([value, label]) => {
+          [['entry', uiLabel('Entry reference', '진입 참조')], ['exit', uiLabel('Exit reference', '종료 참조')]].forEach(([value, label]) => {
             const option = document.createElement('option');
             option.value = value; option.textContent = label;
             if ((e.referenceKind || 'entry') === value) option.selected = true;
@@ -1306,15 +1320,15 @@ function createPropertyPanelModule() {
           box.appendChild(propRow(uiLabel('Reference kind', '참조 종류'), select,
             uiText(
               'Entry accepts incoming transitions into the submachine. Exit returns from it and triggers the outgoing transition.',
-              'Entry는 호출 전이를 받아 서브머신으로 진입하고, Exit는 서브머신에서 돌아온 뒤 외부 전이를 내보냅니다.',
+              '진입 참조는 하위 상태 머신으로 들어가는 전이에, 종료 참조는 하위 상태 머신에서 나오는 전이에 사용합니다.',
             )));
           const owner = byId(e.parentId);
           const hint = document.createElement('div');
           hint.className = 'prop-hint';
           hint.textContent = uiText(
             'Owner: {0} · Drag along the state border.',
-            'Owner: {0} · 드래그하면 상태 테두리를 따라 이동합니다.',
-            owner ? owner.name : '(missing)',
+            '소유 요소: {0} · 드래그하면 상태 테두리를 따라 이동합니다.',
+            owner ? owner.name : uiLabel('(missing)', '(찾을 수 없음)'),
           );
           box.appendChild(hint);
         }
@@ -1322,8 +1336,8 @@ function createPropertyPanelModule() {
           const hint = document.createElement('div');
           hint.className = 'prop-hint';
           hint.textContent = e.kind === 'entrypoint'
-            ? uiText('Entry point into the state machine.', 'State Machine으로 들어오는 연결점입니다.')
-            : uiText('Exit point that returns control to the calling state.', 'State Machine에서 호출한 상태로 돌아가는 연결점입니다.');
+            ? uiText('Entry point into the state machine.', '상태 머신으로 들어오는 연결점입니다.')
+            : uiText('Exit point that returns control to the calling state.', '상태 머신에서 호출한 상태로 돌아가는 연결점입니다.');
           box.appendChild(hint);
         }
         if (e.kind === 'terminate') {
@@ -1331,7 +1345,7 @@ function createPropertyPanelModule() {
           hint.className = 'prop-hint';
           hint.textContent = uiText(
             'Terminates the entire state machine execution. Outgoing transitions are prohibited.',
-            '도달하면 현재 State Machine의 실행 컨텍스트 전체를 종료합니다. 나가는 Transition은 허용되지 않습니다.',
+            '도달하면 현재 상태 머신의 실행 컨텍스트 전체를 종료합니다. 나가는 전이는 허용되지 않습니다.',
           );
           box.appendChild(hint);
         }
@@ -1347,13 +1361,13 @@ function createPropertyPanelModule() {
           box.appendChild(propRow(uiLabel('Operator', '연산자'), sel));
           box.appendChild(propRow(uiLabel('Condition', '조건'), textInput(e.condition, v => e.condition = v), uiText(
             'Shown when there are no operands, e.g. [for each layer]',
-            'operand가 없을 때 표시 · 예: [for each layer]',
+            '피연산자가 없을 때 표시 · 예: [for each layer]',
           )));
-          box.appendChild(propRow(uiText('Interaction Operands', 'Interaction Operands (구역)'), textArea((e.operands || []).join('\n'), v => {
+          box.appendChild(propRow(uiText('Interaction Operands', '상호작용 피연산자'), textArea((e.operands || []).join('\n'), v => {
             e.operands = v.split('\n').filter(s => s.trim() !== '');
           }), uiText(
             'Enter one guard per line. Drag the dashed divider to resize the operands.',
-            '한 줄에 하나씩 guard 입력. 프레임 안의 점선을 위아래로 드래그해 구역 높이를 조절합니다.',
+            '한 줄에 하나씩 가드 조건을 입력하세요. 프레임 안의 점선을 위아래로 드래그해 구역 높이를 조절합니다.',
           )));
         }
         if (!['fragment', 'actor', 'initial', 'final', 'flowfinal', 'forkbar', 'joinbar', 'inputpin', 'outputpin',
@@ -1377,7 +1391,7 @@ function createPropertyPanelModule() {
         const usage = document.createElement('div');
         usage.className = 'prop-hint model-usage';
         const viewCount = state.diagrams.reduce((n, d) => n + d.relations.filter(v => v.modelId === r.modelId).length, 0);
-        usage.textContent = `Model ${r.modelId} · ${viewCount} view${viewCount === 1 ? '' : 's'}`;
+        usage.textContent = uiLabel('Model {0} · {1} view{2}', '모델 {0} · 뷰 {1}개', r.modelId, viewCount, viewCount === 1 ? '' : 's');
         box.appendChild(usage);
         if (r.kind === 'transition') {
           box.appendChild(propRow(uiLabel('Name (model)', '모델 이름'), textInput(r.name, v => r.name = v), uiText(
@@ -1424,7 +1438,7 @@ function createPropertyPanelModule() {
             .forEach(model => {
               const option = document.createElement('option');
               option.value = model.id;
-              option.textContent = `${KIND_META[model.kind]?.label || model.kind} · ${model.name || '(unnamed)'}`;
+              option.textContent = `${diagramKindLabel(model.kind)} · ${model.name || uiLabel('(unnamed)', '(이름 없음)')}`;
               option.selected = (r.conveyedModelIds || []).includes(model.id);
               conveyed.appendChild(option);
             });
@@ -1436,7 +1450,7 @@ function createPropertyPanelModule() {
           box.appendChild(propRow(uiLabel('Conveyed Information', '전달 정보'), conveyed,
             uiText(
               'Hold Ctrl/Cmd or Shift to select multiple information items or classifiers.',
-              'Ctrl/⌘ 또는 Shift로 여러 Information Item·Classifier를 선택할 수 있습니다.',
+              'Ctrl/⌘ 또는 Shift로 여러 정보 항목·분류자를 선택할 수 있습니다.',
             )));
         }
         if (r.kind === 'connector' && dg().type === 'ibd') {
@@ -1450,7 +1464,7 @@ function createPropertyPanelModule() {
           candidates.forEach(model => {
             const option = document.createElement('option');
             option.value = model.id;
-            option.textContent = `${KIND_META[model.kind]?.label || model.kind} · ${model.name || '(unnamed)'}`;
+            option.textContent = `${diagramKindLabel(model.kind)} · ${model.name || uiLabel('(unnamed)', '(이름 없음)')}`;
             option.selected = (r.itemFlowModelIds || []).includes(model.id);
             itemFlows.appendChild(option);
           });
@@ -1462,7 +1476,7 @@ function createPropertyPanelModule() {
           box.appendChild(propRow(uiLabel('Item Flow', '항목 흐름'), itemFlows,
             uiText(
               'Select the information items, blocks or value types conveyed by the connector.',
-              'Connector로 전달되는 Information Item 또는 Block/Value Type을 여러 개 지정할 수 있습니다.',
+              '커넥터로 전달되는 정보 항목 또는 블록/값 유형을 여러 개 지정할 수 있습니다.',
             )));
         }
         if (r.kind === 'bindingconnector') {
@@ -1475,14 +1489,14 @@ function createPropertyPanelModule() {
           const hint = document.createElement('div');
           hint.className = 'prop-hint';
           hint.dataset.compatibility = compatibility.status;
-          hint.textContent = `Type Compatibility · ${compatibility.message}`;
+          hint.textContent = uiLabel('Type Compatibility · {0}', '유형 호환성 · {0}', compatibility.message);
           hint.style.color = compatibilityColors[compatibility.status] || '';
           box.appendChild(hint);
     
           const routingMode = document.createElement('select');
           [
-            ['auto', 'Automatic'],
-            ['manual', 'Manual · Locked'],
+            ['auto', uiLabel('Automatic', '자동')],
+            ['manual', uiLabel('Manual · Locked', '수동 · 잠김')],
           ].forEach(([value, label]) => {
             const option = document.createElement('option');
             option.value = value;
@@ -1497,13 +1511,13 @@ function createPropertyPanelModule() {
             render(); renderProps();
           });
           box.appendChild(propRow(uiLabel('Routing Mode', '경로 모드'), routingMode,
-            uiText('Manual routing keeps waypoints when elements move.', 'Manual 모드는 중간 굴곡점을 저장하여 요소가 움직여도 사용자가 만든 경로를 유지합니다.')));
+            uiText('Manual routing keeps waypoints when elements move.', '수동 모드는 중간 굴곡점을 저장하여 요소가 움직여도 사용자가 만든 경로를 유지합니다.')));
     
           const jumpStyle = document.createElement('select');
           [
-            ['arc', 'Arc Bridge'],
-            ['gap', 'Gap'],
-            ['none', 'None'],
+            ['arc', uiLabel('Arc Bridge', '호형 브리지')],
+            ['gap', uiLabel('Gap', '간격')],
+            ['none', uiLabel('None', '없음')],
           ].forEach(([value, label]) => {
             const option = document.createElement('option');
             option.value = value;
@@ -1520,14 +1534,14 @@ function createPropertyPanelModule() {
           box.appendChild(propRow(uiLabel('Line Jumps', '교차선 표시'), jumpStyle,
             uiText(
               'Choose an arc or a gap when a binding connector crosses an earlier one.',
-              '뒤에 그려진 Binding Connector가 앞선 커넥터와 교차할 때 Arc 또는 Gap으로 구분합니다.',
+              '뒤에 그려진 바인딩 커넥터가 앞선 커넥터와 교차할 때 호형 브리지 또는 간격으로 구분합니다.',
             )));
     
           const stack = bindingConnectorStackInfo(r);
           const stackHint = document.createElement('div');
           stackHint.className = 'prop-hint';
           stackHint.dataset.connectorStack = `${stack.index + 1}/${stack.total}`;
-          stackHint.textContent = `Connector Layer · ${stack.index + 1}/${stack.total}`
+          stackHint.textContent = uiLabel('Connector Layer · {0}/{1}', '커넥터 순서 · {0}/{1}', stack.index + 1, stack.total)
             + uiText(' · Higher numbers draw in front and receive crossing bridges.', ' · 숫자가 높을수록 앞에 그려지고 교차 브리지를 가집니다.');
           box.appendChild(stackHint);
     
@@ -1559,7 +1573,9 @@ function createPropertyPanelModule() {
           const routeHint = document.createElement('div');
           routeHint.className = 'prop-hint';
           routeHint.dataset.route = 'orthogonal';
-          routeHint.textContent = `Orthogonal ${r.routeMode === 'manual' ? uiText('Manual Route · Locked', 'Manual Route · 잠김') : 'Auto Route'}`
+          routeHint.textContent = (r.routeMode === 'manual'
+            ? uiLabel('Orthogonal Manual Route · Locked', '수동 직교 경로 · 잠김')
+            : uiLabel('Orthogonal Auto Route', '자동 직교 경로'))
             + uiText(' · Bends {0} · Crossings {1}', ' · 굴곡 {0} · 교차 {1}', route?.bends || 0, route?.crossings || 0)
             + (r.routeMode === 'manual' ? uiText(' · Waypoints {0}', ' · 제어점 {0}', bindingWaypoints(r).length) : '')
             + ((r.jumpStyle || 'arc') !== 'none' ? uiText(' · Bridges {0}', ' · 브리지 {0}', route?.jumpCount || 0) : '')
@@ -1616,19 +1632,19 @@ function createPropertyPanelModule() {
           box.appendChild(editHint);
         }
         if (isInteractionMsg(r.kind)) {
-          box.appendChild(propRow(uiText('Sequence Number', 'Sequence No. (번호)'), textInput(r.seqNo != null ? String(r.seqNo) : '', v => {
+          box.appendChild(propRow(uiText('Sequence Number', '시퀀스 번호'), textInput(r.seqNo != null ? String(r.seqNo) : '', v => {
             r.seqNo = v.trim();
           }), uiText('Leave blank for automatic numbering or enter a fixed number, e.g. 1.1.', '비우면 자동 번호 · 값을 넣으면 고정 번호 사용 (예: 1.1)')));
         }
         if (isCommMsg(r.kind) || r.kind === 'timingmessage') {
           const sort = document.createElement('select');
           [
-            ['synchCall', 'Synchronous Call'],
-            ['asynchCall', 'Asynchronous Call'],
-            ['asynchSignal', 'Asynchronous Signal'],
-            ['reply', 'Reply'],
-            ['createMessage', 'Create Message'],
-            ['deleteMessage', 'Delete Message'],
+            ['synchCall', uiLabel('Synchronous Call', '동기 호출')],
+            ['asynchCall', uiLabel('Asynchronous Call', '비동기 호출')],
+            ['asynchSignal', uiLabel('Asynchronous Signal', '비동기 신호')],
+            ['reply', uiLabel('Reply', '응답')],
+            ['createMessage', uiLabel('Create Message', '생성 메시지')],
+            ['deleteMessage', uiLabel('Delete Message', '삭제 메시지')],
           ].forEach(([value, label]) => {
             const option = document.createElement('option');
             option.value = value; option.textContent = label;
@@ -1650,7 +1666,7 @@ function createPropertyPanelModule() {
             hint.className = 'prop-hint';
             hint.textContent = uiText(
               'Attached to connector {0}. The message moves when the connector moves or is reconnected.',
-              'Connector {0}에 종속 · Connector 이동/재연결 시 메시지도 함께 이동합니다.',
+              '커넥터 {0}에 종속 · 커넥터 이동/재연결 시 메시지도 함께 이동합니다.',
               connector.id,
             );
             box.appendChild(hint);

@@ -235,7 +235,7 @@ function createProjectStoreModule() {
         if (!autosaveErrorShown) {
           flashStatus(uiText(
             'This project changed in another tab. Open the Project Manager to check the latest version.',
-            '다른 탭에서 이 프로젝트가 변경되었습니다 · Project Manager에서 최신본을 확인하세요',
+            '다른 탭에서 이 프로젝트가 변경되었습니다 · 프로젝트 관리에서 최신본을 확인하세요',
           ));
           autosaveErrorShown = true;
         }

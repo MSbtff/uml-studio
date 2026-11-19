@@ -10,7 +10,7 @@ declare var UMLDiagramTabs: DiagramTabsApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createDiagramTabsModule);
 
 function createDiagramTabsModule() {
-  const { text: uiText } = globalThis.UMLLanguage
+  const { displayLabel, text: uiText } = globalThis.UMLLanguage
     ?? require('./language.js') as typeof UMLLanguage;
 
   const REQUIRED_FUNCTIONS = Object.freeze([
@@ -307,7 +307,7 @@ function createDiagramTabsModule() {
         const item = document.createElement('button');
         item.type = 'button';
         item.className = 'tm-item';
-        item.innerHTML = `<span class="tab-icon" style="background:${meta.color}">${meta.code}</span><span>${meta.label}</span>`;
+        item.innerHTML = `<span class="tab-icon" style="background:${meta.color}">${meta.code}</span><span>${displayLabel(meta)}</span>`;
         item.addEventListener('click', () => { closeMenu(false); addDiagram(type); });
         menu.appendChild(item);
       });

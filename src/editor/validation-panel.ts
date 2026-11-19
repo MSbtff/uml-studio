@@ -12,7 +12,7 @@ declare var UMLValidationPanel: ValidationPanelApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createValidationPanelModule);
 
 function createValidationPanelModule() {
-  const { text: uiText } = globalThis.UMLLanguage
+  const { label: uiLabel, text: uiText } = globalThis.UMLLanguage
     ?? require('./language.js') as typeof UMLLanguage;
 
   const REQUIRED_FUNCTIONS = Object.freeze([
@@ -148,7 +148,8 @@ function createValidationPanelModule() {
     function updateSummary() {
       const { errors, warnings, info } = issueCounts();
       validationSummary.textContent = issues.length
-        ? `${errors} errors · ${warnings} warnings · ${info} info${state.validationStale ? uiText(' · Stale results', ' · 결과가 오래됨') : ''}`
+        ? uiLabel('{0} errors · {1} warnings · {2} info{3}', '오류 {0}개 · 경고 {1}개 · 안내 {2}개{3}', errors, warnings, info,
+          state.validationStale ? uiText(' · Stale results', ' · 결과가 오래됨') : '')
         : (state.validationStale ? uiText('The project has changed. Run validation again.', '프로젝트가 변경되었습니다. 다시 검사하세요.') : uiText('No issues found.', '문제가 없습니다.'));
       validationSummary.classList.toggle('validation-stale', state.validationStale);
     }

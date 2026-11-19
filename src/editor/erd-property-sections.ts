@@ -14,7 +14,7 @@ declare var UMLErdPropertySections: ErdPropertySectionsApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createErdPropertySectionsModule);
 
 function createErdPropertySectionsModule() {
-  const { text: uiText } = globalThis.UMLLanguage
+  const { label: uiLabel, text: uiText } = globalThis.UMLLanguage
     ?? require('./language.js') as typeof UMLLanguage;
 
   const REQUIRED_FUNCTIONS = Object.freeze([
@@ -146,7 +146,7 @@ function createErdPropertySectionsModule() {
       section.className = 'erd-columns-property';
       const header = document.createElement('div');
       header.className = 'erd-columns-property-header';
-      const title = sectionHeading(`Columns (${columns.length})`);
+      const title = sectionHeading(uiLabel('Columns ({0})', '컬럼 {0}개', columns.length));
       section.setAttribute('role', 'group');
       section.setAttribute('aria-labelledby', title.id);
       const paste = document.createElement('button');
@@ -413,7 +413,7 @@ function createErdPropertySectionsModule() {
 
       const indexHeader = document.createElement('div');
       indexHeader.className = 'erd-schema-subheader';
-      const indexTitle = document.createElement('span'); indexTitle.textContent = `Indexes (${indexes.length})`;
+      const indexTitle = document.createElement('span'); indexTitle.textContent = uiLabel('Indexes ({0})', '인덱스 {0}개', indexes.length);
       const addIndex = document.createElement('button');
       addIndex.type = 'button'; addIndex.textContent = uiText('+ Index', '+ 인덱스'); addIndex.disabled = !columnNames.length;
       addIndex.addEventListener('click', () => {
