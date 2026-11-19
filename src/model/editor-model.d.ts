@@ -93,6 +93,7 @@ type DiagramModels = Record<string, DiagramModel>;
 interface DiagramElement extends DiagramElementBounds, ModelFields {
   modelId?: string;
   fill?: string;
+  borderStyle?: 'solid' | 'dashed';
   borderAnchor?: DiagramAnchor;
   lifeId?: string;
   _depth?: number;

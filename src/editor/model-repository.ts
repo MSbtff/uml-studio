@@ -56,6 +56,7 @@ function createModelRepositoryModule() {
     requirement: Object.freeze({ w: 296, h: 144, fill: '#edf4fa' }),
     continuation: Object.freeze({ w: 120, h: 30 }),
     boundary: Object.freeze({ w: 280, h: 200 }),
+    database: Object.freeze({ fill: '#dff0e5' }),
     mindnode: Object.freeze({ fill: '#d7e6f7' }),
     compositestate: Object.freeze({ w: 360, h: 280, fill: '#f2f4ff' }),
     submachinestate: Object.freeze({ w: 240, h: 96, fill: '#eef1ff' }),
@@ -183,6 +184,7 @@ function createModelRepositoryModule() {
         w: 0, h: 0, fill: FILL_DEFAULT,
       };
       if (VIEW_PRESETS[model.kind]) Object.assign(view, VIEW_PRESETS[model.kind]);
+      if (model.kind === 'boundary' && dg().type === 'deployment') view.fill = '#ffffff';
       if (BDD_CLASSIFIER_KINDS.has(model.kind)) Object.assign(view, BDD_CLASSIFIER_PRESET);
       if (model.kind === 'lifeline' && dg().type === 'timing') Object.assign(view, TIMING_LIFELINE_PRESET);
       return adoptView(view);

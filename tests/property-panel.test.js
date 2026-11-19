@@ -309,4 +309,25 @@ state.selectedId = 'post';
 panel.render();
 assert.equal(focused, watched, '선택이 바뀌면 포커스를 옮기지 않아야 합니다');
 
+const deploymentBoundary = { id: 'external', kind: 'boundary', name: 'External Environment' };
+state.diagrams[0].type = 'deployment';
+const boundaryProperties = fakeNode();
+panel.renderElementProperties(boundaryProperties, deploymentBoundary);
+const dashed = descendants(boundaryProperties).find(child => child.type === 'checkbox');
+assert.equal(dashed.checked, false);
+dashed.checked = true;
+dashed.emit('change');
+assert.equal(deploymentBoundary.borderStyle, 'dashed');
+dashed.checked = false;
+dashed.emit('change');
+assert.equal(deploymentBoundary.borderStyle, 'solid');
+
+const database = { id: 'sqlite', kind: 'database', name: 'uml-studio.db', stereotype: 'SQLite' };
+const databaseProperties = fakeNode();
+panel.renderElementProperties(databaseProperties, database);
+const databaseType = descendants(databaseProperties).find(child => child.value === 'SQLite');
+databaseType.value = 'PostgreSQL';
+databaseType.emit('input');
+assert.equal(database.stereotype, 'PostgreSQL');
+
 console.log('property panel tests: ok');

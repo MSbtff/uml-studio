@@ -416,6 +416,14 @@ assert.throws(() => create({}), err => {
 }
 
 {
+  const elements = [element('db', 'database'), element('frame', 'boundary'), element('server', 'node')];
+  const h = harness({ diagram: { type: 'deployment', elements, relations: [] } });
+  h.renderer.render();
+  assert.deepEqual(h.named('drawElement').map(c => c.args[0]), ['frame', 'db', 'server']);
+  assert.deepEqual(elements.map(item => item.id), ['db', 'frame', 'server']);
+}
+
+{
   /* refresh callbacks fire once per frame */
   const h = harness();
   h.renderer.render();
