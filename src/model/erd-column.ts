@@ -24,6 +24,9 @@ declare var UMLErdColumn: ErdColumnApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createErdColumn);
 
 function createErdColumn() {
+  const { text: uiText } = globalThis.UMLLanguage
+    ?? require('../editor/language.js') as typeof UMLLanguage;
+
   const FLAG_ORDER = ['PK', 'FK', 'UQ', 'NN'];
   const FLAG_PREFIX = /^(PK|FK|UQ|NN)\b[,\s]*/i;
   const MAX_NAME_LENGTH = 120;
@@ -88,29 +91,47 @@ function createErdColumn() {
 
   function validateColumn(column: ColumnInput | null | undefined, existingColumns: unknown[] = [], editIndex = -1): ErdColumnValidation {
     const value = normalizeColumn(column);
-    if (!value.phys) return { valid: false, field: 'phys', error: '물리명을 입력하세요.' };
+    if (!value.phys) return { valid: false, field: 'phys', error: uiText('Enter a physical name.', '물리명을 입력하세요.') };
     if (value.phys.length > MAX_NAME_LENGTH) {
-      return { valid: false, field: 'phys', error: `물리명은 ${MAX_NAME_LENGTH}자 이하여야 합니다.` };
+      return { valid: false, field: 'phys', error: uiText(
+        'The physical name must be at most {0} characters.',
+        '물리명은 {0}자 이하여야 합니다.',
+        MAX_NAME_LENGTH,
+      ) };
     }
     if (/[<>:\r\n]/.test(value.phys)) {
-      return { valid: false, field: 'phys', error: '물리명에는 <, >, : 또는 줄바꿈을 사용할 수 없습니다.' };
+      return { valid: false, field: 'phys', error: uiText(
+        'The physical name cannot contain <, >, :, or line breaks.',
+        '물리명에는 <, >, : 또는 줄바꿈을 사용할 수 없습니다.',
+      ) };
     }
     if (value.logical.length > MAX_NAME_LENGTH) {
-      return { valid: false, field: 'logical', error: `논리명은 ${MAX_NAME_LENGTH}자 이하여야 합니다.` };
+      return { valid: false, field: 'logical', error: uiText(
+        'The logical name must be at most {0} characters.',
+        '논리명은 {0}자 이하여야 합니다.',
+        MAX_NAME_LENGTH,
+      ) };
     }
     if (/[<>:\r\n]/.test(value.logical)) {
-      return { valid: false, field: 'logical', error: '논리명에는 <, >, : 또는 줄바꿈을 사용할 수 없습니다.' };
+      return { valid: false, field: 'logical', error: uiText(
+        'The logical name cannot contain <, >, :, or line breaks.',
+        '논리명에는 <, >, : 또는 줄바꿈을 사용할 수 없습니다.',
+      ) };
     }
     if (value.type.length > MAX_TYPE_LENGTH) {
-      return { valid: false, field: 'type', error: `데이터 타입은 ${MAX_TYPE_LENGTH}자 이하여야 합니다.` };
+      return { valid: false, field: 'type', error: uiText(
+        'The data type must be at most {0} characters.',
+        '데이터 타입은 {0}자 이하여야 합니다.',
+        MAX_TYPE_LENGTH,
+      ) };
     }
     if (/[:\r\n]/.test(value.type)) {
-      return { valid: false, field: 'type', error: '데이터 타입에는 : 또는 줄바꿈을 사용할 수 없습니다.' };
+      return { valid: false, field: 'type', error: uiText('The data type cannot contain : or line breaks.', '데이터 타입에는 : 또는 줄바꿈을 사용할 수 없습니다.') };
     }
     const duplicate = (Array.isArray(existingColumns) ? existingColumns : []).some((raw, index) =>
       index !== editIndex && parseColumn(raw).phys.trim().toLowerCase() === value.phys.toLowerCase());
     if (duplicate) {
-      return { valid: false, field: 'phys', error: `'${value.phys}' 컬럼이 이미 있습니다.` };
+      return { valid: false, field: 'phys', error: uiText('Column \'{0}\' already exists.', '\'{0}\' 컬럼이 이미 있습니다.', value.phys) };
     }
     return { valid: true, column: value, value: formatColumn(value) };
   }

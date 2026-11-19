@@ -9,6 +9,9 @@ declare var UMLViewportController: ViewportControllerApi;
 
 function createViewportControllerModule() {
   'use strict';
+  const { text: uiText } = globalThis.UMLLanguage
+    ?? require('../editor/language.js') as typeof UMLLanguage;
+
 
   const REQUIRED_FUNCTIONS = Object.freeze([
     'bindingRoute', 'branchGeom', 'communicationMessagePoints', 'contentBBox', 'dg', 'el',
@@ -77,7 +80,7 @@ function createViewportControllerModule() {
     function fitToWindow() {
       const bbox = contentBBox();
       if (!bbox) {
-        flashStatus('맞춤 표시할 요소가 없습니다');
+        flashStatus(uiText('There are no elements to fit.', '맞춤 표시할 요소가 없습니다'));
         return false;
       }
       const zoom = Math.min(3, Math.max(0.25, Math.min(

@@ -12,6 +12,9 @@ declare var UMLValidationPanel: ValidationPanelApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createValidationPanelModule);
 
 function createValidationPanelModule() {
+  const { text: uiText } = globalThis.UMLLanguage
+    ?? require('./language.js') as typeof UMLLanguage;
+
   const REQUIRED_FUNCTIONS = Object.freeze([
     'bindingRoute',
     'byId',
@@ -145,8 +148,8 @@ function createValidationPanelModule() {
     function updateSummary() {
       const { errors, warnings, info } = issueCounts();
       validationSummary.textContent = issues.length
-        ? `${errors} errors · ${warnings} warnings · ${info} info${state.validationStale ? ' · 결과가 오래됨' : ''}`
-        : (state.validationStale ? '프로젝트가 변경되었습니다. 다시 검사하세요.' : '문제가 없습니다.');
+        ? `${errors} errors · ${warnings} warnings · ${info} info${state.validationStale ? uiText(' · Stale results', ' · 결과가 오래됨') : ''}`
+        : (state.validationStale ? uiText('The project has changed. Run validation again.', '프로젝트가 변경되었습니다. 다시 검사하세요.') : uiText('No issues found.', '문제가 없습니다.'));
       validationSummary.classList.toggle('validation-stale', state.validationStale);
     }
 
@@ -193,7 +196,7 @@ function createValidationPanelModule() {
       if (!issues.length) {
         const empty = document.createElement('div');
         empty.className = 'validation-empty';
-        empty.textContent = '✓ UML 검증 규칙을 모두 통과했습니다.';
+        empty.textContent = uiText('✓ All UML validation rules passed.', '✓ UML 검증 규칙을 모두 통과했습니다.');
         validationResults.appendChild(empty);
         return;
       }
@@ -233,8 +236,8 @@ function createValidationPanelModule() {
       render();
       const { errors, warnings } = issueCounts();
       flashStatus(issues.length
-        ? `검증 완료 · 오류 ${errors} · 경고 ${warnings}`
-        : '검증 완료 · 문제가 없습니다');
+        ? uiText('Validation complete · Errors {0} · Warnings {1}', '검증 완료 · 오류 {0} · 경고 {1}', errors, warnings)
+        : uiText('Validation complete · No issues found', '검증 완료 · 문제가 없습니다'));
       return getIssues();
     }
 

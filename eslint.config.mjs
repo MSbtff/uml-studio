@@ -32,6 +32,8 @@ const umlGlobals = Object.fromEntries(
     'UMLProjectImport',
     'UMLImportPreview',
     'UMLInteractionLayout',
+    'UMLLanguage',
+    'UMLLanguageSettings',
     'UMLMemberLists',
     'UMLModelCore',
     'UMLModelExplorer',

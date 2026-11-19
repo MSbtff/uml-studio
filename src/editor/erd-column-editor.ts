@@ -45,6 +45,9 @@ declare var UMLErdColumnEditor: ErdColumnEditorApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createErdColumnEditorModule);
 
 function createErdColumnEditorModule() {
+  const { text: uiText } = globalThis.UMLLanguage
+    ?? require('./language.js') as typeof UMLLanguage;
+
   const REQUIRED_FUNCTIONS = Object.freeze([
     'applyCopiedColumnSchema',
     'closeOtherQuickEditors',
@@ -141,7 +144,11 @@ function createErdColumnEditorModule() {
         sourceIndex: index,
       };
       renderProps();
-      flashStatus(`컬럼 '${parseColumn(raw).phys}'을(를) 복사했습니다 · 대상 테이블에서 붙여넣으세요`);
+      flashStatus(uiText(
+        'Copied column \'{0}\'. Paste it into the target table.',
+        '컬럼 \'{0}\'을(를) 복사했습니다 · 대상 테이블에서 붙여넣으세요',
+        parseColumn(raw).phys,
+      ));
       return true;
     }
 
@@ -158,8 +165,8 @@ function createErdColumnEditorModule() {
       applyCopiedColumnSchema(entity, pastedName, erdColumnClipboard.schema);
       render(); renderProps();
       flashStatus(sourceName === pastedName
-        ? `컬럼 '${pastedName}'을(를) 붙여넣었습니다`
-        : `중복을 피해 컬럼 '${pastedName}'(으)로 붙여넣었습니다`);
+        ? uiText('Pasted column \'{0}\'.', '컬럼 \'{0}\'을(를) 붙여넣었습니다', pastedName)
+        : uiText('Pasted as \'{0}\' to avoid a duplicate name.', '중복을 피해 컬럼 \'{0}\'(으)로 붙여넣었습니다', pastedName));
       openErdColumnEditor(entity, index);
       return true;
     }
@@ -180,10 +187,20 @@ function createErdColumnEditorModule() {
       if (impacts.length) {
         const labels = impacts.slice(0, 5).map(impact =>
           `'${impact.relationName || impact.relationModelId}'`).join(', ');
-        const remainder = impacts.length > 5 ? ` 외 ${impacts.length - 5}개` : '';
+        const remainder = impacts.length > 5 ? uiText(' and {0} more', ' 외 {0}개', impacts.length - 5) : '';
         const confirmed = confirmAction(
-          `컬럼 '${name}'은(는) FK 관계 ${impacts.length}개에서 사용 중입니다: ${labels}${remainder}\n\n`
-          + '삭제하면 관계선은 유지되지만 FK 컬럼과 ON DELETE/UPDATE 연결이 해제됩니다. 계속할까요?',
+          uiText(
+            'Column \'{0}\' is used in {1} foreign key relationships: {2}{3}\n\n',
+            '컬럼 \'{0}\'은(는) FK 관계 {1}개에서 사용 중입니다: {2}{3}\n\n',
+            name,
+            impacts.length,
+            labels,
+            remainder,
+          )
+          + uiText(
+            'Deleting it keeps the relationship lines and removes the foreign key column and its ON DELETE/UPDATE actions. Continue?',
+            '삭제하면 관계선은 유지되지만 FK 컬럼과 ON DELETE/UPDATE 연결이 해제됩니다. 계속할까요?',
+          ),
         );
         if (!confirmed) return false;
       }
@@ -193,10 +210,10 @@ function createErdColumnEditorModule() {
       const disconnected = disconnectForeignKeyColumnReferences(state.models, entity.modelId, name);
       render(); renderProps();
       const affected = removed.checks + removed.indexes;
-      flashStatus(`컬럼 '${name}'을(를) 삭제했습니다`
-        + `${affected ? ` · 연결된 CHECK/인덱스 ${affected}개도 제거` : ''}`
-        + `${disconnected.relations ? ` · FK 연결 ${disconnected.relations}개 해제` : ''}`
-        + ' · Undo로 복구할 수 있습니다');
+      flashStatus(uiText('Deleted column \'{0}\'.', '컬럼 \'{0}\'을(를) 삭제했습니다', name)
+        + `${affected ? uiText(' · Removed linked CHECK constraints or indexes: {0}', ' · 연결된 CHECK/인덱스 {0}개도 제거', affected) : ''}`
+        + `${disconnected.relations ? uiText(' · Cleared foreign key bindings: {0}', ' · FK 연결 {0}개 해제', disconnected.relations) : ''}`
+        + uiText(' · Use Undo to restore.', ' · Undo로 복구할 수 있습니다'));
       return true;
     }
 
@@ -206,7 +223,7 @@ function createErdColumnEditorModule() {
       for (let index = 0; index < rawColumns.length; index++) {
         const result = validateColumn(parseColumn(rawColumns[index]), rawColumns, index);
         if (!result.valid) {
-          flashStatus(`컬럼 일괄 편집 오류: ${result.error}`);
+          flashStatus(uiText('Bulk column edit failed: {0}', '컬럼 일괄 편집 오류: {0}', result.error));
           return false;
         }
         normalized.push(result.value);
@@ -241,10 +258,19 @@ function createErdColumnEditorModule() {
       if (impactedRelations.size) {
         const labels = [...impactedRelations.values()].slice(0, 5).map(impact =>
           `'${impact.relationName || impact.relationModelId}'`).join(', ');
-        const remainder = impactedRelations.size > 5 ? ` 외 ${impactedRelations.size - 5}개` : '';
+        const remainder = impactedRelations.size > 5 ? uiText(' and {0} more', ' 외 {0}개', impactedRelations.size - 5) : '';
         if (!confirmAction(
-          `일괄 편집에서 삭제되는 컬럼이 FK 관계 ${impactedRelations.size}개에 사용 중입니다: ${labels}${remainder}\n\n`
-          + '적용하면 관계선은 유지되지만 해당 FK 컬럼과 ON DELETE/UPDATE 연결이 해제됩니다. 계속할까요?',
+          uiText(
+            'Columns removed by this edit are used in {0} foreign key relationships: {1}{2}\n\n',
+            '일괄 편집에서 삭제되는 컬럼이 FK 관계 {0}개에 사용 중입니다: {1}{2}\n\n',
+            impactedRelations.size,
+            labels,
+            remainder,
+          )
+          + uiText(
+            'Applying the edit keeps the relationship lines and removes the affected foreign key columns and ON DELETE/UPDATE actions. Continue?',
+            '적용하면 관계선은 유지되지만 해당 FK 컬럼과 ON DELETE/UPDATE 연결이 해제됩니다. 계속할까요?',
+          ),
         )) return false;
       }
       snapshot();
@@ -264,10 +290,10 @@ function createErdColumnEditorModule() {
       });
       entity.columns = normalized;
       render(); renderProps();
-      flashStatus(`컬럼 일괄 편집을 적용했습니다`
-        + `${renamedRelations ? ` · FK 연결 ${renamedRelations}개 갱신` : ''}`
-        + `${disconnectedRelations ? ` · FK 연결 ${disconnectedRelations}개 해제` : ''}`
-        + ' · Undo로 복구할 수 있습니다');
+      flashStatus(uiText('Applied the bulk column edit.', '컬럼 일괄 편집을 적용했습니다')
+        + `${renamedRelations ? uiText(' · Updated foreign key bindings: {0}', ' · FK 연결 {0}개 갱신', renamedRelations) : ''}`
+        + `${disconnectedRelations ? uiText(' · Cleared foreign key bindings: {0}', ' · FK 연결 {0}개 해제', disconnectedRelations) : ''}`
+        + uiText(' · Use Undo to restore.', ' · Undo로 복구할 수 있습니다'));
       return true;
     }
 
@@ -283,7 +309,7 @@ function createErdColumnEditorModule() {
       snapshot();
       entity.columns = reorderColumns(columns, index, targetIndex);
       render(); renderProps();
-      flashStatus(`컬럼 '${parseColumn(column).phys}' 순서를 변경했습니다`);
+      flashStatus(uiText('Reordered column \'{0}\'.', '컬럼 \'{0}\' 순서를 변경했습니다', parseColumn(column).phys));
       return true;
     }
 
@@ -312,7 +338,7 @@ function createErdColumnEditorModule() {
       const title = document.createElement('div');
       title.className = 'erd-column-editor-title';
       title.id = `uml-quickedit-title-${nextFieldSequence()}`;
-      title.textContent = `${entity.name || 'Entity'} · ${isNew ? '새 컬럼' : `${index + 1}번째 컬럼 편집`}`;
+      title.textContent = `${entity.name || 'Entity'} · ${isNew ? uiText('New Column', '새 컬럼') : uiText('Edit Column {0}', '{0}번째 컬럼 편집', index + 1)}`;
       /* name the dialog with the heading the user can actually see */
       editor.setAttribute('aria-labelledby', title.id);
       editor.appendChild(title);
@@ -320,13 +346,13 @@ function createErdColumnEditorModule() {
       const quickActions = document.createElement('div');
       quickActions.className = 'erd-column-editor-quick-actions';
       const copyAction = document.createElement('button');
-      copyAction.type = 'button'; copyAction.textContent = '⧉ 컬럼 복사';
-      copyAction.title = '현재 컬럼 복사 (Ctrl/Cmd+C)';
-      copyAction.setAttribute('aria-label', '현재 ERD 컬럼 복사');
+      copyAction.type = 'button'; copyAction.textContent = uiText('⧉ Copy Column', '⧉ 컬럼 복사');
+      copyAction.title = uiText('Copy the current column (Ctrl/Cmd+C)', '현재 컬럼 복사 (Ctrl/Cmd+C)');
+      copyAction.setAttribute('aria-label', uiText('Copy current ERD column', '현재 ERD 컬럼 복사'));
       const pasteAction = document.createElement('button');
-      pasteAction.type = 'button'; pasteAction.textContent = '아래 붙여넣기';
-      pasteAction.title = '복사한 컬럼을 바로 아래에 붙여넣기 (Ctrl/Cmd+V)';
-      pasteAction.setAttribute('aria-label', '복사한 ERD 컬럼을 아래에 붙여넣기');
+      pasteAction.type = 'button'; pasteAction.textContent = uiText('Paste Below', '아래 붙여넣기');
+      pasteAction.title = uiText('Paste the copied column below (Ctrl/Cmd+V)', '복사한 컬럼을 바로 아래에 붙여넣기 (Ctrl/Cmd+V)');
+      pasteAction.setAttribute('aria-label', uiText('Paste the copied ERD column below', '복사한 ERD 컬럼을 아래에 붙여넣기'));
       pasteAction.disabled = !erdColumnClipboard;
       quickActions.append(copyAction, pasteAction); editor.appendChild(quickActions);
 
@@ -357,9 +383,15 @@ function createErdColumnEditorModule() {
         return input;
       };
 
-      const physInput = addField('물리명 *', 'phys', value.phys, '예: user_id', '같은 엔티티 안에서 고유해야 합니다.');
-      const logicalInput = addField('논리명', 'logical', value.logical, '예: 작성자번호', '논리 모델 보기에 표시할 선택 항목입니다.');
-      const typeInput = addField('데이터 타입', 'type', value.type, '입력하거나 목록에서 선택', '자주 쓰는 SQL 타입을 바로 선택할 수 있습니다.');
+      const physInput = addField(uiText('Physical Name *', '물리명 *'), 'phys', value.phys, uiText('Example: user_id', '예: user_id'), uiText('Must be unique within the entity.', '같은 엔티티 안에서 고유해야 합니다.'));
+      const logicalInput = addField(uiText('Logical Name', '논리명'), 'logical', value.logical, uiText('Example: Author ID', '예: 작성자번호'), uiText(
+        'Optional name displayed in the logical model.',
+        '논리 모델 보기에 표시할 선택 항목입니다.',
+      ));
+      const typeInput = addField(uiText('Data Type', '데이터 타입'), 'type', value.type, uiText('Enter or select a type', '입력하거나 목록에서 선택'), uiText(
+        'Choose a common SQL type or enter a custom one.',
+        '자주 쓰는 SQL 타입을 바로 선택할 수 있습니다.',
+      ));
       const listId = `erd-column-types-${entity.id}`;
       typeInput.setAttribute('list', listId);
       const datalist = document.createElement('datalist');
@@ -368,13 +400,16 @@ function createErdColumnEditorModule() {
         const option = document.createElement('option'); option.value = type; datalist.appendChild(option);
       });
       editor.appendChild(datalist);
-      const defaultInput = addField('DEFAULT', 'defaultValue', originalDetails.defaultValue, "예: CURRENT_TIMESTAMP 또는 'draft'",
-        'SQL 표현식으로 저장되며 내보내기 전에 안전성을 검사합니다.');
+      const defaultInput = addField('DEFAULT', 'defaultValue', originalDetails.defaultValue, uiText(
+        'Example: CURRENT_TIMESTAMP or \'draft\'',
+        '예: CURRENT_TIMESTAMP 또는 \'draft\'',
+      ),
+        uiText('Saved as a SQL expression and checked before export.', 'SQL 표현식으로 저장되며 내보내기 전에 안전성을 검사합니다.'));
       const fields = { phys: physInput, logical: logicalInput, type: typeInput, defaultValue: defaultInput };
 
       const flags = document.createElement('fieldset');
       flags.className = 'erd-column-flags';
-      const legend = document.createElement('legend'); legend.textContent = '제약조건';
+      const legend = document.createElement('legend'); legend.textContent = uiText('Constraints', '제약조건');
       flags.appendChild(legend);
       const flagInputs = ['PK', 'FK', 'UQ', 'NN'].map(flag => {
         const label = document.createElement('label');
@@ -389,8 +424,11 @@ function createErdColumnEditorModule() {
       const shortcut = document.createElement('div');
       shortcut.className = 'erd-column-editor-shortcut';
       shortcut.textContent = isNew
-        ? 'Enter 저장 · Ctrl/Cmd+Enter 저장 후 다음 추가 · Esc 취소'
-        : 'Delete 컬럼 삭제 · Ctrl/Cmd+C 복사 · Ctrl/Cmd+V 아래 붙여넣기 · Backspace 글자 삭제';
+        ? uiText('Enter to save · Ctrl/Cmd+Enter to save and add another · Esc to cancel', 'Enter 저장 · Ctrl/Cmd+Enter 저장 후 다음 추가 · Esc 취소')
+        : uiText(
+          'Delete the column · Ctrl/Cmd+C to copy · Ctrl/Cmd+V to paste below · Backspace to delete text',
+          'Delete 컬럼 삭제 · Ctrl/Cmd+C 복사 · Ctrl/Cmd+V 아래 붙여넣기 · Backspace 글자 삭제',
+        );
       editor.appendChild(shortcut);
       const error = document.createElement('div');
       error.className = 'erd-column-editor-error'; error.setAttribute('aria-live', 'polite');
@@ -399,12 +437,15 @@ function createErdColumnEditorModule() {
       const actions = document.createElement('div');
       actions.className = 'erd-column-editor-actions';
       const remove = document.createElement('button');
-      remove.type = 'button'; remove.className = 'danger'; remove.textContent = '삭제';
+      remove.type = 'button'; remove.className = 'danger'; remove.textContent = uiText('Delete', '삭제');
       remove.hidden = isNew;
       const spacer = document.createElement('span'); spacer.className = 'spacer';
-      const cancel = document.createElement('button'); cancel.type = 'button'; cancel.textContent = '취소';
-      const saveNext = document.createElement('button'); saveNext.type = 'button'; saveNext.textContent = '저장 후 다음 추가';
-      const save = document.createElement('button'); save.type = 'button'; save.className = 'primary'; save.textContent = '저장';
+      const cancel = document.createElement('button'); cancel.type = 'button'; cancel.textContent = uiText('Cancel', '취소');
+      const saveNext = document.createElement('button'); saveNext.type = 'button'; saveNext.textContent = uiText(
+        'Save and Add Another',
+        '저장 후 다음 추가',
+      );
+      const save = document.createElement('button'); save.type = 'button'; save.className = 'primary'; save.textContent = uiText('Save', '저장');
       actions.append(remove, spacer, cancel, saveNext, save); editor.appendChild(actions);
 
       const readResult = () => {
@@ -416,7 +457,7 @@ function createErdColumnEditorModule() {
         }, columns, isNew ? -1 : index);
         if (!result.valid) return result;
         try {
-          const defaultValue = safeSqlFragment(fields.defaultValue.value, 'DEFAULT 값', true);
+          const defaultValue = safeSqlFragment(fields.defaultValue.value, uiText('DEFAULT value', 'DEFAULT 값'), true);
           return { ...result, defaultValue };
         } catch (error) {
           return { valid: false as const, field: 'defaultValue' as const, error: error instanceof Error ? error.message : String(error) };
@@ -454,11 +495,16 @@ function createErdColumnEditorModule() {
         }
         closeErdColumnEditor();
         if (changed) { render(); renderProps(); }
-        flashStatus(`컬럼 '${result.column.phys}'을(를) ${isNew ? '추가' : '저장'}했습니다`
-          + `${renamedRelations ? ` · FK 연결 ${renamedRelations}개도 갱신` : ''}`);
+        flashStatus(uiText(
+          '{1} column \'{0}\'.',
+          '컬럼 \'{0}\'을(를) {1}했습니다',
+          result.column.phys,
+          isNew ? uiText('Added', '추가') : uiText('Saved', '저장'),
+        )
+          + `${renamedRelations ? uiText(' · Updated foreign key bindings: {0}', ' · FK 연결 {0}개도 갱신', renamedRelations) : ''}`);
         if (addNext) {
           openErdColumnEditor(entity, index + 1, { insert: true });
-          flashStatus(`컬럼 '${result.column.phys}' 저장 완료 · 다음 컬럼을 입력하세요`);
+          flashStatus(uiText('Saved column \'{0}\'. Enter the next column.', '컬럼 \'{0}\' 저장 완료 · 다음 컬럼을 입력하세요', result.column.phys));
         }
         return true;
       };
@@ -484,7 +530,7 @@ function createErdColumnEditorModule() {
         closeErdColumnEditor(); render(); renderProps();
         openErdColumnEditor(entity, targetIndex);
         flashStatus(`컬럼 '${result.column.phys}' 순서를 변경했습니다`
-          + `${renamed.relations ? ` · FK 연결 ${renamed.relations}개도 갱신` : ''}`);
+          + `${renamed.relations ? uiText(' · Updated foreign key bindings: {0}', ' · FK 연결 {0}개도 갱신', renamed.relations) : ''}`);
       };
       const copyCurrent = () => {
         if (done) return false;
@@ -504,13 +550,13 @@ function createErdColumnEditorModule() {
         };
         pasteAction.disabled = false;
         renderProps();
-        flashStatus(`컬럼 '${result.column.phys}'을(를) 복사했습니다 · Ctrl/Cmd+V로 붙여넣으세요`);
+        flashStatus(uiText('Copied column \'{0}\'. Paste with Ctrl/Cmd+V.', '컬럼 \'{0}\'을(를) 복사했습니다 · Ctrl/Cmd+V로 붙여넣으세요', result.column.phys));
         return true;
       };
       const pasteBelow = () => {
         if (done) return false;
         if (!erdColumnClipboard) {
-          flashStatus('복사한 컬럼이 없습니다');
+          flashStatus(uiText('No column has been copied.', '복사한 컬럼이 없습니다'));
           return false;
         }
         if (isNew && !fields.phys.value.trim()) {

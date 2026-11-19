@@ -10,6 +10,9 @@ declare var UMLCommandRouter: CommandRouterApi;
 function createCommandRouterModule() {
   'use strict';
 
+  const { label: uiLabel } = globalThis.UMLLanguage
+    ?? require('./language.js') as typeof UMLLanguage;
+
   const REQUIRED_FUNCTIONS = Object.freeze([
     'cancelInteraction', 'canBringFront', 'canRedo', 'canSendBack', 'canUndo', 'closeTabMenu',
     'closeTopModal',
@@ -87,69 +90,69 @@ function createCommandRouterModule() {
 
     const menuDefinitions: Readonly<Partial<Record<string, readonly MenuEntry[]>>> = Object.freeze({
       file: [
-        { label: 'New Project', cmd: 'new', shortcut: 'Ctrl+N' },
-        { label: 'Open…', cmd: 'open', shortcut: 'Ctrl+O' },
-        { label: 'Import DDL…', cmd: 'importddl' },
-        { label: 'Import draw.io…', cmd: 'importdrawio' },
-        { label: 'Save', cmd: 'save', shortcut: 'Ctrl+S' },
+        { label: uiLabel('New Project', '새 프로젝트'), cmd: 'new', shortcut: 'Ctrl+N' },
+        { label: uiLabel('Open…', '열기…'), cmd: 'open', shortcut: 'Ctrl+O' },
+        { label: uiLabel('Import DDL…', 'DDL 가져오기…'), cmd: 'importddl' },
+        { label: uiLabel('Import draw.io…', 'draw.io 가져오기…'), cmd: 'importdrawio' },
+        { label: uiLabel('Save', '저장'), cmd: 'save', shortcut: 'Ctrl+S' },
         { sep: true },
-        { label: 'Project Manager…', cmd: 'projects' },
-        { label: 'Recovery History…', cmd: 'recovery' },
+        { label: uiLabel('Project Manager…', '프로젝트 관리…'), cmd: 'projects' },
+        { label: uiLabel('Recovery History…', '복구 이력…'), cmd: 'recovery' },
         { sep: true },
-        { label: 'Export SVG', cmd: 'exportsvg' },
-        { label: 'Export PNG', cmd: 'exportpng' },
-        { label: 'Export All PNG', cmd: 'exportall' },
+        { label: uiLabel('Export SVG', 'SVG 내보내기'), cmd: 'exportsvg' },
+        { label: uiLabel('Export PNG', 'PNG 내보내기'), cmd: 'exportpng' },
+        { label: uiLabel('Export All PNG', '모든 PNG 내보내기'), cmd: 'exportall' },
         { sep: true },
-        { label: 'Export Mermaid (.mmd)', cmd: 'exportmermaid' },
-        { label: 'Export draw.io (.drawio)', cmd: 'exportdrawio' },
-        { label: 'Export ERD DDL (.sql)…', cmd: 'exportddl' },
+        { label: uiLabel('Export Mermaid (.mmd)', 'Mermaid (.mmd) 내보내기'), cmd: 'exportmermaid' },
+        { label: uiLabel('Export draw.io (.drawio)', 'draw.io (.drawio) 내보내기'), cmd: 'exportdrawio' },
+        { label: uiLabel('Export ERD DDL (.sql)…', 'ERD DDL (.sql) 내보내기…'), cmd: 'exportddl' },
       ],
       edit: [
-        { label: 'Undo', cmd: 'undo', shortcut: 'Ctrl+Z', enabled: canUndo },
-        { label: 'Redo', cmd: 'redo', shortcut: 'Ctrl+Y', enabled: canRedo },
+        { label: uiLabel('Undo', '실행 취소'), cmd: 'undo', shortcut: 'Ctrl+Z', enabled: canUndo },
+        { label: uiLabel('Redo', '다시 실행'), cmd: 'redo', shortcut: 'Ctrl+Y', enabled: canRedo },
         { sep: true },
-        { label: 'Select All', cmd: 'selectall', shortcut: 'Ctrl+A' },
-        { label: 'Cut', cmd: 'cut', shortcut: 'Ctrl+X', enabled: hasElementSelection },
-        { label: 'Copy', cmd: 'copy', shortcut: 'Ctrl+C', enabled: hasElementSelection },
-        { label: 'Paste', cmd: 'paste', shortcut: 'Ctrl+V', enabled: hasClipboard },
-        { label: 'Duplicate View', cmd: 'duplicate', shortcut: 'Ctrl+D', enabled: hasElementSelection },
+        { label: uiLabel('Select All', '모두 선택'), cmd: 'selectall', shortcut: 'Ctrl+A' },
+        { label: uiLabel('Cut', '잘라내기'), cmd: 'cut', shortcut: 'Ctrl+X', enabled: hasElementSelection },
+        { label: uiLabel('Copy', '복사'), cmd: 'copy', shortcut: 'Ctrl+C', enabled: hasElementSelection },
+        { label: uiLabel('Paste', '붙여넣기'), cmd: 'paste', shortcut: 'Ctrl+V', enabled: hasClipboard },
+        { label: uiLabel('Duplicate View', '뷰 복제'), cmd: 'duplicate', shortcut: 'Ctrl+D', enabled: hasElementSelection },
         { sep: true },
-        { label: 'Delete View', cmd: 'delete', shortcut: 'Del', enabled: hasSelection },
-        { label: 'Delete From Model', cmd: 'deletemodel', shortcut: 'Ctrl+Del', enabled: hasSelection },
+        { label: uiLabel('Delete View', '뷰 삭제'), cmd: 'delete', shortcut: 'Del', enabled: hasSelection },
+        { label: uiLabel('Delete From Model', '모델에서 삭제'), cmd: 'deletemodel', shortcut: 'Ctrl+Del', enabled: hasSelection },
       ],
       format: [
-        { label: 'Auto Size', cmd: 'autoresize', enabled: hasElementSelection },
+        { label: uiLabel('Auto Size', '자동 크기'), cmd: 'autoresize', enabled: hasElementSelection },
         { sep: true },
-        { label: 'Bring to Front', cmd: 'bringfront', enabled: canBringFront },
-        { label: 'Send to Back', cmd: 'sendback', enabled: canSendBack },
+        { label: uiLabel('Bring to Front', '맨 앞으로'), cmd: 'bringfront', enabled: canBringFront },
+        { label: uiLabel('Send to Back', '맨 뒤로'), cmd: 'sendback', enabled: canSendBack },
       ],
       model: [
-        { label: 'Project Models…', cmd: 'models' },
-        { label: 'Find in Explorer', cmd: 'explorerfocus', shortcut: 'Ctrl+F' },
+        { label: uiLabel('Project Models…', '프로젝트 모델…'), cmd: 'models' },
+        { label: uiLabel('Find in Explorer', '탐색기에서 찾기'), cmd: 'explorerfocus', shortcut: 'Ctrl+F' },
         { sep: true },
-        { label: 'Validate Project', cmd: 'validate', shortcut: 'F9' },
+        { label: uiLabel('Validate Project', '프로젝트 검증'), cmd: 'validate', shortcut: 'F9' },
       ],
       tools: [
-        { label: 'Export Current as SVG', cmd: 'exportsvg' },
-        { label: 'Export Current as PNG', cmd: 'exportpng' },
-        { label: 'Export All as PNG', cmd: 'exportall' },
+        { label: uiLabel('Export Current as SVG', '현재 다이어그램을 SVG로 내보내기'), cmd: 'exportsvg' },
+        { label: uiLabel('Export Current as PNG', '현재 다이어그램을 PNG로 내보내기'), cmd: 'exportpng' },
+        { label: uiLabel('Export All as PNG', '모두 PNG로 내보내기'), cmd: 'exportall' },
         { sep: true },
-        { label: 'Export Current as Mermaid', cmd: 'exportmermaid' },
-        { label: 'Export Current as draw.io', cmd: 'exportdrawio' },
-        { label: 'Export ERD DDL', cmd: 'exportddl' },
-        { label: 'Import DDL into Project', cmd: 'importddl' },
-        { label: 'Import draw.io into Project', cmd: 'importdrawio' },
+        { label: uiLabel('Export Current as Mermaid', '현재 다이어그램을 Mermaid로 내보내기'), cmd: 'exportmermaid' },
+        { label: uiLabel('Export Current as draw.io', '현재 다이어그램을 draw.io로 내보내기'), cmd: 'exportdrawio' },
+        { label: uiLabel('Export ERD DDL', 'ERD DDL 내보내기'), cmd: 'exportddl' },
+        { label: uiLabel('Import DDL into Project', '프로젝트에 DDL 가져오기'), cmd: 'importddl' },
+        { label: uiLabel('Import draw.io into Project', '프로젝트에 draw.io 가져오기'), cmd: 'importdrawio' },
       ],
       view: [
-        { label: 'Zoom In', cmd: 'zoomin', shortcut: 'Ctrl++' },
-        { label: 'Zoom Out', cmd: 'zoomout', shortcut: 'Ctrl+-' },
-        { label: 'Actual Size', cmd: 'zoomreset', shortcut: 'Ctrl+0' },
-        { label: 'Fit to Window', cmd: 'fit', shortcut: 'Ctrl+9' },
+        { label: uiLabel('Zoom In', '확대'), cmd: 'zoomin', shortcut: 'Ctrl++' },
+        { label: uiLabel('Zoom Out', '축소'), cmd: 'zoomout', shortcut: 'Ctrl+-' },
+        { label: uiLabel('Actual Size', '원래 크기'), cmd: 'zoomreset', shortcut: 'Ctrl+0' },
+        { label: uiLabel('Fit to Window', '화면 맞춤'), cmd: 'fit', shortcut: 'Ctrl+9' },
         { sep: true },
-        { label: 'Minimap', cmd: 'minimap', shortcut: 'Ctrl+Alt+M', checked: isMinimapVisible },
-        { label: 'Validation Results', cmd: 'validationpanel', checked: isValidationVisible },
+        { label: uiLabel('Minimap', '미니맵'), cmd: 'minimap', shortcut: 'Ctrl+Alt+M', checked: isMinimapVisible },
+        { label: uiLabel('Validation Results', '검증 결과'), cmd: 'validationpanel', checked: isValidationVisible },
       ],
-      help: [{ label: 'About UML Studio', cmd: 'about' }],
+      help: [{ label: uiLabel('About UML Studio', 'UML Studio 정보'), cmd: 'about' }],
     });
     Object.values(menuDefinitions).forEach(definitions => {
       definitions?.forEach(Object.freeze);
@@ -363,7 +366,9 @@ function createCommandRouterModule() {
         run('validate');
         return;
       }
-      if ((event.target as Element | null)?.matches?.('input, textarea, select')) return;
+      const target = event.target as Element | null;
+      if (target?.matches?.('input, textarea, select')) return;
+      if (event.key === 'Enter' && target?.closest?.('button, [role="button"]')) return;
       const mod = event.metaKey || event.ctrlKey;
       if (event.key === 'Enter' && mod && !event.altKey && openSelectedMemberQuickEdit(event.shiftKey)) {
         event.preventDefault();

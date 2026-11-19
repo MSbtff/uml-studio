@@ -13,6 +13,9 @@ declare var UMLSampleDiagrams: SampleDiagramsApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createSampleDiagramsModule);
 
 function createSampleDiagramsModule() {
+  const { text: uiText } = globalThis.UMLLanguage
+    ?? require('../editor/language.js') as typeof UMLLanguage;
+
   const REQUIRED_FUNCTIONS = Object.freeze([
     'cleanProjectName',
     'hydrateCurrentProject',
@@ -76,7 +79,10 @@ function createSampleDiagramsModule() {
 
     function sampleClass() {
       const drawable = NE({ kind: 'interface', name: 'Drawable', x: 520, y: 64, operations: ['+ draw(ctx: Context): void'] });
-      const note = NE({ kind: 'note', name: 'Note1', x: 856, y: 64, text: 'Realization / Dependency 관계는\n점선(dashed line)으로 그려집니다.' });
+      const note = NE({ kind: 'note', name: 'Note1', x: 856, y: 64, text: uiText(
+        'Realization and dependency relationships use dashed lines.',
+        'Realization / Dependency 관계는\n점선(dashed line)으로 그려집니다.',
+      ) });
       const shape = NE({
         kind: 'class', name: 'Shape', x: 496, y: 240, isAbstract: true, stereotype: '',
         attributes: ['# x: number', '# y: number', '+ style: Style'],
@@ -133,7 +139,10 @@ function createSampleDiagramsModule() {
       });
       const note = NE({
         kind: 'note', name: 'Package Note', x: 1160, y: 192, w: 272, h: 112,
-        text: 'Containment는 실제 모델 소유 관계를 표시합니다.\n자식 Package를 다른 컨테이너로 끌면 소유 관계도 함께 바뀝니다.',
+        text: uiText(
+          'Containment shows model ownership.\nDragging a child package to another container changes its owner.',
+          'Containment는 실제 모델 소유 관계를 표시합니다.\n자식 Package를 다른 컨테이너로 끌면 소유 관계도 함께 바뀝니다.',
+        ),
       });
       return {
         id: uid(), type: 'package', name: 'Architecture Packages',
@@ -199,7 +208,10 @@ function createSampleDiagramsModule() {
       });
       const note = NE({
         kind: 'note', name: 'Profile Note', x: 1088, y: 520, w: 320, h: 112,
-        text: 'Extension은 Stereotype에서 UML MetaClass 방향으로 연결합니다.\nRequired Extension은 {required}로 표시됩니다.',
+        text: uiText(
+          'Connect extension from a stereotype to a UML metaclass.\nA required extension shows {required}.',
+          'Extension은 Stereotype에서 UML MetaClass 방향으로 연결합니다.\nRequired Extension은 {required}로 표시됩니다.',
+        ),
       });
       return {
         id: uid(), type: 'profile', name: 'UML Studio Profile',
@@ -286,7 +298,10 @@ function createSampleDiagramsModule() {
       const finish = NE({ kind: 'final', name: 'Done', x: 1864, y: 334 });
       const note = NE({
         kind: 'note', name: 'Overview Note', x: 1104, y: 72, w: 304, h: 96,
-        text: 'Interaction Use는 기존 Sequence를 참조합니다.\nInteraction (inline)은 프레임을 더블클릭해 편집합니다.',
+        text: uiText(
+          'An interaction use references an existing sequence.\nDouble-click an inline interaction frame to edit it.',
+          'Interaction Use는 기존 Sequence를 참조합니다.\nInteraction (inline)은 프레임을 더블클릭해 편집합니다.',
+        ),
       });
       const overview = {
         id: uid(), type: 'interactionoverview', name: 'Checkout Interaction Overview',
@@ -511,7 +526,10 @@ function createSampleDiagramsModule() {
       const ball = NE({ kind: 'interfaceball', name: 'IRenderer', x: 368, y: 128 });
       const engine = NE({ kind: 'component', name: 'RenderEngine', x: 480, y: 112 });
       const art = NE({ kind: 'artifact', name: 'uml-studio.js', x: 128, y: 296 });
-      const note = NE({ kind: 'note', name: 'Note1', x: 480, y: 280, text: 'Assembly connector:\nRenderEngine이 IRenderer를 제공하고\nDiagramEditor가 이를 사용합니다.' });
+      const note = NE({ kind: 'note', name: 'Note1', x: 480, y: 280, text: uiText(
+        'Assembly connector:\nRenderEngine provides IRenderer.\nDiagramEditor uses it.',
+        'Assembly connector:\nRenderEngine이 IRenderer를 제공하고\nDiagramEditor가 이를 사용합니다.',
+      ) });
       return {
         id: uid(), type: 'component', name: 'Component Diagram',
         elements: [editor, ball, engine, art, note],
@@ -559,7 +577,10 @@ function createSampleDiagramsModule() {
       });
       const note = NE({
         kind: 'note', name: 'Information Flow Note', x: 408, y: 560, w: 448, h: 88,
-        text: '점선 화살표는 정보 전달 가능성을 나타냅니다.\n선택한 Flow의 Conveyed Information에서 전달 항목을 지정합니다.',
+        text: uiText(
+          'Dashed arrows show information flow.\nUnder Conveyed Information, choose the items carried by the flow.',
+          '점선 화살표는 정보 전달 가능성을 나타냅니다.\n선택한 Flow의 Conveyed Information에서 전달 항목을 지정합니다.',
+        ),
       });
       return {
         id: uid(), type: 'informationflow', name: 'Rendering Information Flow',
@@ -684,7 +705,10 @@ function createSampleDiagramsModule() {
       const note = NE({
         kind: 'note', name: 'Requirement Traceability Guide',
         x: 72, y: 824, w: 344, h: 88,
-        text: 'Containment는 요구사항 계층을 나타냅니다.\nSatisfy · Verify · Refine · Trace는 기존 모델을 Requirement와 연결합니다.',
+        text: uiText(
+          'Containment organizes requirements in a hierarchy.\nSatisfy, Verify, Refine, and Trace link models to requirements.',
+          'Containment는 요구사항 계층을 나타냅니다.\nSatisfy · Verify · Refine · Trace는 기존 모델을 Requirement와 연결합니다.',
+        ),
       });
       return {
         id: uid(), type: 'requirement', name: 'Rendering Requirements',
@@ -835,7 +859,10 @@ function createSampleDiagramsModule() {
       });
       const note = NE({
         kind: 'note', name: 'BDD Guide', x: 880, y: 1040, w: 344, h: 88,
-        text: 'Block은 시스템 분류와 합성 계층을 정의합니다.\nPort는 Interface Block 타입을 참조하고 Connector로 연결됩니다.',
+        text: uiText(
+          'Blocks define the system types and composition hierarchy.\nPorts reference interface blocks and are joined by connectors.',
+          'Block은 시스템 분류와 합성 계층을 정의합니다.\nPort는 Interface Block 타입을 참조하고 Connector로 연결됩니다.',
+        ),
       });
       return {
         id: uid(), type: 'bdd', name: 'Rendering System Block Definition',
@@ -944,7 +971,10 @@ function createSampleDiagramsModule() {
       });
       const note = NE({
         kind: 'note', name: 'IBD Guide', x: 120, y: 712, w: 448, h: 88,
-        text: 'Part·Reference·Value는 BDD의 실제 Type을 참조합니다.\nConnector를 선택해 전달되는 Item Flow를 지정할 수 있습니다.',
+        text: uiText(
+          'Parts, references, and values use types defined in the BDD.\nSelect a connector to choose its item flows.',
+          'Part·Reference·Value는 BDD의 실제 Type을 참조합니다.\nConnector를 선택해 전달되는 Item Flow를 지정할 수 있습니다.',
+        ),
       });
       return {
         id: uid(), type: 'ibd', name: 'Rendering System Internal Structure',
@@ -1049,7 +1079,10 @@ function createSampleDiagramsModule() {
       const note = NE({
         kind: 'note', name: 'Parametric Guide',
         x: 384, y: 584, w: 472, h: 88,
-        text: 'Binding Connector는 값 사이의 등가 관계를 나타냅니다.\nConstraint Block의 수식과 Parameter 정의를 BDD에서 재사용합니다.',
+        text: uiText(
+          'A binding connector shows equality between values.\nThe BDD defines reusable constraint equations and parameters.',
+          'Binding Connector는 값 사이의 등가 관계를 나타냅니다.\nConstraint Block의 수식과 Parameter 정의를 BDD에서 재사용합니다.',
+        ),
       });
       return {
         id: uid(), type: 'parametric', name: 'Render Budget Parametric Analysis',
@@ -1263,7 +1296,10 @@ function createSampleDiagramsModule() {
       });
       const note = NE({
         kind: 'note', name: 'TimingNote', x: 1200, y: 176,
-        text: 'Time Segment를 좌우로 이동하고 양 끝 핸들로 기간을 조절합니다.\nTime Constraint는 Segment 또는 Message에 부착할 수 있습니다.',
+        text: uiText(
+          'Drag a time segment to move it or use the end handles to resize it.\nTime constraints attach to segments or messages.',
+          'Time Segment를 좌우로 이동하고 양 끝 핸들로 기간을 조절합니다.\nTime Constraint는 Segment 또는 Message에 부착할 수 있습니다.',
+        ),
       });
       return {
         id: uid(), type: 'timing', name: 'Frame Rendering Timing',
@@ -1348,7 +1384,10 @@ function createSampleDiagramsModule() {
       });
       const note = NE({
         kind: 'note', name: 'CompositeNote', x: 1016, y: 504,
-        text: 'Part는 구조 내부에 포함되고 Port는 소유 요소의 테두리에 고정됩니다.\nConnector는 Port/Part를 연결하고 Role Binding은 Collaboration Use의 역할을 Part에 매핑합니다.',
+        text: uiText(
+          'Parts are nested in a structure and ports attach to their owner\'s border.\nConnectors join ports and parts. Role bindings map collaboration roles to parts.',
+          'Part는 구조 내부에 포함되고 Port는 소유 요소의 테두리에 고정됩니다.\nConnector는 Port/Part를 연결하고 Role Binding은 Collaboration Use의 역할을 Part에 매핑합니다.',
+        ),
       });
       return {
         id: uid(), type: 'composite', name: 'Rendering Composite Structure',
@@ -1442,10 +1481,43 @@ function createSampleDiagramsModule() {
     }
 
     function sampleERD() {
-      const user = NE({ kind: 'entity', name: 'TB_USER', logicalName: '회원', x: 96, y: 120, columns: ['PK id <회원번호>: VARCHAR2(50)', 'NN name <이름>: VARCHAR2(50)', 'NN email <이메일>: VARCHAR2(100)', 'created_at <가입일시>: DATE'] });
-      const post = NE({ kind: 'entity', name: 'TB_POST', logicalName: '게시글', x: 528, y: 120, columns: ['PK id <글번호>: VARCHAR2(50)', 'FK NN user_id <작성자번호>: VARCHAR2(50)', 'NN title <제목>: VARCHAR2(200)', 'content <내용>: CLOB'] });
-      const tag = NE({ kind: 'entity', name: 'TB_TAG', logicalName: '태그', x: 968, y: 128, columns: ['PK id <태그번호>: VARCHAR2(50)', 'NN name <태그명>: VARCHAR2(30)'] });
-      const note = NE({ kind: 'note', name: 'Note1', x: 448, y: 328, text: "까마귀발(crow's foot): || = 1 · |< = 1..N\n○| = 0..1 · ○< = 0..N\n관계 선택 후 양쪽 참여 개수를 변경할 수 있습니다." });
+      const user = NE({ kind: 'entity', name: 'TB_USER', logicalName: uiText('Member', '회원'), x: 96, y: 120, columns: [uiText(
+        'PK id <Member ID>: VARCHAR2(50)',
+        'PK id <회원번호>: VARCHAR2(50)',
+      ), uiText(
+        'NN name <Name>: VARCHAR2(50)',
+        'NN name <이름>: VARCHAR2(50)',
+      ), uiText(
+        'NN email <Email>: VARCHAR2(100)',
+        'NN email <이메일>: VARCHAR2(100)',
+      ), uiText(
+        'created_at <Joined At>: DATE',
+        'created_at <가입일시>: DATE',
+      )] });
+      const post = NE({ kind: 'entity', name: 'TB_POST', logicalName: uiText('Post', '게시글'), x: 528, y: 120, columns: [uiText(
+        'PK id <Post ID>: VARCHAR2(50)',
+        'PK id <글번호>: VARCHAR2(50)',
+      ), uiText(
+        'FK NN user_id <Author ID>: VARCHAR2(50)',
+        'FK NN user_id <작성자번호>: VARCHAR2(50)',
+      ), uiText(
+        'NN title <Title>: VARCHAR2(200)',
+        'NN title <제목>: VARCHAR2(200)',
+      ), uiText(
+        'content <Content>: CLOB',
+        'content <내용>: CLOB',
+      )] });
+      const tag = NE({ kind: 'entity', name: 'TB_TAG', logicalName: uiText('Tag', '태그'), x: 968, y: 128, columns: [uiText(
+        'PK id <Tag ID>: VARCHAR2(50)',
+        'PK id <태그번호>: VARCHAR2(50)',
+      ), uiText(
+        'NN name <Tag Name>: VARCHAR2(30)',
+        'NN name <태그명>: VARCHAR2(30)',
+      )] });
+      const note = NE({ kind: 'note', name: 'Note1', x: 448, y: 328, text: uiText(
+        'Crow\'s foot notation: || = 1 · |< = 1..N\n○| = 0..1 · ○< = 0..N\nSelect a relationship to set the cardinality at both ends.',
+        '까마귀발(crow\'s foot): || = 1 · |< = 1..N\n○| = 0..1 · ○< = 0..N\n관계 선택 후 양쪽 참여 개수를 변경할 수 있습니다.',
+      ) });
       return {
         id: uid(), type: 'erd', name: 'ER Diagram', erdMode: 'both',
         elements: [user, post, tag, note],

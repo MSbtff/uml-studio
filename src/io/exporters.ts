@@ -40,6 +40,9 @@ declare var UMLExporters: ExportersApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createExporters);
 
 function createExporters(erdCardinalityApi: ExportCardinalityApi, erdColumnApi: ValidationColumnApi, erdSchemaApi: ExportErdSchemaApi) {
+  const { text: uiText } = globalThis.UMLLanguage
+    ?? require('../editor/language.js') as typeof UMLLanguage;
+
   type RelationEnd = 'source' | 'target';
   type ExportView = DiagramElement | DiagramRelation;
   interface DdlDialect { id: 'postgresql' | 'mysql' | 'sqlite'; label: string; fileTag: string; quote: string }
@@ -820,8 +823,12 @@ function createExporters(erdCardinalityApi: ExportCardinalityApi, erdColumnApi: 
 
   function ddlIdentifier(value: unknown, dialect: DdlDialect, description: string) {
     const identifier = String(value || '').trim();
-    if (!identifier) throw new Error(`${description} 물리명이 없습니다.`);
-    if (/[\0\r\n]/.test(identifier)) throw new Error(`${description} 물리명에 제어 문자를 사용할 수 없습니다.`);
+    if (!identifier) throw new Error(uiText('{0} has no physical name.', '{0} 물리명이 없습니다.', description));
+    if (/[\0\r\n]/.test(identifier)) throw new Error(uiText(
+      '{0} physical name cannot contain control characters.',
+      '{0} 물리명에 제어 문자를 사용할 수 없습니다.',
+      description,
+    ));
     const quote = dialect.quote;
     return `${quote}${identifier.replaceAll(quote, quote + quote)}${quote}`;
   }
@@ -833,7 +840,11 @@ function createExporters(erdCardinalityApi: ExportCardinalityApi, erdColumnApi: 
   function erdDdlType(rawType: unknown, dialect: DdlDialect) {
     const source = String(rawType || '').trim() || 'TEXT';
     if (/[;\0\r\n]|--|\/\*|\*\//.test(source)) {
-      throw new Error(`데이터 타입에 SQL 문장 구분자나 주석을 사용할 수 없습니다: ${source}`);
+      throw new Error(uiText(
+        'Data types cannot contain SQL statement separators or comments: {0}',
+        '데이터 타입에 SQL 문장 구분자나 주석을 사용할 수 없습니다: {0}',
+        source,
+      ));
     }
     const simple = source.match(/^([A-Za-z][A-Za-z0-9_]*)(\s*\([^)]*\))?$/);
     if (!simple) return source;
@@ -862,16 +873,16 @@ function createExporters(erdCardinalityApi: ExportCardinalityApi, erdColumnApi: 
 
   function exportErdDdl(diagram: EditorDiagram, models: DiagramModels, dialectId = 'postgresql') {
     if (!diagram || diagram.type !== 'erd' || !Array.isArray(diagram.elements)) {
-      throw new Error('ER Diagram만 DDL로 내보낼 수 있습니다.');
+      throw new Error(uiText('DDL export is available for ER diagrams.', 'ER Diagram만 DDL로 내보낼 수 있습니다.'));
     }
     const dialect = ERD_DDL_DIALECTS[dialectId];
-    if (!dialect) throw new Error(`지원하지 않는 DDL 방언입니다: ${dialectId}`);
+    if (!dialect) throw new Error(uiText('Unsupported DDL dialect: {0}', '지원하지 않는 DDL 방언입니다: {0}', dialectId));
     const modelOf = (view?: ExportView) => view?.modelId ? models?.[view.modelId] : undefined;
     type ModelValues = ModelFields & { kind: string };
     const valueOf = <Key extends keyof ModelValues>(view: ExportView | undefined, field: Key): ModelValues[Key] | undefined =>
       view?.[field] !== undefined ? view[field] : modelOf(view)?.[field];
     const entityViews = diagram.elements.filter(element => (valueOf(element, 'kind')) === 'entity');
-    if (!entityViews.length) throw new Error('DDL로 내보낼 Entity가 없습니다.');
+    if (!entityViews.length) throw new Error(uiText('No entities to export as DDL.', 'DDL로 내보낼 Entity가 없습니다.'));
 
     const tableByModel = new Map<string, ExportTable>();
     const tableByViewId = new Map<string, ExportTable>();
@@ -886,19 +897,19 @@ function createExporters(erdCardinalityApi: ExportCardinalityApi, erdColumnApi: 
       }
       const tableName = String(valueOf(entity, 'name') || '').trim();
       const tableKey = tableName.toLocaleLowerCase();
-      if (seenTables.has(tableKey)) throw new Error(`중복된 Entity 물리명이 있습니다: ${tableName}`);
+      if (seenTables.has(tableKey)) throw new Error(uiText('Duplicate entity physical name: {0}', '중복된 Entity 물리명이 있습니다: {0}', tableName));
       seenTables.add(tableKey);
       const quotedTable = ddlIdentifier(tableName, dialect, `Entity ${entityIndex + 1}`);
       const columnValues = valueOf(entity, 'columns');
       const rawColumns = Array.isArray(columnValues) ? columnValues : [];
-      if (!rawColumns.length) throw new Error(`'${tableName}' Entity에 내보낼 컬럼이 없습니다.`);
+      if (!rawColumns.length) throw new Error(uiText('Entity \'{0}\' has no columns to export.', '\'{0}\' Entity에 내보낼 컬럼이 없습니다.', tableName));
       const seenColumns = new Set();
       const columns: ExportColumn[] = rawColumns.map((raw, columnIndex) => {
         const column = parseErdColumn(raw);
         const columnName = String(column.phys || '').trim();
         const columnKey = columnName.toLocaleLowerCase();
         if (seenColumns.has(columnKey)) {
-          throw new Error(`'${tableName}' Entity에 중복된 컬럼이 있습니다: ${columnName}`);
+          throw new Error(uiText('Entity \'{0}\' has duplicate columns: {1}', '\'{0}\' Entity에 중복된 컬럼이 있습니다: {1}', tableName, columnName));
         }
         seenColumns.add(columnKey);
         const flags = new Set(column.flags);
@@ -925,7 +936,12 @@ function createExporters(erdCardinalityApi: ExportCardinalityApi, erdColumnApi: 
           name.toLocaleLowerCase() === column.name.toLocaleLowerCase());
         const details = detailsKey ? schema.columnDetails[detailsKey] : {};
         column.details = details;
-        column.definition = `${ddlIdentifier(column.name, dialect, `'${tableName}' 컬럼 ${column.columnIndex + 1}`)}`
+        column.definition = `${ddlIdentifier(column.name, dialect, uiText(
+          'Entity \'{0}\' column {1}',
+          '\'{0}\' 컬럼 {1}',
+          tableName,
+          column.columnIndex + 1,
+        ))}`
           + ` ${erdDdlType(column.type, dialect)}`
           + `${column.isPrimaryKey || column.isNotNull ? ' NOT NULL' : ''}`
           + `${details.defaultValue ? ` DEFAULT ${safeSqlFragment(details.defaultValue, `'${tableName}.${column.name}' DEFAULT`)}` : ''}`
@@ -963,51 +979,97 @@ function createExporters(erdCardinalityApi: ExportCardinalityApi, erdColumnApi: 
       });
       if (!foreignKeyEnd && !sourceColumnName && !targetColumnName && !actions.onDelete && !actions.onUpdate) return;
       if (!['source', 'target'].includes(foreignKeyEnd) || !sourceColumnName || !targetColumnName) {
-        throw new Error(`'${valueOf(relation, 'name') || relation.id}' 관계의 FK 연결이 완성되지 않았습니다.`);
+        throw new Error(uiText(
+          'Foreign key binding for relationship \'{0}\' is incomplete.',
+          '\'{0}\' 관계의 FK 연결이 완성되지 않았습니다.',
+          valueOf(relation, 'name') || relation.id,
+        ));
       }
       const sourceTable = tableByViewId.get(relation.from);
       const targetTable = tableByViewId.get(relation.to);
       if (!sourceTable || !targetTable) {
-        throw new Error(`'${valueOf(relation, 'name') || relation.id}' 관계의 Entity 연결을 찾을 수 없습니다.`);
+        throw new Error(uiText(
+          'Could not find both entities in relationship \'{0}\'.',
+          '\'{0}\' 관계의 Entity 연결을 찾을 수 없습니다.',
+          valueOf(relation, 'name') || relation.id,
+        ));
       }
       const sourceColumn = sourceTable.columnByName.get(sourceColumnName.toLocaleLowerCase());
       const targetColumn = targetTable.columnByName.get(targetColumnName.toLocaleLowerCase());
-      if (!sourceColumn) throw new Error(`'${sourceTable.tableName}' Entity에서 FK 연결 컬럼을 찾을 수 없습니다: ${sourceColumnName}`);
-      if (!targetColumn) throw new Error(`'${targetTable.tableName}' Entity에서 FK 연결 컬럼을 찾을 수 없습니다: ${targetColumnName}`);
+      if (!sourceColumn) throw new Error(uiText(
+        'Foreign key column on entity \'{0}\' not found: {1}',
+        '\'{0}\' Entity에서 FK 연결 컬럼을 찾을 수 없습니다: {1}',
+        sourceTable.tableName,
+        sourceColumnName,
+      ));
+      if (!targetColumn) throw new Error(uiText(
+        'Referenced column on entity \'{0}\' not found: {1}',
+        '\'{0}\' Entity에서 FK 연결 컬럼을 찾을 수 없습니다: {1}',
+        targetTable.tableName,
+        targetColumnName,
+      ));
       const foreignKeyTable = foreignKeyEnd === 'source' ? sourceTable : targetTable;
       const referencedTable = foreignKeyEnd === 'source' ? targetTable : sourceTable;
       const foreignKeyColumn = foreignKeyEnd === 'source' ? sourceColumn : targetColumn;
       const referencedColumn = foreignKeyEnd === 'source' ? targetColumn : sourceColumn;
       const referencedPrimaryKeys = referencedTable.columns.filter(column => column.isPrimaryKey);
       if (!referencedColumn.isPrimaryKey || referencedPrimaryKeys.length !== 1) {
-        throw new Error(`단일 컬럼 FK의 참조 대상은 단일 PK여야 합니다: ${referencedTable.tableName}.${referencedColumn.name}`);
+        throw new Error(uiText(
+          'Single-column foreign keys must reference a single-column primary key: {0}.{1}',
+          '단일 컬럼 FK의 참조 대상은 단일 PK여야 합니다: {0}.{1}',
+          referencedTable.tableName,
+          referencedColumn.name,
+        ));
       }
       const signature = [foreignKeyTable.key, foreignKeyColumn.name.toLocaleLowerCase(),
         referencedTable.key, referencedColumn.name.toLocaleLowerCase()].join('\u0000');
       const actionSignature = `${actions.onDelete}\u0000${actions.onUpdate}`;
       if (seenConstraints.has(signature)) {
         if (seenConstraints.get(signature) !== actionSignature) {
-          throw new Error(`같은 FK 연결에 서로 다른 참조 동작이 지정되었습니다: ${foreignKeyTable.tableName}.${foreignKeyColumn.name}`);
+          throw new Error(uiText(
+            'Conflicting referential actions for the same foreign key: {0}.{1}',
+            '같은 FK 연결에 서로 다른 참조 동작이 지정되었습니다: {0}.{1}',
+            foreignKeyTable.tableName,
+            foreignKeyColumn.name,
+          ));
         }
         return;
       }
       seenConstraints.set(signature, actionSignature);
       if (dialect.id === 'mysql' && (actions.onDelete === 'SET DEFAULT' || actions.onUpdate === 'SET DEFAULT')) {
-        throw new Error(`MySQL InnoDB는 SET DEFAULT FK 참조 동작을 지원하지 않습니다: ${foreignKeyTable.tableName}.${foreignKeyColumn.name}`);
+        throw new Error(uiText(
+          'MySQL InnoDB does not support SET DEFAULT for foreign keys: {0}.{1}',
+          'MySQL InnoDB는 SET DEFAULT FK 참조 동작을 지원하지 않습니다: {0}.{1}',
+          foreignKeyTable.tableName,
+          foreignKeyColumn.name,
+        ));
       }
       if ((actions.onDelete === 'SET NULL' || actions.onUpdate === 'SET NULL') && foreignKeyColumn.isNotNull) {
-        throw new Error(`SET NULL FK 참조 동작에는 nullable FK 컬럼이 필요합니다: ${foreignKeyTable.tableName}.${foreignKeyColumn.name}`);
+        throw new Error(uiText(
+          'SET NULL requires a nullable foreign key column: {0}.{1}',
+          'SET NULL FK 참조 동작에는 nullable FK 컬럼이 필요합니다: {0}.{1}',
+          foreignKeyTable.tableName,
+          foreignKeyColumn.name,
+        ));
       }
       if ((actions.onDelete === 'SET DEFAULT' || actions.onUpdate === 'SET DEFAULT')
         && foreignKeyColumn.isNotNull && !foreignKeyColumn.details.defaultValue) {
-        throw new Error(`SET DEFAULT FK 참조 동작의 NOT NULL FK 컬럼에는 DEFAULT가 필요합니다: ${foreignKeyTable.tableName}.${foreignKeyColumn.name}`);
+        throw new Error(uiText(
+          'SET DEFAULT requires a DEFAULT for a NOT NULL foreign key column: {0}.{1}',
+          'SET DEFAULT FK 참조 동작의 NOT NULL FK 컬럼에는 DEFAULT가 필요합니다: {0}.{1}',
+          foreignKeyTable.tableName,
+          foreignKeyColumn.name,
+        ));
       }
       const actionClause = `${actions.onDelete ? ` ON DELETE ${actions.onDelete}` : ''}`
         + `${actions.onUpdate ? ` ON UPDATE ${actions.onUpdate}` : ''}`;
       foreignKeyTable.linkedForeignKeyColumns.add(foreignKeyColumn.name.toLocaleLowerCase());
       foreignKeyTable.foreignKeys.push({
         referencedTable,
-        text: `FOREIGN KEY (${ddlIdentifier(foreignKeyColumn.name, dialect, 'FK 컬럼')}) REFERENCES ${referencedTable.quotedTable} (${ddlIdentifier(referencedColumn.name, dialect, '참조 컬럼')})${actionClause}`,
+        text: `FOREIGN KEY (${ddlIdentifier(foreignKeyColumn.name, dialect, uiText('Foreign key column', 'FK 컬럼'))}) REFERENCES ${referencedTable.quotedTable} (${ddlIdentifier(referencedColumn.name, dialect, uiText(
+          'Referenced column',
+          '참조 컬럼',
+        ))})${actionClause}`,
       });
     });
 
@@ -1022,27 +1084,30 @@ function createExporters(erdCardinalityApi: ExportCardinalityApi, erdColumnApi: 
       const primaryKeys = table.columns.filter(column => column.isPrimaryKey);
       if (primaryKeys.length) {
         definitions.push({
-          text: `PRIMARY KEY (${primaryKeys.map(column => ddlIdentifier(column.name, dialect, 'Primary Key 컬럼')).join(', ')})`,
+          text: `PRIMARY KEY (${primaryKeys.map(column => ddlIdentifier(column.name, dialect, uiText('Primary key column', 'Primary Key 컬럼'))).join(', ')})`,
           note: '',
         });
       }
       table.columns.filter(column => column.isUnique && column.details.uniqueName).forEach(column => {
         definitions.push({
-          text: `CONSTRAINT ${ddlIdentifier(column.details.uniqueName, dialect, 'UNIQUE 제약')} UNIQUE (${ddlIdentifier(column.name, dialect, 'UNIQUE 컬럼')})`,
+          text: `CONSTRAINT ${ddlIdentifier(column.details.uniqueName, dialect, uiText('UNIQUE constraint', 'UNIQUE 제약'))} UNIQUE (${ddlIdentifier(column.name, dialect, uiText(
+            'UNIQUE column',
+            'UNIQUE 컬럼',
+          ))})`,
           note: '',
         });
       });
       table.schema.indexes.filter(index => index.kind === 'unique' && !index.where).forEach(index => {
         const columns = index.columns.map(column =>
-          ddlIdentifier(column.name, dialect, `UNIQUE '${index.name || table.tableName}' 컬럼`)).join(', ');
+          ddlIdentifier(column.name, dialect, uiText('UNIQUE \'{0}\' column', 'UNIQUE \'{0}\' 컬럼', index.name || table.tableName))).join(', ');
         definitions.push({
-          text: `${index.name ? `CONSTRAINT ${ddlIdentifier(index.name, dialect, 'UNIQUE 제약')} ` : ''}UNIQUE (${columns})`,
+          text: `${index.name ? `CONSTRAINT ${ddlIdentifier(index.name, dialect, uiText('UNIQUE constraint', 'UNIQUE 제약'))} ` : ''}UNIQUE (${columns})`,
           note: '',
         });
       });
       table.schema.checks.forEach(check => {
         definitions.push({
-          text: `${check.name ? `CONSTRAINT ${ddlIdentifier(check.name, dialect, 'CHECK 제약')} ` : ''}`
+          text: `${check.name ? `CONSTRAINT ${ddlIdentifier(check.name, dialect, uiText('CHECK constraint', 'CHECK 제약'))} ` : ''}`
             + `CHECK (${safeSqlFragment(check.expression, `CHECK '${check.name || table.tableName}'`)})`,
           note: check.column ? `column: ${ddlComment(check.column)}` : '',
         });
@@ -1065,17 +1130,25 @@ function createExporters(erdCardinalityApi: ExportCardinalityApi, erdColumnApi: 
     tables.forEach(table => {
       table.schema.indexes.filter(index => index.kind === 'index' || index.where).forEach((index, position) => {
         if (dialect.id === 'mysql' && index.where) {
-          throw new Error(`MySQL은 부분 인덱스 WHERE를 지원하지 않습니다: ${index.name || table.tableName}`);
+          throw new Error(uiText(
+            'MySQL does not support a WHERE clause on a partial index: {0}',
+            'MySQL은 부분 인덱스 WHERE를 지원하지 않습니다: {0}',
+            index.name || table.tableName,
+          ));
         }
         const fallback = `${table.tableName}_${index.columns.map(column => column.name).join('_')}_${index.unique ? 'uq' : 'idx'}${position + 1}`;
         const name = index.name || fallback;
         const key = name.toLocaleLowerCase();
-        if (emittedIndexNames.has(key)) throw new Error(`중복된 인덱스 이름입니다: ${name}`);
+        if (emittedIndexNames.has(key)) throw new Error(uiText('Duplicate index name: {0}', '중복된 인덱스 이름입니다: {0}', name));
         emittedIndexNames.add(key);
         const columns = index.columns.map(column =>
-          `${ddlIdentifier(column.name, dialect, `인덱스 '${name}' 컬럼`)}${column.order ? ` ${column.order}` : ''}`).join(', ');
-        indexSources.push(`CREATE ${index.unique ? 'UNIQUE ' : ''}INDEX ${ddlIdentifier(name, dialect, '인덱스')}`
-          + ` ON ${table.quotedTable} (${columns})${index.where ? ` WHERE ${safeSqlFragment(index.where, `인덱스 '${name}' WHERE`)}` : ''};`);
+          `${ddlIdentifier(column.name, dialect, uiText('Index \'{0}\' column', '인덱스 \'{0}\' 컬럼', name))}${column.order ? ` ${column.order}` : ''}`).join(', ');
+        indexSources.push(`CREATE ${index.unique ? 'UNIQUE ' : ''}INDEX ${ddlIdentifier(name, dialect, uiText('index', '인덱스'))}`
+          + ` ON ${table.quotedTable} (${columns})${index.where ? ` WHERE ${safeSqlFragment(index.where, uiText(
+            'Index \'{0}\' WHERE clause',
+            '인덱스 \'{0}\' WHERE',
+            name,
+          ))}` : ''};`);
       });
     });
 
@@ -1086,7 +1159,10 @@ function createExporters(erdCardinalityApi: ExportCardinalityApi, erdColumnApi: 
         foreignKey.referencedTable === table || !pendingTables.has(foreignKey.referencedTable)));
       if (!ready.length) {
         if (dialect.id !== 'sqlite') {
-          throw new Error('순환 FK 관계는 PostgreSQL/MySQL CREATE TABLE DDL로 내보낼 수 없습니다.');
+          throw new Error(uiText(
+            'Cyclic foreign keys cannot be exported as PostgreSQL or MySQL CREATE TABLE DDL.',
+            '순환 FK 관계는 PostgreSQL/MySQL CREATE TABLE DDL로 내보낼 수 없습니다.',
+          ));
         }
         orderedTables.push(...pendingTables);
         break;
@@ -1115,7 +1191,7 @@ function createExporters(erdCardinalityApi: ExportCardinalityApi, erdColumnApi: 
 
   function exportMermaid(diagram: EditorDiagram, models: DiagramModels) {
     if (!diagram || !Array.isArray(diagram.elements) || !Array.isArray(diagram.relations)) {
-      throw new Error('내보낼 다이어그램 데이터가 올바르지 않습니다.');
+      throw new Error(uiText('Invalid diagram data for export.', '내보낼 다이어그램 데이터가 올바르지 않습니다.'));
     }
     if (diagram.type === 'class') return exportClassMermaid(diagram, models);
     if (diagram.type === 'sequence') return exportSequenceMermaid(diagram, models);
@@ -1384,7 +1460,7 @@ function createExporters(erdCardinalityApi: ExportCardinalityApi, erdColumnApi: 
 
   function exportDrawio(diagram: EditorDiagram, models: DiagramModels) {
     if (!diagram || !Array.isArray(diagram.elements) || !Array.isArray(diagram.relations)) {
-      throw new Error('내보낼 다이어그램 데이터가 올바르지 않습니다.');
+      throw new Error(uiText('Invalid diagram data for export.', '내보낼 다이어그램 데이터가 올바르지 않습니다.'));
     }
     const allViews = [...diagram.elements, ...diagram.relations];
     const ids = makeIdMap(allViews, 'cell');

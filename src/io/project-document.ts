@@ -19,6 +19,9 @@ declare var UMLProjectDocument: ProjectDocumentApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createProjectDocumentModule);
 
 function createProjectDocumentModule() {
+  const { text: uiText } = globalThis.UMLLanguage
+    ?? require('../editor/language.js') as typeof UMLLanguage;
+
   const PROJECT_VERSION = 30;
   const REQUIRED_FUNCTIONS = Object.freeze([
     'alert',
@@ -424,7 +427,11 @@ function createProjectDocumentModule() {
         if (options.persist !== false) scheduleRecoverySave(0);
         return true;
       } catch (error) {
-        if (!options.silent) alert(`파일을 읽을 수 없습니다: ${error instanceof Error ? error.message : String(error)}`);
+        if (!options.silent) alert(uiText(
+          'Could not read the file: {0}',
+          '파일을 읽을 수 없습니다: {0}',
+          error instanceof Error ? error.message : String(error),
+        ));
         return false;
       }
     }

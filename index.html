@@ -1,83 +1,84 @@
 <!doctype html>
-<html lang="ko">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>UML Studio</title>
-  <link rel="stylesheet" href="styles.css?v=27">
+  <link rel="stylesheet" href="styles.css?v=28">
 </head>
 <body>
 <div id="app">
   <div id="menubar">
     <span class="logo">◆ UML Studio</span>
-    <div class="menu-list" role="menubar" aria-label="주 메뉴" aria-orientation="horizontal">
-      <span class="menu" id="menubar-trigger-file" data-menu="file" role="menuitem" aria-haspopup="true" aria-expanded="false" tabindex="0">File</span>
-      <span class="menu" id="menubar-trigger-edit" data-menu="edit" role="menuitem" aria-haspopup="true" aria-expanded="false" tabindex="-1">Edit</span>
-      <span class="menu" id="menubar-trigger-format" data-menu="format" role="menuitem" aria-haspopup="true" aria-expanded="false" tabindex="-1">Format</span>
-      <span class="menu" id="menubar-trigger-model" data-menu="model" role="menuitem" aria-haspopup="true" aria-expanded="false" tabindex="-1">Model</span>
-      <span class="menu" id="menubar-trigger-tools" data-menu="tools" role="menuitem" aria-haspopup="true" aria-expanded="false" tabindex="-1">Tools</span>
-      <span class="menu" id="menubar-trigger-view" data-menu="view" role="menuitem" aria-haspopup="true" aria-expanded="false" tabindex="-1">View</span>
-      <span class="menu" id="menubar-trigger-help" data-menu="help" role="menuitem" aria-haspopup="true" aria-expanded="false" tabindex="-1">Help</span>
+    <div class="menu-list" role="menubar" aria-label="Main menu" data-ko-label="주 메뉴" aria-orientation="horizontal">
+      <span class="menu" id="menubar-trigger-file" data-menu="file" role="menuitem" aria-haspopup="true" aria-expanded="false" tabindex="0" data-ko="파일">File</span>
+      <span class="menu" id="menubar-trigger-edit" data-menu="edit" role="menuitem" aria-haspopup="true" aria-expanded="false" tabindex="-1" data-ko="편집">Edit</span>
+      <span class="menu" id="menubar-trigger-format" data-menu="format" role="menuitem" aria-haspopup="true" aria-expanded="false" tabindex="-1" data-ko="서식">Format</span>
+      <span class="menu" id="menubar-trigger-model" data-menu="model" role="menuitem" aria-haspopup="true" aria-expanded="false" tabindex="-1" data-ko="모델">Model</span>
+      <span class="menu" id="menubar-trigger-tools" data-menu="tools" role="menuitem" aria-haspopup="true" aria-expanded="false" tabindex="-1" data-ko="도구">Tools</span>
+      <span class="menu" id="menubar-trigger-view" data-menu="view" role="menuitem" aria-haspopup="true" aria-expanded="false" tabindex="-1" data-ko="보기">View</span>
+      <span class="menu" id="menubar-trigger-help" data-menu="help" role="menuitem" aria-haspopup="true" aria-expanded="false" tabindex="-1" data-ko="도움말">Help</span>
     </div>
     <span class="spacer"></span>
+    <button id="language-settings" aria-haspopup="dialog" type="button" disabled data-ko="설정">Settings</button>
   </div>
 
-  <div id="toolbar" role="toolbar" aria-label="주 도구 모음" aria-orientation="horizontal">
-    <button data-cmd="new"  title="New Diagram">New</button>
-    <button data-cmd="open" title="Open (.json)">Open</button>
-    <button data-cmd="save" title="Save (.json)">Save</button>
-    <button data-cmd="projects" title="프로젝트와 복구 이력 관리">Projects</button>
+  <div id="toolbar" role="toolbar" aria-label="Main toolbar" data-ko-label="주 도구 모음" aria-orientation="horizontal">
+    <button data-cmd="new"  title="New Diagram" data-ko-title="새 다이어그램" data-ko="새로 만들기">New</button>
+    <button data-cmd="open" title="Open (.json)" data-ko-title="열기 (.json)" data-ko="열기">Open</button>
+    <button data-cmd="save" title="Save (.json)" data-ko-title="저장 (.json)" data-ko="저장">Save</button>
+    <button data-cmd="projects" title="Manage projects and recovery history" data-ko-title="프로젝트와 복구 이력 관리" data-ko="프로젝트">Projects</button>
     <span class="sep" role="separator" aria-orientation="vertical"></span>
-    <button data-cmd="undo" title="Undo (Ctrl+Z)">Undo</button>
-    <button data-cmd="redo" title="Redo (Ctrl+Shift+Z)">Redo</button>
+    <button data-cmd="undo" title="Undo (Ctrl+Z)" data-ko-title="실행 취소 (Ctrl+Z)" data-ko="실행 취소">Undo</button>
+    <button data-cmd="redo" title="Redo (Ctrl+Shift+Z)" data-ko-title="다시 실행 (Ctrl+Shift+Z)" data-ko="다시 실행">Redo</button>
     <span class="sep" role="separator" aria-orientation="vertical"></span>
-    <button data-cmd="copy" title="복사 (Ctrl+C)">Copy</button>
-    <button data-cmd="cut" title="잘라내기 (Ctrl+X)">Cut</button>
-    <button data-cmd="paste" title="붙여넣기 (Ctrl+V)">Paste</button>
-    <button data-cmd="duplicate" title="복제 (Ctrl+D)">Dup</button>
+    <button data-cmd="copy" title="Copy (Ctrl+C)" data-ko-title="복사 (Ctrl+C)" data-ko="복사">Copy</button>
+    <button data-cmd="cut" title="Cut (Ctrl+X)" data-ko-title="잘라내기 (Ctrl+X)" data-ko="잘라내기">Cut</button>
+    <button data-cmd="paste" title="Paste (Ctrl+V)" data-ko-title="붙여넣기 (Ctrl+V)" data-ko="붙여넣기">Paste</button>
+    <button data-cmd="duplicate" title="Duplicate (Ctrl+D)" data-ko-title="복제 (Ctrl+D)" data-ko="복제">Dup</button>
     <span class="sep" role="separator" aria-orientation="vertical"></span>
-    <button data-cmd="delete" title="현재 다이어그램에서 뷰만 삭제 (Del)">Delete View</button>
-    <button data-cmd="deletemodel" title="모델과 모든 다이어그램의 뷰 삭제 (Ctrl+Del)">Delete Model</button>
-    <button data-cmd="models" title="프로젝트 모델 저장소 열기">Models</button>
-    <button data-cmd="validate" title="프로젝트 UML 규칙 검사 (F9)">Validate</button>
+    <button data-cmd="delete" title="Delete views from this diagram (Del)" data-ko-title="현재 다이어그램에서 뷰만 삭제 (Del)" data-ko="뷰 삭제">Delete View</button>
+    <button data-cmd="deletemodel" title="Delete models and their views (Ctrl+Del)" data-ko-title="모델과 모든 다이어그램의 뷰 삭제 (Ctrl+Del)" data-ko="모델 삭제">Delete Model</button>
+    <button data-cmd="models" title="Open project models" data-ko-title="프로젝트 모델 저장소 열기" data-ko="모델 목록">Models</button>
+    <button data-cmd="validate" title="Validate UML rules (F9)" data-ko-title="프로젝트 UML 규칙 검사 (F9)" data-ko="검증">Validate</button>
     <span class="sep" role="separator" aria-orientation="vertical"></span>
-    <button data-cmd="exportsvg" title="현재 다이어그램을 SVG로 내보내기">SVG</button>
-    <button data-cmd="exportpng" title="현재 다이어그램을 PNG로 내보내기 (2x)">PNG</button>
-    <button data-cmd="exportall" title="모든 다이어그램을 PNG로 일괄 내보내기">All PNG</button>
-    <button data-cmd="exportmermaid" title="현재 다이어그램을 Mermaid 소스로 내보내기">Mermaid</button>
-    <button data-cmd="exportdrawio" title="현재 다이어그램을 편집 가능한 draw.io 파일로 내보내기">draw.io</button>
-    <button data-cmd="exportddl" title="ERD를 PostgreSQL·MySQL·SQLite CREATE TABLE DDL로 내보내기">DDL</button>
-    <button data-cmd="importddl" title="PostgreSQL·MySQL·SQLite CREATE TABLE DDL을 현재 프로젝트로 가져오기">Import DDL</button>
-    <button data-cmd="importdrawio" title="draw.io 다이어그램을 현재 프로젝트로 가져오기">Import draw.io</button>
+    <button data-cmd="exportsvg" title="Export the current diagram as SVG" data-ko-title="현재 다이어그램을 SVG로 내보내기">SVG</button>
+    <button data-cmd="exportpng" title="Export the current diagram as PNG (2×)" data-ko-title="현재 다이어그램을 PNG로 내보내기 (2x)">PNG</button>
+    <button data-cmd="exportall" title="Export all diagrams as PNG" data-ko-title="모든 다이어그램을 PNG로 일괄 내보내기" data-ko="모든 PNG">All PNG</button>
+    <button data-cmd="exportmermaid" title="Export the current diagram as Mermaid" data-ko-title="현재 다이어그램을 Mermaid 소스로 내보내기">Mermaid</button>
+    <button data-cmd="exportdrawio" title="Export the current diagram as editable draw.io XML" data-ko-title="현재 다이어그램을 편집 가능한 draw.io 파일로 내보내기">draw.io</button>
+    <button data-cmd="exportddl" title="Export ERD DDL for PostgreSQL, MySQL, or SQLite" data-ko-title="ERD를 PostgreSQL·MySQL·SQLite CREATE TABLE DDL로 내보내기">DDL</button>
+    <button data-cmd="importddl" title="Import PostgreSQL, MySQL, or SQLite CREATE TABLE DDL" data-ko-title="PostgreSQL·MySQL·SQLite CREATE TABLE DDL을 현재 프로젝트로 가져오기" data-ko="DDL 가져오기">Import DDL</button>
+    <button data-cmd="importdrawio" title="Import a draw.io diagram into the current project" data-ko-title="draw.io 다이어그램을 현재 프로젝트로 가져오기" data-ko="draw.io 가져오기">Import draw.io</button>
     <span id="erdmode"></span>
     <span id="seqopts"></span>
     <span class="spacer" aria-hidden="true"></span>
-    <button data-cmd="fit" title="Fit to Window (Ctrl+9)">Fit</button>
-    <button data-cmd="minimap" id="minimapButton" title="Minimap (Ctrl+Alt+M)">Map</button>
-    <button data-cmd="zoomout" title="Zoom Out" aria-label="축소">−</button>
-    <button data-cmd="zoomreset" id="zoomLabel" title="Reset Zoom">100%</button>
-    <button data-cmd="zoomin" title="Zoom In" aria-label="확대">+</button>
+    <button data-cmd="fit" title="Fit to Window (Ctrl+9)" data-ko-title="화면 맞춤 (Ctrl+9)" data-ko="화면 맞춤">Fit</button>
+    <button data-cmd="minimap" id="minimapButton" title="Minimap (Ctrl+Alt+M)" data-ko-title="미니맵 (Ctrl+Alt+M)" data-ko="미니맵">Map</button>
+    <button data-cmd="zoomout" title="Zoom Out" data-ko-title="축소" aria-label="Zoom Out" data-ko-label="축소">−</button>
+    <button data-cmd="zoomreset" id="zoomLabel" title="Reset Zoom" data-ko-title="원래 배율">100%</button>
+    <button data-cmd="zoomin" title="Zoom In" data-ko-title="확대" aria-label="Zoom In" data-ko-label="확대">+</button>
   </div>
 
-  <div id="tabs" role="tablist" aria-label="다이어그램 탭" aria-orientation="horizontal"></div>
+  <div id="tabs" role="tablist" aria-label="Diagram tabs" data-ko-label="다이어그램 탭" aria-orientation="horizontal"></div>
 
   <div id="main">
-    <div id="toolbox" aria-label="다이어그램 도구"></div>
-    <div id="canvas-wrap" role="tabpanel" aria-label="다이어그램 캔버스" tabindex="0">
+    <div id="toolbox" aria-label="Diagram tools" data-ko-label="다이어그램 도구"></div>
+    <div id="canvas-wrap" role="tabpanel" aria-label="Diagram canvas" data-ko-label="다이어그램 캔버스" tabindex="0">
       <svg id="canvas"></svg>
       <div id="minimap" hidden><svg id="minimap-svg" viewBox="0 0 180 120"></svg></div>
     </div>
     <div id="rightpanel">
       <div class="panel" id="explorer-panel" role="region" aria-labelledby="explorer-panel-title">
-        <div class="panel-title" id="explorer-panel-title" role="heading" aria-level="2">Model Explorer</div>
+        <div class="panel-title" id="explorer-panel-title" role="heading" aria-level="2" data-ko="모델 탐색기">Model Explorer</div>
         <div class="explorer-search-wrap">
-          <input id="explorer-search" type="search" placeholder="모델·뷰 검색 (Ctrl+F)" aria-label="Model Explorer 검색">
-          <button id="erd-name-tools-button" type="button" aria-haspopup="dialog" title="ERD 논리명·물리명 일괄 변환">ERD 이름</button>
+          <input id="explorer-search" type="search" placeholder="Search models" data-ko-placeholder="모델·뷰 검색 (Ctrl+F)" aria-label="Search Model Explorer" data-ko-label="Model Explorer 검색">
+          <button id="erd-name-tools-button" type="button" aria-haspopup="dialog" title="Rename logical or physical ERD names" data-ko-title="ERD 논리명·물리명 일괄 변환" data-ko="ERD 이름">ERD Names</button>
         </div>
-        <div id="explorer" role="tree" aria-label="모델 탐색기"></div>
+        <div id="explorer" role="tree" aria-label="Model Explorer" data-ko-label="모델 탐색기"></div>
       </div>
       <div class="panel" id="props-panel" role="region" aria-labelledby="props-panel-title">
-        <div class="panel-title" id="props-panel-title" role="heading" aria-level="2">Properties</div>
+        <div class="panel-title" id="props-panel-title" role="heading" aria-level="2" data-ko="속성">Properties</div>
         <div id="props"></div>
       </div>
     </div>
@@ -85,10 +86,10 @@
 
   <div id="bottom-panel" hidden>
     <div class="bottom-panel-header">
-      <strong>Validation Results</strong>
+      <strong data-ko="검증 결과">Validation Results</strong>
       <span id="validation-summary"></span>
-      <button data-action="rerun-validation" title="다시 검사">Run</button>
-      <button data-action="close-validation" title="닫기">×</button>
+      <button data-action="rerun-validation" title="Run validation again" data-ko-title="다시 검사" data-ko="검사">Run</button>
+      <button data-action="close-validation" title="Close" data-ko-title="닫기">×</button>
     </div>
     <div id="validation-results"></div>
   </div>
@@ -99,62 +100,64 @@
   </div>
 </div>
 <input type="file" id="fileInput" accept=".json,.drawio,.xml" hidden>
-<script src="dist/browser/model/erd-schema.js?v=3"></script>
-<script src="dist/browser/model/model-core.js?v=28"></script>
+<script src="dist/browser/editor/language.js?v=1"></script>
+<script src="dist/browser/model/erd-schema.js?v=4"></script>
+<script src="dist/browser/model/model-core.js?v=29"></script>
 <script src="dist/browser/canvas/canvas-geometry.js?v=1"></script>
 <script src="dist/browser/canvas/sequence-layout.js?v=3"></script>
 <script src="dist/browser/canvas/interaction-layout.js?v=3"></script>
 <script src="dist/browser/canvas/orthogonal-router.js?v=3"></script>
-<script src="dist/browser/model/icon-script.js?v=1"></script>
-<script src="dist/browser/model/expression-parser.js?v=1"></script>
+<script src="dist/browser/model/icon-script.js?v=2"></script>
+<script src="dist/browser/model/expression-parser.js?v=2"></script>
 <script src="dist/browser/model/presentation-registry.js?v=1"></script>
 <script src="dist/browser/model/diagram-registry.js?v=1"></script>
 <script src="dist/browser/model/relation-end.js?v=1"></script>
 <script src="dist/browser/canvas/containment-layout.js?v=2"></script>
 <script src="dist/browser/canvas/element-measure.js?v=1"></script>
 <script src="dist/browser/editor/member-lists.js?v=1"></script>
-<script src="dist/browser/editor/status-bar.js?v=2"></script>
-<script src="dist/browser/editor/runtime-errors.js?v=1"></script>
-<script src="dist/browser/editor/modal-focus.js?v=1"></script>
+<script src="dist/browser/editor/status-bar.js?v=3"></script>
+<script src="dist/browser/editor/runtime-errors.js?v=2"></script>
+<script src="dist/browser/editor/modal-focus.js?v=2"></script>
 <script src="dist/browser/model/element-factory.js?v=2"></script>
-<script src="dist/browser/model/relation-rules.js?v=1"></script>
-<script src="dist/browser/editor/relation-creation.js?v=4"></script>
-<script src="dist/browser/editor/selection-editing.js?v=8"></script>
+<script src="dist/browser/model/relation-rules.js?v=2"></script>
+<script src="dist/browser/editor/relation-creation.js?v=5"></script>
+<script src="dist/browser/editor/selection-editing.js?v=9"></script>
 <script src="dist/browser/canvas/hit-testing.js?v=1"></script>
-<script src="dist/browser/canvas/canvas-renderer.js?v=4"></script>
-<script src="dist/browser/editor/model-repository.js?v=3"></script>
-<script src="dist/browser/model/parametric-binding.js?v=1"></script>
+<script src="dist/browser/canvas/canvas-renderer.js?v=5"></script>
+<script src="dist/browser/editor/model-repository.js?v=4"></script>
+<script src="dist/browser/model/parametric-binding.js?v=2"></script>
 <script src="dist/browser/canvas/element-renderer.js?v=3"></script>
 <script src="dist/browser/canvas/relation-renderer.js?v=2"></script>
-<script src="dist/browser/editor/erd-property-sections.js?v=1"></script>
-<script src="dist/browser/editor/property-panel.js?v=10"></script>
-<script src="dist/browser/editor/model-explorer.js?v=3"></script>
-<script src="dist/browser/canvas/viewport-controller.js?v=1"></script>
-<script src="dist/browser/editor/toolbox.js?v=2"></script>
-<script src="dist/browser/editor/diagram-tabs.js?v=2"></script>
-<script src="dist/browser/editor/erd-column-editor.js?v=1"></script>
-<script src="dist/browser/editor/relation-end-editor.js?v=1"></script>
-<script src="dist/browser/editor/quick-edit.js?v=7"></script>
-<script src="dist/browser/editor/command-router.js?v=5"></script>
-<script src="dist/browser/canvas/element-placement.js?v=1"></script>
-<script src="dist/browser/canvas/canvas-interaction.js?v=6"></script>
-<script src="dist/browser/canvas/canvas-keyboard.js?v=1"></script>
-<script src="dist/browser/model/erd-column.js?v=4"></script>
-<script src="dist/browser/editor/erd-name-tools.js?v=1"></script>
-<script src="dist/browser/model/erd-cardinality.js?v=1"></script>
-<script src="dist/browser/io/ddl-importer.js?v=3"></script>
-<script src="dist/browser/io/persistence.js?v=3"></script>
-<script src="dist/browser/model/validation.js?v=22"></script>
-<script src="dist/browser/editor/validation-panel.js?v=1"></script>
-<script src="dist/browser/io/exporters.js?v=22"></script>
-<script src="dist/browser/io/drawio-importer.js?v=8"></script>
-<script src="dist/browser/model/sample-diagrams.js?v=1"></script>
-<script src="dist/browser/io/project-document.js?v=1"></script>
+<script src="dist/browser/editor/erd-property-sections.js?v=2"></script>
+<script src="dist/browser/editor/property-panel.js?v=11"></script>
+<script src="dist/browser/editor/model-explorer.js?v=4"></script>
+<script src="dist/browser/canvas/viewport-controller.js?v=2"></script>
+<script src="dist/browser/editor/toolbox.js?v=3"></script>
+<script src="dist/browser/editor/diagram-tabs.js?v=3"></script>
+<script src="dist/browser/editor/erd-column-editor.js?v=2"></script>
+<script src="dist/browser/editor/relation-end-editor.js?v=2"></script>
+<script src="dist/browser/editor/quick-edit.js?v=8"></script>
+<script src="dist/browser/editor/command-router.js?v=6"></script>
+<script src="dist/browser/canvas/element-placement.js?v=2"></script>
+<script src="dist/browser/canvas/canvas-interaction.js?v=7"></script>
+<script src="dist/browser/canvas/canvas-keyboard.js?v=2"></script>
+<script src="dist/browser/model/erd-column.js?v=5"></script>
+<script src="dist/browser/editor/erd-name-tools.js?v=2"></script>
+<script src="dist/browser/model/erd-cardinality.js?v=2"></script>
+<script src="dist/browser/io/ddl-importer.js?v=4"></script>
+<script src="dist/browser/io/persistence.js?v=4"></script>
+<script src="dist/browser/model/validation.js?v=23"></script>
+<script src="dist/browser/editor/validation-panel.js?v=2"></script>
+<script src="dist/browser/io/exporters.js?v=23"></script>
+<script src="dist/browser/io/drawio-importer.js?v=9"></script>
+<script src="dist/browser/model/sample-diagrams.js?v=2"></script>
+<script src="dist/browser/io/project-document.js?v=2"></script>
 <script src="dist/browser/editor/history-controller.js?v=1"></script>
-<script src="dist/browser/io/project-store.js?v=2"></script>
-<script src="dist/browser/io/import-preview.js?v=2"></script>
-<script src="dist/browser/io/diagram-export.js?v=2"></script>
-<script src="dist/browser/io/project-import.js?v=5"></script>
-<script src="dist/browser/app.js?v=137"></script>
+<script src="dist/browser/io/project-store.js?v=3"></script>
+<script src="dist/browser/io/import-preview.js?v=3"></script>
+<script src="dist/browser/io/diagram-export.js?v=3"></script>
+<script src="dist/browser/io/project-import.js?v=6"></script>
+<script src="dist/browser/editor/language-settings.js?v=1"></script>
+<script src="dist/browser/app.js?v=138"></script>
 </body>
 </html>

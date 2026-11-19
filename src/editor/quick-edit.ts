@@ -79,6 +79,9 @@ declare var UMLQuickEdit: QuickEditApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createQuickEditModule);
 
 function createQuickEditModule() {
+  const { text: uiText } = globalThis.UMLLanguage
+    ?? require('./language.js') as typeof UMLLanguage;
+
   /* every field caption needs a stable id so its control can point at it */
   let fieldSequence = 0;
   const REQUIRED_FUNCTIONS = Object.freeze([
@@ -230,7 +233,7 @@ function createQuickEditModule() {
       if (!value || kind === 'column') return { valid: true, value: value || '' };
       const result = parseQuickEditExpression(kind, value);
       if (!result.valid) {
-        flashStatus(`QuickEdit 표현식 오류: ${result.error}`);
+        flashStatus(uiText('Invalid QuickEdit expression: {0}', 'QuickEdit 표현식 오류: {0}', result.error));
         return result;
       }
       return { valid: true, value: result.normalized };
@@ -296,7 +299,7 @@ function createQuickEditModule() {
           if (!fresh) return;
           const nextIndex = value ? Math.min(index + 1, fresh.arr.length) : Math.min(index, fresh.arr.length);
           reopen(nextIndex);
-          flashStatus(`${label}을(를) 아래에 연속 추가합니다`);
+          flashStatus(uiText('Add another {0} below', '{0}을(를) 아래에 연속 추가합니다', label));
         },
         onDelete() {
           const fresh = memberListByKind(e, listKind);
@@ -304,7 +307,7 @@ function createQuickEditModule() {
           snapshot();
           fresh.arr.splice(index, 1);
           render(); renderProps();
-          flashStatus(`${label}을(를) 삭제했습니다`);
+          flashStatus(uiText('Deleted {0}.', '{0}을(를) 삭제했습니다', label));
         },
         onMove(direction, value) {
           const fresh = memberListByKind(e, listKind);
@@ -320,7 +323,7 @@ function createQuickEditModule() {
           fresh.arr.splice(targetIndex, 0, member);
           render(); renderProps();
           reopen(targetIndex);
-          flashStatus(`${label} 순서를 변경했습니다`);
+          flashStatus(uiText('Reordered {0}.', '{0} 순서를 변경했습니다', label));
         },
       });
       return true;
@@ -502,7 +505,7 @@ function createQuickEditModule() {
       selectQuickEditTarget(e.id);
       if ((e.kind === 'interactioninline' || e.kind === 'interactionuse') && e.interactionDiagramId && referencedInteraction(e)) {
         switchDiagram(e.interactionDiagramId);
-        flashStatus(`Sequence Diagram '${dg().name}'을 열었습니다`);
+        flashStatus(uiText('Opened sequence diagram \'{0}\'.', 'Sequence Diagram \'{0}\'을 열었습니다', dg().name));
         return true;
       }
       if (dg().type === 'sequence' && e.kind === 'lifeline') {
@@ -572,7 +575,7 @@ function createQuickEditModule() {
           waypoints.splice(index, 1);
           r.manualPoints = waypoints;
           render(); renderProps();
-          flashStatus('수동 굴곡점을 삭제했습니다');
+          flashStatus(uiText('Removed the manual waypoint.', '수동 굴곡점을 삭제했습니다'));
           return true;
         }
       }
@@ -581,14 +584,14 @@ function createQuickEditModule() {
         const r = relationAt(p);
         if (r?.kind === 'bindingconnector') {
           if (bindingWaypoints(r).length >= 200) {
-            flashStatus('수동 굴곡점은 최대 200개까지 추가할 수 있습니다');
+            flashStatus(uiText('You can add up to 200 manual waypoints.', '수동 굴곡점은 최대 200개까지 추가할 수 있습니다'));
             return true;
           }
           snapshot();
           addBindingWaypoint(r, p);
           setSelection([r.id]);
           render(); renderProps();
-          flashStatus('수동 굴곡점을 추가하고 경로를 잠갔습니다');
+          flashStatus(uiText('Added a manual waypoint and locked the route.', '수동 굴곡점을 추가하고 경로를 잠갔습니다'));
           return true;
         }
       }
@@ -638,7 +641,7 @@ function createQuickEditModule() {
         applyExpressionPrefix(lifeline, parsed);
         lifeline.name = lifelineExpressionCore(parsed);
         render(); renderProps();
-        flashStatus(`라이프라인 표현식을 '${value}'(으)로 변경했습니다`);
+        flashStatus(uiText('Changed the lifeline expression to \'{0}\'.', '라이프라인 표현식을 \'{0}\'(으)로 변경했습니다', value));
       }, {
         ariaLabel: 'Lifeline Expression QuickEdit',
         prepare: value => prepareQuickEditExpression('lifeline', value),
@@ -669,7 +672,7 @@ function createQuickEditModule() {
           const prepared = opts.prepare(v);
           if (!prepared?.valid) {
             done = false;
-            input.setCustomValidity(prepared?.error || '표현식이 올바르지 않습니다.');
+            input.setCustomValidity(prepared?.error || uiText('Invalid expression.', '표현식이 올바르지 않습니다.'));
             input.reportValidity();
             input.focus();
             return false;

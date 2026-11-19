@@ -45,6 +45,8 @@ npm start
 
 `npm start` builds the TypeScript editor, starts the local Python server, and opens the editor in your default browser. You can also visit [http://127.0.0.1:8000](http://127.0.0.1:8000). To start the server without opening a browser, run `npm start -- --no-open-browser`.
 
+The editor starts in English. To use Korean, open **Settings**, choose **한국어** under **Editor language**, and select **Apply**. The editor saves the project before reloading and remembers your choice in this browser.
+
 The first launch creates a sample project. Browse its diagram tabs or choose **Projects** to create a blank project.
 
 Project changes are automatically saved to `uml-studio.db` in the repository root. Once the editor is built, you can run the server directly with a different port or database path.
@@ -81,7 +83,7 @@ _An online store schema imported from SQL into the ER diagram editor._
 - The importer handles common PostgreSQL, MySQL, and SQLite `CREATE TABLE` syntax, including primary keys, `NOT NULL`, single-column foreign keys, `UNIQUE`, `DEFAULT`, `CHECK`, and simple column indexes. It parses files up to 10 MB in the browser without executing SQL.
 - The column editor exposes single-column uniqueness and defaults. The entity properties expose `CHECK`, composite `UNIQUE`, and regular or unique indexes. Relationship properties expose `ON DELETE` and `ON UPDATE` actions. `SET NULL` requires a nullable FK column. `SET DEFAULT` requires a default for a non-nullable FK column, and MySQL export rejects that action because the target is InnoDB.
 - Imports warn about `MATCH`, `DEFERRABLE`, database-specific index options, and references to tables outside the input. Composite foreign keys, expression indexes, `ALTER TABLE`, and `CREATE TABLE AS` stop the import with an error.
-- Model Explorer searches logical and physical names of entities and columns. Use the ERD name tool (**ERD 이름**) beside the search box to preview a project-wide rename. Renames update affected FK, `CHECK`, and index references across diagrams. An FK column deletion previews affected relationships and clears their column bindings and referential actions. Undo restores the previous state.
+- Model Explorer searches logical and physical names of entities and columns. Use the ERD name tool (**ERD Names**) beside the search box to preview a project-wide rename. Renames update affected FK, `CHECK`, and index references across diagrams. An FK column deletion previews affected relationships and clears their column bindings and referential actions. Undo restores the previous state.
 
 For SQL conversion from a Node.js script, see the [npm quick start](#ddl-to-mermaid-npm-package).
 

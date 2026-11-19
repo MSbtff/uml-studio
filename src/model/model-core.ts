@@ -27,6 +27,9 @@ declare var UMLModelCore: ModelCoreApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createModelCore);
 
 function createModelCore(erdSchema?: ModelSchemaValidation) {
+  const { text: uiText } = globalThis.UMLLanguage
+    ?? require('../editor/language.js') as typeof UMLLanguage;
+
   if (!erdSchema || typeof erdSchema.validateEntitySchema !== 'function'
     || typeof erdSchema.validateReferentialActions !== 'function') {
     throw new TypeError('Model Core에는 UMLErdSchema 스키마·FK 검증 API가 필요합니다.');
@@ -71,7 +74,7 @@ function createModelCore(erdSchema?: ModelSchemaValidation) {
   function hydrateView<View extends DiagramElement | DiagramRelation>(view: View, models: DiagramModels, idFactory: () => string): View & { modelId: string };
   function hydrateView(view: unknown, models: Record<string, object>, idFactory: () => string): ProjectObject & { modelId: string };
   function hydrateView(view: unknown, models: Record<string, object>, idFactory: () => string) {
-    if (!isObject(view)) throw new Error('뷰 데이터가 객체가 아닙니다.');
+    if (!isObject(view)) throw new Error(uiText('View data must be an object.', '뷰 데이터가 객체가 아닙니다.'));
     let modelId = typeof view.modelId === 'string' && view.modelId ? view.modelId : '';
     let model = modelId ? models[modelId] : null;
     if (!isObject(model)) {
@@ -93,7 +96,7 @@ function createModelCore(erdSchema?: ModelSchemaValidation) {
         get(this: { modelId: string }) { return (models[this.modelId] as ProjectObject | undefined)?.[field]; },
         set(this: { modelId: string }, value: unknown) {
           const target = models[this.modelId];
-          if (!target) throw new Error(`모델을 찾을 수 없습니다: ${this.modelId}`);
+          if (!target) throw new Error(uiText('Model not found: {0}', '모델을 찾을 수 없습니다: {0}', this.modelId));
           (target as ProjectObject)[field] = value;
         },
       });
@@ -107,7 +110,7 @@ function createModelCore(erdSchema?: ModelSchemaValidation) {
   function hydrateProject(diagrams: { elements?: unknown[]; relations?: unknown[] }[], sourceModels: unknown, idFactory: () => string): Models;
   function hydrateProject(diagrams: { elements?: unknown[]; relations?: unknown[] }[], sourceModels: unknown, idFactory: () => string): Models | DiagramModels {
     const models = (isObject(sourceModels) ? sourceModels : {}) as Models;
-    if (!Array.isArray(diagrams)) throw new Error('다이어그램 목록이 없습니다.');
+    if (!Array.isArray(diagrams)) throw new Error(uiText('Missing diagram list.', '다이어그램 목록이 없습니다.'));
     diagrams.forEach(diagram => {
       const fragmentModels = new Set();
       (diagram.elements || []).forEach(view => {
@@ -151,18 +154,18 @@ function createModelCore(erdSchema?: ModelSchemaValidation) {
     const relationKinds = new Set(opt.relationKinds || []);
     const maxDiagrams = opt.maxDiagrams || 500;
     const maxViews = opt.maxViews || 20000;
-    if (!isObject(data)) throw new Error('프로젝트 루트가 객체가 아닙니다.');
+    if (!isObject(data)) throw new Error(uiText('The project root must be an object.', '프로젝트 루트가 객체가 아닙니다.'));
     const version = data.version;
     if (version !== undefined && (typeof version !== 'number' || !Number.isInteger(version) || version < 1 || version > 30)) {
-      throw new Error(`지원하지 않는 프로젝트 버전: ${data.version}`);
+      throw new Error(uiText('Unsupported project version: {0}', '지원하지 않는 프로젝트 버전: {0}', data.version));
     }
     if (data.projectId !== undefined
       && (typeof data.projectId !== 'string' || !/^[A-Za-z0-9._-]{1,128}$/.test(data.projectId))) {
-      throw new Error('프로젝트 ID가 올바르지 않습니다.');
+      throw new Error(uiText('Invalid project ID.', '프로젝트 ID가 올바르지 않습니다.'));
     }
     if (data.projectName !== undefined
       && (typeof data.projectName !== 'string' || !data.projectName.trim() || data.projectName.length > 200)) {
-      throw new Error('프로젝트 이름이 올바르지 않습니다.');
+      throw new Error(uiText('Invalid project name.', '프로젝트 이름이 올바르지 않습니다.'));
     }
 
     const diagrams: unknown[] | null = Array.isArray(data.diagrams)
@@ -170,16 +173,20 @@ function createModelCore(erdSchema?: ModelSchemaValidation) {
       : (Array.isArray(data.elements) && Array.isArray(data.relations)
         ? [{ id: 'legacy', type: 'class', elements: data.elements, relations: data.relations }]
         : null);
-    if (!diagrams || !diagrams.length) throw new Error('프로젝트에 다이어그램이 없습니다.');
-    if (diagrams.length > maxDiagrams) throw new Error(`다이어그램 수가 제한(${maxDiagrams})을 초과합니다.`);
+    if (!diagrams || !diagrams.length) throw new Error(uiText('The project has no diagrams.', '프로젝트에 다이어그램이 없습니다.'));
+    if (diagrams.length > maxDiagrams) throw new Error(uiText(
+      'The project exceeds the limit of {0} diagrams.',
+      '다이어그램 수가 제한({0})을 초과합니다.',
+      maxDiagrams,
+    ));
 
     const rawModels = isObject(data.models) ? data.models : {};
     if ((version || 0) >= 11 && !isObject(data.models)) {
-      throw new Error('v11 프로젝트의 모델 저장소가 올바르지 않습니다.');
+      throw new Error(uiText('Invalid model store for a v11 project.', 'v11 프로젝트의 모델 저장소가 올바르지 않습니다.'));
     }
     Object.entries(rawModels).forEach(([id, model]) => {
-      if (!isObject(model) || model.id !== id) throw new Error(`잘못된 모델 항목: ${id}`);
-      if (typeof model.kind !== 'string') throw new Error(`모델 종류가 없습니다: ${id}`);
+      if (!isObject(model) || model.id !== id) throw new Error(uiText('Invalid model entry: {0}', '잘못된 모델 항목: {0}', id));
+      if (typeof model.kind !== 'string') throw new Error(uiText('Missing model type: {0}', '모델 종류가 없습니다: {0}', id));
       for (const field of [
         'name', 'text', 'logicalName', 'stereotype', 'entry', 'doActivity', 'exit',
         'trigger', 'guard', 'effect', 'iconContent', 'requirementType',
@@ -190,41 +197,46 @@ function createModelCore(erdSchema?: ModelSchemaValidation) {
       ]) {
         const value = model[field];
         if (typeof value === 'string' && value.length > 100000) {
-          throw new Error(`모델 텍스트가 너무 깁니다: ${id}.${field}`);
+          throw new Error(uiText('Model text exceeds the length limit: {0}.{1}', '모델 텍스트가 너무 깁니다: {0}.{1}', id, field));
         }
       }
       if (model.foreignKeyEnd !== undefined
         && !matchesOneOf(model.foreignKeyEnd, ['', 'source', 'target'])) {
-        throw new Error(`ERD FK 보유 끝점이 올바르지 않습니다: ${id}.foreignKeyEnd`);
+        throw new Error(uiText('Invalid ERD foreign key owner: {0}.foreignKeyEnd', 'ERD FK 보유 끝점이 올바르지 않습니다: {0}.foreignKeyEnd', id));
       }
       for (const field of ['sourceColumnName', 'targetColumnName']) {
         if (model[field] !== undefined && typeof model[field] !== 'string') {
-          throw new Error(`ERD FK 컬럼 이름이 올바르지 않습니다: ${id}.${field}`);
+          throw new Error(uiText('Invalid ERD foreign key column name: {0}.{1}', 'ERD FK 컬럼 이름이 올바르지 않습니다: {0}.{1}', id, field));
         }
       }
       if (model.foreignKeyOnDelete !== undefined || model.foreignKeyOnUpdate !== undefined) {
         try {
           validateReferentialActions(model);
         } catch (error) {
-          throw new Error(`ERD FK 참조 동작이 올바르지 않습니다: ${id} · ${error instanceof Error ? error.message : String(error)}`);
+          throw new Error(uiText(
+            'Invalid ERD foreign key action: {0} · {1}',
+            'ERD FK 참조 동작이 올바르지 않습니다: {0} · {1}',
+            id,
+            error instanceof Error ? error.message : String(error),
+          ));
         }
       }
       if (model.kind === 'entity') validateEntitySchema(model, []);
       for (const field of ['sourceEndVisibility', 'targetEndVisibility']) {
         if (model[field] !== undefined
           && !matchesOneOf(model[field], ['public', 'protected', 'private', 'package'])) {
-          throw new Error(`관계 끝점 가시성이 올바르지 않습니다: ${id}.${field}`);
+          throw new Error(uiText('Invalid relationship end visibility: {0}.{1}', '관계 끝점 가시성이 올바르지 않습니다: {0}.{1}', id, field));
         }
       }
       for (const field of ['sourceNavigability', 'targetNavigability']) {
         if (model[field] !== undefined
           && !matchesOneOf(model[field], ['unspecified', 'navigable', 'notNavigable'])) {
-          throw new Error(`관계 끝점 탐색 방향이 올바르지 않습니다: ${id}.${field}`);
+          throw new Error(uiText('Invalid relationship end navigability: {0}.{1}', '관계 끝점 탐색 방향이 올바르지 않습니다: {0}.{1}', id, field));
         }
       }
       for (const field of ['sourceAggregation', 'targetAggregation']) {
         if (model[field] !== undefined && !matchesOneOf(model[field], ['none', 'shared', 'composite'])) {
-          throw new Error(`관계 끝점 집합 종류가 올바르지 않습니다: ${id}.${field}`);
+          throw new Error(uiText('Invalid relationship end aggregation: {0}.{1}', '관계 끝점 집합 종류가 올바르지 않습니다: {0}.{1}', id, field));
         }
       }
       for (const field of ['sourceQualifiers', 'targetQualifiers']) {
@@ -232,7 +244,7 @@ function createModelCore(erdSchema?: ModelSchemaValidation) {
         if (qualifiers !== undefined
           && (!Array.isArray(qualifiers) || qualifiers.length > 50
             || qualifiers.some((value: unknown) => typeof value !== 'string' || value.length > 1000))) {
-          throw new Error(`관계 끝점 한정자가 올바르지 않습니다: ${id}.${field}`);
+          throw new Error(uiText('Invalid relationship end qualifier: {0}.{1}', '관계 끝점 한정자가 올바르지 않습니다: {0}.{1}', id, field));
         }
       }
     });
@@ -242,48 +254,64 @@ function createModelCore(erdSchema?: ModelSchemaValidation) {
     const diagramIds = new Set<string>();
     const diagramById = new Map<string, ValidatedDiagram>();
     diagrams.forEach((diagram, index) => {
-      if (!isObject(diagram)) throw new Error(`다이어그램 ${index + 1} 데이터가 올바르지 않습니다.`);
-      if (typeof diagram.id !== 'string' || !diagram.id) throw new Error(`다이어그램 ID가 올바르지 않습니다: ${index + 1}`);
-      if (diagramIds.has(diagram.id)) throw new Error(`중복된 다이어그램 ID: ${diagram.id}`);
+      if (!isObject(diagram)) throw new Error(uiText('Invalid data for diagram {0}.', '다이어그램 {0} 데이터가 올바르지 않습니다.', index + 1));
+      if (typeof diagram.id !== 'string' || !diagram.id) throw new Error(uiText(
+        'Invalid diagram ID: {0}',
+        '다이어그램 ID가 올바르지 않습니다: {0}',
+        index + 1,
+      ));
+      if (diagramIds.has(diagram.id)) throw new Error(uiText('Duplicate diagram ID: {0}', '중복된 다이어그램 ID: {0}', diagram.id));
       diagramIds.add(diagram.id);
       if (diagram.name !== undefined && (typeof diagram.name !== 'string' || diagram.name.length > 10000)) {
-        throw new Error(`다이어그램 이름이 올바르지 않습니다: ${diagram.id}`);
+        throw new Error(uiText('Invalid diagram name: {0}', '다이어그램 이름이 올바르지 않습니다: {0}', diagram.id));
       }
       if (typeof diagram.type !== 'string' || (diagramTypes.size && !diagramTypes.has(diagram.type))) {
-        throw new Error(`지원하지 않는 다이어그램 종류: ${diagram.type || '(없음)'}`);
+        throw new Error(uiText('Unsupported diagram type: {0}', '지원하지 않는 다이어그램 종류: {0}', diagram.type || uiText('(none)', '(없음)')));
       }
       if (!Array.isArray(diagram.elements) || !Array.isArray(diagram.relations)) {
-        throw new Error(`다이어그램의 요소 목록이 올바르지 않습니다: ${diagram.name || index + 1}`);
+        throw new Error(uiText('Invalid diagram element list: {0}', '다이어그램의 요소 목록이 올바르지 않습니다: {0}', diagram.name || index + 1));
       }
       viewCount += diagram.elements.length + diagram.relations.length;
-      if (viewCount > maxViews) throw new Error(`전체 요소 수가 제한(${maxViews})을 초과합니다.`);
+      if (viewCount > maxViews) throw new Error(uiText('The project exceeds the limit of {0} elements.', '전체 요소 수가 제한({0})을 초과합니다.', maxViews));
 
       const ids = new Set<string>();
       const elements: ProjectObject[] = [];
       const relations: ProjectObject[] = [];
       diagram.elements.forEach((view: unknown) => {
-        if (!isObject(view) || typeof view.id !== 'string' || !view.id) throw new Error('요소 ID가 올바르지 않습니다.');
-        if (ids.has(view.id)) throw new Error(`중복된 뷰 ID: ${view.id}`);
+        if (!isObject(view) || typeof view.id !== 'string' || !view.id) throw new Error(uiText('Invalid element ID.', '요소 ID가 올바르지 않습니다.'));
+        if (ids.has(view.id)) throw new Error(uiText('Duplicate view ID: {0}', '중복된 뷰 ID: {0}', view.id));
         ids.add(view.id);
         elements.push(view);
         const kind = modelKindOf(view, models);
-        if (!kind || !elementKinds.has(kind)) throw new Error(`지원하지 않는 요소 종류: ${kind || '(없음)'}`);
+        if (!kind || !elementKinds.has(kind)) throw new Error(uiText(
+          'Unsupported element type: {0}',
+          '지원하지 않는 요소 종류: {0}',
+          kind || uiText('(none)', '(없음)'),
+        ));
         for (const key of ['x', 'y', 'w', 'h']) {
           if (view[key] !== undefined && !validCoordinate(view[key])) {
-            throw new Error(`잘못된 요소 좌표: ${view.id}.${key}`);
+            throw new Error(uiText('Invalid element coordinate: {0}.{1}', '잘못된 요소 좌표: {0}.{1}', view.id, key));
           }
         }
-        if ((version || 0) >= 11 && !referencedModel(view, models)) throw new Error(`요소 모델을 찾을 수 없습니다: ${view.modelId}`);
+        if ((version || 0) >= 11 && !referencedModel(view, models)) throw new Error(uiText(
+          'Element model not found: {0}',
+          '요소 모델을 찾을 수 없습니다: {0}',
+          view.modelId,
+        ));
       });
       elements.forEach(view => {
         if (view.parentId === undefined || view.parentId === null || view.parentId === '') return;
         if (typeof view.parentId !== 'string' || view.parentId === view.id || !ids.has(view.parentId)) {
-          throw new Error(`요소의 포함 부모를 찾을 수 없습니다: ${view.id}`);
+          throw new Error(uiText('Parent element not found: {0}', '요소의 포함 부모를 찾을 수 없습니다: {0}', view.id));
         }
         const visited = new Set<unknown>([view.id]);
         let current: ProjectObject | undefined = view;
         while (current?.parentId) {
-          if (visited.has(current.parentId)) throw new Error(`요소 포함 관계가 순환합니다: ${view.id}`);
+          if (visited.has(current.parentId)) throw new Error(uiText(
+            'Element containment contains a cycle: {0}',
+            '요소 포함 관계가 순환합니다: {0}',
+            view.id,
+          ));
           visited.add(current.parentId);
           const parentId: unknown = current.parentId;
           current = elements.find(x => x.id === parentId);
@@ -291,19 +319,27 @@ function createModelCore(erdSchema?: ModelSchemaValidation) {
         }
       });
       diagram.relations.forEach((view: unknown) => {
-        if (!isObject(view) || typeof view.id !== 'string' || !view.id) throw new Error('관계 ID가 올바르지 않습니다.');
-        if (ids.has(view.id)) throw new Error(`중복된 뷰 ID: ${view.id}`);
+        if (!isObject(view) || typeof view.id !== 'string' || !view.id) throw new Error(uiText('Invalid relationship ID.', '관계 ID가 올바르지 않습니다.'));
+        if (ids.has(view.id)) throw new Error(uiText('Duplicate view ID: {0}', '중복된 뷰 ID: {0}', view.id));
         ids.add(view.id);
         relations.push(view);
         const kind = modelKindOf(view, models);
-        if (!kind || !relationKinds.has(kind)) throw new Error(`지원하지 않는 관계 종류: ${kind || '(없음)'}`);
+        if (!kind || !relationKinds.has(kind)) throw new Error(uiText(
+          'Unsupported relationship type: {0}',
+          '지원하지 않는 관계 종류: {0}',
+          kind || uiText('(none)', '(없음)'),
+        ));
         if (typeof view.from !== 'string' || typeof view.to !== 'string' || !ids.has(view.from) || !ids.has(view.to)) {
-          throw new Error(`관계의 연결 대상을 찾을 수 없습니다: ${view.id}`);
+          throw new Error(uiText('Relationship endpoint not found: {0}', '관계의 연결 대상을 찾을 수 없습니다: {0}', view.id));
         }
-        if ((version || 0) >= 11 && !referencedModel(view, models)) throw new Error(`관계 모델을 찾을 수 없습니다: ${view.modelId}`);
+        if ((version || 0) >= 11 && !referencedModel(view, models)) throw new Error(uiText(
+          'Relationship model not found: {0}',
+          '관계 모델을 찾을 수 없습니다: {0}',
+          view.modelId,
+        ));
         const routeKind = modelKindOf(view, models);
         if (view.routeMode !== undefined && !matchesOneOf(view.routeMode, ['auto', 'manual'])) {
-          throw new Error(`관계 라우팅 모드가 올바르지 않습니다: ${view.id}`);
+          throw new Error(uiText('Invalid relationship routing mode: {0}', '관계 라우팅 모드가 올바르지 않습니다: {0}', view.id));
         }
         if (view.manualPoints !== undefined) {
           if (routeKind !== 'bindingconnector'
@@ -311,15 +347,15 @@ function createModelCore(erdSchema?: ModelSchemaValidation) {
             || view.manualPoints.length > 200
             || view.manualPoints.some((point: unknown) =>
               !isObject(point) || !validCoordinate(point.x) || !validCoordinate(point.y))) {
-            throw new Error(`수동 라우팅 굴곡점이 올바르지 않습니다: ${view.id}`);
+            throw new Error(uiText('Invalid manual routing waypoint: {0}', '수동 라우팅 굴곡점이 올바르지 않습니다: {0}', view.id));
           }
         }
         if (view.routeMode === 'manual' && !Array.isArray(view.manualPoints)) {
-          throw new Error(`수동 라우팅 굴곡점이 없습니다: ${view.id}`);
+          throw new Error(uiText('Missing manual routing waypoints: {0}', '수동 라우팅 굴곡점이 없습니다: {0}', view.id));
         }
         if (view.jumpStyle !== undefined
           && (routeKind !== 'bindingconnector' || !matchesOneOf(view.jumpStyle, ['arc', 'gap', 'none']))) {
-          throw new Error(`관계 Line Jump 스타일이 올바르지 않습니다: ${view.id}`);
+          throw new Error(uiText('Invalid line jump style: {0}', '관계 Line Jump 스타일이 올바르지 않습니다: {0}', view.id));
         }
       });
       if ((version || 0) >= 16) {
@@ -327,14 +363,18 @@ function createModelCore(erdSchema?: ModelSchemaValidation) {
         relations.forEach(view => {
           if (view.connectorId !== undefined
             && (typeof view.connectorId !== 'string' || !relationIds.has(view.connectorId))) {
-            throw new Error(`Communication Message의 Connector를 찾을 수 없습니다: ${view.id}`);
+            throw new Error(uiText(
+              'Connector for communication message not found: {0}',
+              'Communication Message의 Connector를 찾을 수 없습니다: {0}',
+              view.id,
+            ));
           }
         });
       }
       if ((version || 0) >= 19) {
         elements.filter(view => modelKindOf(view, models) === 'timeconstraint').forEach(view => {
           if (typeof view.constrainedViewId !== 'string' || !ids.has(view.constrainedViewId)) {
-            throw new Error(`Time Constraint의 연결 대상을 찾을 수 없습니다: ${view.id}`);
+            throw new Error(uiText('Time constraint target not found: {0}', 'Time Constraint의 연결 대상을 찾을 수 없습니다: {0}', view.id));
           }
         });
       }
@@ -350,7 +390,11 @@ function createModelCore(erdSchema?: ModelSchemaValidation) {
           if (referenceId === undefined || referenceId === null || referenceId === '') return;
           const referenced = typeof referenceId === 'string' ? diagramById.get(referenceId) : undefined;
           if (typeof referenceId !== 'string' || !referenced || referenced.type !== 'sequence') {
-            throw new Error(`Interaction의 Sequence Diagram 참조가 올바르지 않습니다: ${view.id}`);
+            throw new Error(uiText(
+              'Invalid sequence diagram reference on interaction: {0}',
+              'Interaction의 Sequence Diagram 참조가 올바르지 않습니다: {0}',
+              view.id,
+            ));
           }
         });
       });
@@ -360,7 +404,7 @@ function createModelCore(erdSchema?: ModelSchemaValidation) {
         if (model.conveyedModelIds === undefined) return;
         if (!Array.isArray(model.conveyedModelIds)
           || model.conveyedModelIds.some(id => typeof id !== 'string' || !models[id])) {
-          throw new Error(`Information Flow의 conveyed 참조가 올바르지 않습니다: ${model.id}`);
+          throw new Error(uiText('Invalid conveyed information reference: {0}', 'Information Flow의 conveyed 참조가 올바르지 않습니다: {0}', model.id));
         }
       });
     }
@@ -369,11 +413,15 @@ function createModelCore(erdSchema?: ModelSchemaValidation) {
         if (model.itemFlowModelIds === undefined) return;
         if (!Array.isArray(model.itemFlowModelIds)
           || model.itemFlowModelIds.some(id => typeof id !== 'string' || !models[id])) {
-          throw new Error(`Connector의 Item Flow 참조가 올바르지 않습니다: ${model.id}`);
+          throw new Error(uiText('Invalid connector item flow reference: {0}', 'Connector의 Item Flow 참조가 올바르지 않습니다: {0}', model.id));
         }
       });
     }
-    if (data.activeId !== undefined && (typeof data.activeId !== 'string' || !diagramIds.has(data.activeId))) throw new Error(`활성 다이어그램을 찾을 수 없습니다: ${data.activeId}`);
+    if (data.activeId !== undefined && (typeof data.activeId !== 'string' || !diagramIds.has(data.activeId))) throw new Error(uiText(
+      'Active diagram not found: {0}',
+      '활성 다이어그램을 찾을 수 없습니다: {0}',
+      data.activeId,
+    ));
     return true;
   }
 

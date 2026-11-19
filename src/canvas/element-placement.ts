@@ -15,6 +15,9 @@ declare var UMLElementPlacement: ElementPlacementApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createElementPlacementModule);
 
 function createElementPlacementModule() {
+  const { text: uiText } = globalThis.UMLLanguage
+    ?? require('../editor/language.js') as typeof UMLLanguage;
+
   const REQUIRED_FUNCTIONS = Object.freeze([
     'activityAttachmentOwnerAtPoint',
     'adoptView',
@@ -180,13 +183,16 @@ function createElementPlacementModule() {
         setSelection([inline.id]);
         state.tool = 'select';
         renderAll();
-        flashStatus('인라인 Sequence Diagram을 만들었습니다 · 프레임을 더블클릭해 편집하세요');
+        flashStatus(uiText(
+          'Created an inline sequence diagram. Double-click the frame to edit it.',
+          '인라인 Sequence Diagram을 만들었습니다 · 프레임을 더블클릭해 편집하세요',
+        ));
         return;
       }
       if (tool === 'execution') {
         /* an Execution box must sit on a lifeline — snap to the one under the cursor */
         const life = lifelineAt(p);
-        if (!life) { flashStatus('Execution 박스는 라이프라인(점선) 위에서 클릭해 만드세요'); return; }
+        if (!life) { flashStatus(uiText('Click the dashed lifeline to create an execution.', 'Execution 박스는 라이프라인(점선) 위에서 클릭해 만드세요')); return; }
         snapshot();
         const e = adoptView({ id: uid(), kind: 'execution', lifeId: life.id, x: life.x + life.w / 2 - 6, y: snap(Math.max(life.y + life.h + 8, p.y)), w: 12, h: 56, fill: FILL_DEFAULT });
         dg().elements.push(e);
@@ -198,7 +204,10 @@ function createElementPlacementModule() {
       if (tool === 'connectionpointref') {
         const owner = hitEl && hitEl.kind === 'submachinestate' ? hitEl : null;
         if (!owner) {
-          flashStatus('Connection Point Reference는 Submachine State의 테두리를 클릭해 추가하세요');
+          flashStatus(uiText(
+            'Click the edge of a submachine state to add a connection point reference.',
+            'Connection Point Reference는 Submachine State의 테두리를 클릭해 추가하세요',
+          ));
           return;
         }
         snapshot();
@@ -214,7 +223,11 @@ function createElementPlacementModule() {
       if (dg().type === 'ibd' && IBD_TYPED_KINDS.has(tool)) {
         const owner = ibdContainerAtPoint(p);
         if (!owner) {
-          flashStatus(`${KIND_META[tool].label}는 IBD Frame 또는 Part/Reference 내부를 클릭해 추가하세요`);
+          flashStatus(uiText(
+            'Click inside an IBD frame, part, or reference to add {0}.',
+            '{0}는 IBD Frame 또는 Part/Reference 내부를 클릭해 추가하세요',
+            KIND_META[tool].label,
+          ));
           return;
         }
         snapshot();
@@ -231,7 +244,7 @@ function createElementPlacementModule() {
       if (dg().type === 'parametric' && ['constraintproperty', 'value'].includes(tool)) {
         const owner = parametricContainerAtPoint(p);
         if (!owner || owner.kind !== 'parametricframe') {
-          flashStatus(`${KIND_META[tool].label}는 Parametric Frame 내부를 클릭해 추가하세요`);
+          flashStatus(uiText('Click inside a parametric frame to add {0}.', '{0}는 Parametric Frame 내부를 클릭해 추가하세요', KIND_META[tool].label));
           return;
         }
         snapshot();
@@ -248,7 +261,10 @@ function createElementPlacementModule() {
       if (tool === 'constraintparameter') {
         const owner = parametricContainerAtPoint(p);
         if (!owner) {
-          flashStatus('Constraint Parameter는 Parametric Frame 또는 Constraint Property의 테두리를 클릭해 추가하세요');
+          flashStatus(uiText(
+            'Click the edge of a parametric frame or constraint property to add a constraint parameter.',
+            'Constraint Parameter는 Parametric Frame 또는 Constraint Property의 테두리를 클릭해 추가하세요',
+          ));
           return;
         }
         snapshot();
@@ -264,7 +280,11 @@ function createElementPlacementModule() {
       if (tool === 'part' || tool === 'collaborationuse') {
         const owner = compositeContainerAtPoint(p);
         if (!owner) {
-          flashStatus(`${KIND_META[tool].label}는 Class 또는 Collaboration 내부를 클릭해 추가하세요`);
+          flashStatus(uiText(
+            'Click inside a class or collaboration to add {0}.',
+            '{0}는 Class 또는 Collaboration 내부를 클릭해 추가하세요',
+            KIND_META[tool].label,
+          ));
           return;
         }
         snapshot();
@@ -282,10 +302,19 @@ function createElementPlacementModule() {
         const owner = compositePortOwnerAtPoint(p);
         if (!owner) {
           flashStatus(dg().type === 'bdd'
-            ? 'Port는 Block, Interface Block 또는 Constraint Block의 테두리를 클릭해 추가하세요'
+            ? uiText(
+              'Click the edge of a block, interface block, or constraint block to add a port.',
+              'Port는 Block, Interface Block 또는 Constraint Block의 테두리를 클릭해 추가하세요',
+            )
             : dg().type === 'ibd'
-              ? 'Port는 IBD Frame, Part 또는 Reference의 테두리를 클릭해 추가하세요'
-              : 'Port는 Class, Collaboration 또는 Part의 테두리를 클릭해 추가하세요');
+              ? uiText(
+                'Click the edge of an IBD frame, part, or reference to add a port.',
+                'Port는 IBD Frame, Part 또는 Reference의 테두리를 클릭해 추가하세요',
+              )
+              : uiText(
+                'Click the edge of a class, collaboration, or part to add a port.',
+                'Port는 Class, Collaboration 또는 Part의 테두리를 클릭해 추가하세요',
+              ));
           return;
         }
         snapshot();
@@ -303,8 +332,8 @@ function createElementPlacementModule() {
         if (!owner) {
           const expected = tool === 'expansioninput' || tool === 'expansionoutput'
             ? 'Expansion Region'
-            : 'Action 또는 Signal/Time Event Action';
-          flashStatus(`${KIND_META[tool].label}는 ${expected}의 테두리를 클릭해 추가하세요`);
+            : uiText('action, signal event action, or time event action', 'Action 또는 Signal/Time Event Action');
+          flashStatus(uiText('To add {0}, click the edge of the {1}.', '{0}는 {1}의 테두리를 클릭해 추가하세요', KIND_META[tool].label, expected));
           return;
         }
         snapshot();
@@ -320,7 +349,7 @@ function createElementPlacementModule() {
       if (tool === 'timingstate') {
         const owner = timingLifelineAtPoint(p);
         if (!owner) {
-          flashStatus('State / Condition은 Timing Lifeline 내부를 클릭해 추가하세요');
+          flashStatus(uiText('Click inside a timing lifeline to add a state or condition.', 'State / Condition은 Timing Lifeline 내부를 클릭해 추가하세요'));
           return;
         }
         snapshot();
@@ -336,7 +365,7 @@ function createElementPlacementModule() {
       if (tool === 'timesegment') {
         const owner = timingStateAtPoint(p);
         if (!owner) {
-          flashStatus('Time Segment는 State / Condition 행을 클릭해 추가하세요');
+          flashStatus(uiText('Click a state or condition row to add a time segment.', 'Time Segment는 State / Condition 행을 클릭해 추가하세요'));
           return;
         }
         snapshot();
@@ -353,7 +382,10 @@ function createElementPlacementModule() {
         const segment = hitEl?.kind === 'timesegment' ? hitEl : null;
         const target = segment || (hitTimingRelation?.kind === 'timingmessage' ? hitTimingRelation : null);
         if (!target) {
-          flashStatus('Time Constraint는 Time Segment 또는 Message 위를 클릭해 추가하세요');
+          flashStatus(uiText(
+            'Click a time segment or message to add a time constraint.',
+            'Time Constraint는 Time Segment 또는 Message 위를 클릭해 추가하세요',
+          ));
           return;
         }
         snapshot();
@@ -371,7 +403,7 @@ function createElementPlacementModule() {
       if (tool === 'region') {
         const owner = compositeAtPoint(p);
         if (!owner || owner.kind !== 'compositestate') {
-          flashStatus('Region은 Composite State 내부에서 클릭해 추가하세요');
+          flashStatus(uiText('Click inside a composite state to add a region.', 'Region은 Composite State 내부에서 클릭해 추가하세요'));
           return;
         }
         snapshot();

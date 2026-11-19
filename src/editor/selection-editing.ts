@@ -14,6 +14,9 @@ declare var UMLSelectionEditing: SelectionEditingApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createSelectionEditingModule);
 
 function createSelectionEditingModule() {
+  const { text: uiText } = globalThis.UMLLanguage
+    ?? require('./language.js') as typeof UMLLanguage;
+
   const REQUIRED_FUNCTIONS = Object.freeze([
     'adoptView',
     'byId',
@@ -59,18 +62,18 @@ function createSelectionEditingModule() {
      `Delete Model` is expected to remove every view of it. The label names the
      kind in the paste message; kinds sharing a label are counted together. */
   const INDEPENDENT_COPY_KINDS: Readonly<Partial<Record<string, string>>> = Object.freeze({
-    entity: '테이블',
-    lifeline: '라이프라인',
-    fragment: '결합 프래그먼트',
-    object: '인스턴스',
-    artifactinstance: '인스턴스',
-    componentinstance: '인스턴스',
-    nodeinstance: '인스턴스',
+    entity: uiText('table', '테이블'),
+    lifeline: uiText('lifeline', '라이프라인'),
+    fragment: uiText('combined fragment', '결합 프래그먼트'),
+    object: uiText('instance', '인스턴스'),
+    artifactinstance: uiText('instance', '인스턴스'),
+    componentinstance: uiText('instance', '인스턴스'),
+    nodeinstance: uiText('instance', '인스턴스'),
     /* deployment and component diagrams draw physical things — a copied machine
        or component is a second machine, not a second picture of the same one */
-    node: '노드',
-    component: '컴포넌트',
-    artifact: '아티팩트',
+    node: uiText('node', '노드'),
+    component: uiText('component', '컴포넌트'),
+    artifact: uiText('artifact', '아티팩트'),
   });
   const PASTE_OFFSET = 24;
 
@@ -194,7 +197,10 @@ function createSelectionEditingModule() {
     function copySelection(options: { cloneModels?: boolean } = {}) {
       let els = expandedElementSelection();
       if (!els.length) {
-        if (relById(state.selectedId)) flashStatus('관계(선)는 단독으로 복사할 수 없습니다 — 양 끝 요소를 함께 선택하세요');
+        if (relById(state.selectedId)) flashStatus(uiText(
+          'Select both endpoints to copy a relationship.',
+          '관계(선)는 단독으로 복사할 수 없습니다 — 양 끝 요소를 함께 선택하세요',
+        ));
         return false;
       }
       let ids = new Set(els.map(e => e.id));
@@ -233,19 +239,29 @@ function createSelectionEditingModule() {
         cloneModels,
       };
       flashStatus(els.length === 1
-        ? `"${els[0].name}" 복사됨${cloneModels ? ' · 독립 모델' : ''} — Ctrl+V로 붙여넣기`
-        : `요소 ${els.length}개 (관계 ${rels.length}개 포함) 복사됨 — Ctrl+V로 붙여넣기`);
+        ? uiText(
+          'Copied "{0}"{1} · Ctrl+V to paste',
+          '"{0}" 복사됨{1} — Ctrl+V로 붙여넣기',
+          els[0].name,
+          cloneModels ? uiText(' · Independent model', ' · 독립 모델') : '',
+        )
+        : uiText(
+          'Copied {0} elements with {1} relationships · Ctrl+V to paste',
+          '요소 {0}개 (관계 {1}개 포함) 복사됨 — Ctrl+V로 붙여넣기',
+          els.length,
+          rels.length,
+        ));
       return true;
     }
     function pasteClipboard() {
-      if (!clipboard) { flashStatus('클립보드가 비어 있습니다'); return; }
+      if (!clipboard) { flashStatus(uiText('The clipboard is empty.', '클립보드가 비어 있습니다')); return; }
       const currentClipboard = clipboard;
       const src: ClipboardData = JSON.parse(currentClipboard.data);
       const sourceModels = src.models || {};
       const kindOf = (view: ImportedElement) => (view.modelId && sourceModels[view.modelId]?.kind) || view.kind;
       const usable = src.elements.filter(e => diagramAllowsElementKind(dg().type, kindOf(e)));
       if (!usable.length) {
-        flashStatus('복사한 요소를 이 다이어그램에 붙여넣을 수 없습니다');
+        flashStatus(uiText('The copied elements cannot be pasted into this diagram.', '복사한 요소를 이 다이어그램에 붙여넣을 수 없습니다'));
         return;
       }
       snapshot();
@@ -333,7 +349,10 @@ function createSelectionEditingModule() {
       d.elements.push(...newEls);
       d.relations.push(...newRels);
       newRels.forEach(r => syncRelationModel(r, d));
-      if (usable.length < src.elements.length) flashStatus('일부 요소는 이 다이어그램 타입에 맞지 않아 제외되었습니다');
+      if (usable.length < src.elements.length) flashStatus(uiText(
+        'Skipped elements that are incompatible with this diagram type.',
+        '일부 요소는 이 다이어그램 타입에 맞지 않아 제외되었습니다',
+      ));
       setSelection(newEls.map(e => e.id));
       render(); renderProps();
       if (currentClipboard.cloneModels) {
@@ -344,15 +363,15 @@ function createSelectionEditingModule() {
           const label = INDEPENDENT_COPY_KINDS[view.kind];
           if (label) copied.set(label, (copied.get(label) || 0) + 1);
         });
-        const summary = [...copied].map(([label, count]) => `${label} ${count}개`).join(', ');
-        if (summary) flashStatus(`${summary}를 독립 모델로 붙여넣었습니다`);
+        const summary = [...copied].map(([label, count]) => uiText('{0}: {1}', '{0} {1}개', label, count)).join(', ');
+        if (summary) flashStatus(uiText('Pasted as independent models: {0}.', '{0}를 독립 모델로 붙여넣었습니다', summary));
       }
     }
     function cutSelection() {
       if (!copySelection({ cloneModels: false })) return;
       // The clipboard carries only relations between the copied elements.
       deleteSelection(state.selection.filter(id => byId(id)));
-      flashStatus('잘라내기 완료 — Ctrl+V로 붙여넣기');
+      flashStatus(uiText('Cut selection · Ctrl+V to paste', '잘라내기 완료 — Ctrl+V로 붙여넣기'));
     }
     function duplicateSelection() {
       const prev = clipboard;
@@ -403,12 +422,12 @@ function createSelectionEditingModule() {
       [...modelIds, ...relationModelIds].forEach(id => delete state.models[id]);
       setSelection([]);
       renderAll();
-      flashStatus(`모델 ${modelIds.size}개와 모든 다이어그램의 연결된 뷰를 삭제했습니다`);
+      flashStatus(uiText('Deleted {0} models and their linked views from all diagrams.', '모델 {0}개와 모든 다이어그램의 연결된 뷰를 삭제했습니다', modelIds.size));
     }
 
     function autoSizeSelection() {
       const selected = state.selection.map(byId).filter(present);
-      if (!selected.length) { flashStatus('자동 크기를 적용할 요소를 선택하세요'); return; }
+      if (!selected.length) { flashStatus(uiText('Select elements to resize automatically.', '자동 크기를 적용할 요소를 선택하세요')); return; }
       snapshot();
       selected.forEach(e => { e.w = 0; e.h = 0; });
       render(); renderProps();
@@ -446,7 +465,7 @@ function createSelectionEditingModule() {
       render(); renderProps();
 
       const position = nextIndex + 1;
-      flashStatus(`Binding Connector 순서를 ${position}/${total}(으)로 변경했습니다`);
+      flashStatus(uiText('Changed binding connector order to {0}/{1}.', 'Binding Connector 순서를 {0}/{1}(으)로 변경했습니다', position, total));
       return true;
     }
 
@@ -468,11 +487,11 @@ function createSelectionEditingModule() {
         const relation = relById(state.selectedId);
         if (relation?.kind === 'bindingconnector') {
           if (!reorderBindingConnector(relation, toFront ? 'front' : 'back')) {
-            flashStatus(toFront ? '이미 맨 앞의 커넥터입니다' : '이미 맨 뒤의 커넥터입니다');
+            flashStatus(toFront ? uiText('This connector is already at the front.', '이미 맨 앞의 커넥터입니다') : uiText('This connector is already at the back.', '이미 맨 뒤의 커넥터입니다'));
           }
           return;
         }
-        flashStatus('순서를 변경할 요소 또는 Binding Connector를 선택하세요');
+        flashStatus(uiText('Select an element or binding connector to reorder.', '순서를 변경할 요소 또는 Binding Connector를 선택하세요'));
         return;
       }
       snapshot();

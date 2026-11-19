@@ -10,6 +10,9 @@ declare var UMLModelExplorer: ModelExplorerApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createModelExplorerModule);
 
 function createModelExplorerModule() {
+  const { text: uiText } = globalThis.UMLLanguage
+    ?? require('./language.js') as typeof UMLLanguage;
+
   const REQUIRED_FUNCTIONS = Object.freeze([
     'clearLinking',
     'containmentDepth',
@@ -378,12 +381,12 @@ function createModelExplorerModule() {
         focusKey = null;
         const empty = document.createElement('div');
         empty.className = 'explorer-empty';
-        empty.textContent = '검색 결과가 없습니다.';
+        empty.textContent = uiText('No matching results.', '검색 결과가 없습니다.');
         explorer.appendChild(empty);
         return;
       }
       explorer.setAttribute('role', 'tree');
-      explorer.setAttribute('aria-label', '모델 탐색기');
+      explorer.setAttribute('aria-label', uiText('Model Explorer', '모델 탐색기'));
 
       const keys = rows.map(rowKey);
       let tabStop = focusKey ? keys.indexOf(focusKey) : -1;

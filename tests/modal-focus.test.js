@@ -121,7 +121,7 @@ assert.throws(() => create({ appRoot: {}, document: {} }), /document\.addEventLi
 
 {
   const source = fs.readFileSync(path.join(__dirname, '..', 'dist', 'browser', 'editor', 'modal-focus.js'), 'utf8');
-  const context = {};
+  const context = { UMLLanguage: require('../dist/browser/editor/language.js') };
   context.globalThis = context;
   vm.runInNewContext(source, context);
   assert.equal(typeof context.UMLModalFocus.create, 'function');

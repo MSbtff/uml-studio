@@ -16,6 +16,9 @@ declare var UMLIconScript: IconScriptApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createIconScript);
 
 function createIconScript() {
+  const { text: uiText } = globalThis.UMLLanguage
+    ?? require('../editor/language.js') as typeof UMLLanguage;
+
   const MAX_LINES = 240;
   const MAX_COMMANDS = 200;
   const COLOR_NAMES = new Set([
@@ -46,7 +49,11 @@ function createIconScript() {
   function parseNumbers(tokens: string[], lineNo: number, errors: string[]) {
     const values = tokens.map(Number);
     if (values.some(value => !Number.isFinite(value) || Math.abs(value) > 10000)) {
-      errors.push(`${lineNo}행: 좌표와 크기는 -10000~10000 범위의 숫자여야 합니다.`);
+      errors.push(uiText(
+        'Line {0}: coordinates and sizes must be numbers between -10000 and 10000.',
+        '{0}행: 좌표와 크기는 -10000~10000 범위의 숫자여야 합니다.',
+        lineNo,
+      ));
       return null;
     }
     return values;
@@ -61,7 +68,7 @@ function createIconScript() {
     if (rawLines.length > MAX_LINES) {
       return {
         valid: false, width: 40, height: 40, commands: [],
-        errors: [`Icon Script는 최대 ${MAX_LINES}행까지 사용할 수 있습니다.`],
+        errors: [uiText('An icon script can have at most {0} lines.', 'Icon Script는 최대 {0}행까지 사용할 수 있습니다.', MAX_LINES)],
       };
     }
 
@@ -77,13 +84,13 @@ function createIconScript() {
 
       if (!headerSeen) {
         if (op !== '!icon') {
-          errors.push(`${lineNo}행: 첫 명령은 !icon width height 헤더여야 합니다.`);
+          errors.push(uiText('Line {0}: start with an !icon width height header.', '{0}행: 첫 명령은 !icon width height 헤더여야 합니다.', lineNo));
           headerSeen = true;
           return;
         }
         const values = parseNumbers(tokens.slice(1, 3), lineNo, errors);
         if (!values || values.length !== 2 || values.some(value => value <= 0 || value > 1000)) {
-          errors.push(`${lineNo}행: Icon 좌표계의 폭과 높이는 1~1000이어야 합니다.`);
+          errors.push(uiText('Line {0}: icon width and height must be between 1 and 1000.', '{0}행: Icon 좌표계의 폭과 높이는 1~1000이어야 합니다.', lineNo));
         } else {
           [width, height] = values;
         }
@@ -92,27 +99,39 @@ function createIconScript() {
       }
 
       if (commands.length >= MAX_COMMANDS) {
-        if (!errors.some(error => error.includes('도형 명령'))) {
-          errors.push(`Icon Script는 최대 ${MAX_COMMANDS}개의 도형 명령을 사용할 수 있습니다.`);
+        if (!errors.some(error => error.includes(uiText('shape commands', '도형 명령')))) {
+          errors.push(uiText('An icon script can have at most {0} shape commands.', 'Icon Script는 최대 {0}개의 도형 명령을 사용할 수 있습니다.', MAX_COMMANDS));
         }
         return;
       }
 
       if (op === '%l' || op === '%f') {
         const color = tokens[1] || (op === '%l' ? '#3d3a2e' : '#fffbd8');
-        if (!validColor(color)) errors.push(`${lineNo}행: 안전한 CSS 색상 또는 #RGB/#RRGGBB 값을 사용하세요.`);
+        if (!validColor(color)) errors.push(uiText(
+          'Line {0}: use a CSS named color or a #RGB/#RRGGBB color.',
+          '{0}행: 안전한 CSS 색상 또는 #RGB/#RRGGBB 값을 사용하세요.',
+          lineNo,
+        ));
         else style[op === '%l' ? 'line' : 'fill'] = color;
         return;
       }
       if (op === '%a') {
         const alpha = Number(tokens[1]);
-        if (!Number.isFinite(alpha) || alpha < 0 || alpha > 1) errors.push(`${lineNo}행: alpha는 0~1이어야 합니다.`);
+        if (!Number.isFinite(alpha) || alpha < 0 || alpha > 1) errors.push(uiText(
+          'Line {0}: alpha must be between 0 and 1.',
+          '{0}행: alpha는 0~1이어야 합니다.',
+          lineNo,
+        ));
         else style.alpha = alpha;
         return;
       }
       if (op === '%w') {
         const strokeWidth = Number(tokens[1]);
-        if (!Number.isFinite(strokeWidth) || strokeWidth <= 0 || strokeWidth > 50) errors.push(`${lineNo}행: 선 굵기는 0보다 크고 50 이하여야 합니다.`);
+        if (!Number.isFinite(strokeWidth) || strokeWidth <= 0 || strokeWidth > 50) errors.push(uiText(
+          'Line {0}: stroke width must be greater than 0 and at most 50.',
+          '{0}행: 선 굵기는 0보다 크고 50 이하여야 합니다.',
+          lineNo,
+        ));
         else style.width = strokeWidth;
         return;
       }
@@ -120,7 +139,7 @@ function createIconScript() {
         const patternTokens = tokens.slice(1).filter(token => !token.startsWith('#'));
         const pattern = parseNumbers(patternTokens, lineNo, errors);
         if (pattern && (pattern.length > 12 || pattern.some(value => value <= 0))) {
-          errors.push(`${lineNo}행: 선 패턴은 최대 12개의 양수로 지정하세요.`);
+          errors.push(uiText('Line {0}: use at most 12 positive values in a dash pattern.', '{0}행: 선 패턴은 최대 12개의 양수로 지정하세요.', lineNo));
         } else if (pattern) style.pattern = pattern;
         return;
       }
@@ -128,23 +147,23 @@ function createIconScript() {
       const valueTokens = tokens.slice(1).filter(token => !token.startsWith('#'));
       if (Object.prototype.hasOwnProperty.call(FIXED_ARITY, op)) {
         if (valueTokens.length !== FIXED_ARITY[op]) {
-          errors.push(`${lineNo}행: ${op} 명령에는 숫자 ${FIXED_ARITY[op]}개가 필요합니다.`);
+          errors.push(uiText('Line {0}: {1} requires {2} numbers.', '{0}행: {1} 명령에는 숫자 {2}개가 필요합니다.', lineNo, op, FIXED_ARITY[op]));
           return;
         }
       } else if (POLY_COMMANDS.has(op)) {
         if (valueTokens.length < 4 || valueTokens.length % 2 !== 0) {
-          errors.push(`${lineNo}행: ${op} 명령에는 두 점 이상의 x y 좌표쌍이 필요합니다.`);
+          errors.push(uiText('Line {0}: {1} requires at least two x y coordinate pairs.', '{0}행: {1} 명령에는 두 점 이상의 x y 좌표쌍이 필요합니다.', lineNo, op));
           return;
         }
       } else {
-        errors.push(`${lineNo}행: 지원하지 않는 명령입니다: ${op}`);
+        errors.push(uiText('Line {0}: unsupported command {1}.', '{0}행: 지원하지 않는 명령입니다: {1}', lineNo, op));
         return;
       }
       const values = parseNumbers(valueTokens, lineNo, errors);
       if (values) commands.push({ op, values, style: cloneStyle(style), line: lineNo });
     });
 
-    if (!headerSeen) errors.push('!icon width height 헤더가 필요합니다.');
+    if (!headerSeen) errors.push(uiText('An !icon width height header is required.', '!icon width height 헤더가 필요합니다.'));
     return { valid: errors.length === 0, width, height, commands, errors };
   }
 

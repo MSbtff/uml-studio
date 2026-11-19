@@ -13,6 +13,9 @@ declare var UMLProjectImport: ProjectImportApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createImportExportModule);
 
 function createImportExportModule() {
+  const { text: uiText } = globalThis.UMLLanguage
+    ?? require('../editor/language.js') as typeof UMLLanguage;
+
   /* names below marked "forwarded" are not used here — they are handed to
      importPreview.create, and `provide` only fills declared names */
   const REQUIRED_FUNCTIONS = Object.freeze([
@@ -58,9 +61,9 @@ function createImportExportModule() {
   const DRAWIO_FILE_ACCEPT = '.drawio,.xml';
   const DDL_FILE_ACCEPT = '.sql';
   const DRAWIO_IMPORT_POLICIES = Object.freeze([
-    ['keepBoth', '새 모델로 가져오기'],
-    ['reuse', '기존 모델 재사용'],
-    ['replace', '기존 모델 덮어쓰기'],
+    ['keepBoth', uiText('Import as New Model', '새 모델로 가져오기')],
+    ['reuse', uiText('Reuse Existing Model', '기존 모델 재사용')],
+    ['replace', uiText('Overwrite Existing Model', '기존 모델 덮어쓰기')],
   ] as const);
 
   type FileInputMode = 'open' | 'append-drawio' | 'append-ddl';
@@ -224,14 +227,17 @@ function createImportExportModule() {
       if (!f) return;
       const mode = fileInputMode;
       if (f.size > MAX_IMPORT_BYTES) {
-        alert(mode === 'append-ddl' ? 'DDL 파일은 10MB 이하만 가져올 수 있습니다.' : '프로젝트 파일은 10MB 이하만 열 수 있습니다.');
+        alert(mode === 'append-ddl' ? uiText('DDL files must be 10 MB or smaller.', 'DDL 파일은 10MB 이하만 가져올 수 있습니다.') : uiText(
+          'Project files must be 10 MB or smaller.',
+          '프로젝트 파일은 10MB 이하만 열 수 있습니다.',
+        ));
         input.value = '';
         fileInputMode = 'open';
         fileInput.accept = PROJECT_FILE_ACCEPT;
         return;
       }
       f.text().then(text => importSupportedFile(text, f.name, mode)).catch(error => {
-        alert('파일을 읽을 수 없습니다: ' + (error instanceof Error ? error.message : String(error)));
+        alert(uiText('Could not read the file: ', '파일을 읽을 수 없습니다: ') + (error instanceof Error ? error.message : String(error)));
       });
       input.value = '';
       fileInputMode = 'open';
@@ -254,7 +260,7 @@ function createImportExportModule() {
     async function importProjectFile(json: string, filename: string) {
       let parsed: unknown;
       try { parsed = JSON.parse(json); }
-      catch (error) { alert('파일을 읽을 수 없습니다: ' + (error instanceof Error ? error.message : String(error))); return false; }
+      catch (error) { alert(uiText('Could not read the file: ', '파일을 읽을 수 없습니다: ') + (error instanceof Error ? error.message : String(error))); return false; }
       const incoming = parsed && typeof parsed === 'object' ? parsed : {};
       const incomingId = 'projectId' in incoming ? incoming.projectId : undefined;
       const incomingName = 'projectName' in incoming ? incoming.projectName : undefined;
@@ -273,7 +279,7 @@ function createImportExportModule() {
       rememberActiveProject();
       markDirty();
       scheduleRecoverySave(0);
-      flashStatus(`프로젝트 파일을 열었습니다 · ${state.projectName}`);
+      flashStatus(uiText('Opened project file · {0}', '프로젝트 파일을 열었습니다 · {0}', state.projectName));
       return true;
     }
 
@@ -285,14 +291,25 @@ function createImportExportModule() {
           && relations.every(model => tools.relations.includes(model.kind));
       };
       if (requestedType) {
-        if (!DIAGRAM_META[requestedType]) throw new Error(`지원하지 않는 draw.io 다이어그램 종류입니다: ${requestedType}`);
-        if (!compatible(requestedType)) throw new Error(`draw.io 셀 종류가 ${DIAGRAM_META[requestedType].label}과 맞지 않습니다.`);
+        if (!DIAGRAM_META[requestedType]) throw new Error(uiText(
+          'Unsupported draw.io diagram type: {0}',
+          '지원하지 않는 draw.io 다이어그램 종류입니다: {0}',
+          requestedType,
+        ));
+        if (!compatible(requestedType)) throw new Error(uiText(
+          'The draw.io cell types do not match {0}.',
+          'draw.io 셀 종류가 {0}과 맞지 않습니다.',
+          DIAGRAM_META[requestedType].label,
+        ));
         return requestedType;
       }
       const inferred = drawioImporter.inferDiagramType(elements, relations);
       if (compatible(inferred)) return inferred;
       const candidates = Object.keys(DIAGRAM_TOOLS).filter(compatible);
-      if (!candidates.length) throw new Error('draw.io 셀 구성에 맞는 UML 다이어그램 종류를 찾을 수 없습니다.');
+      if (!candidates.length) throw new Error(uiText(
+        'No UML diagram type matches the draw.io cells.',
+        'draw.io 셀 구성에 맞는 UML 다이어그램 종류를 찾을 수 없습니다.',
+      ));
       return candidates[0];
     }
 
@@ -340,7 +357,7 @@ function createImportExportModule() {
       Object.entries(imported.models).forEach(([oldId, source]) => {
         const model: DiagramModel = JSON.parse(JSON.stringify(source));
         const id = modelIds.get(oldId);
-        if (!id) throw new Error(`가져올 모델 ID를 찾을 수 없습니다: ${oldId}`);
+        if (!id) throw new Error(uiText('Could not find model ID to import: {0}', '가져올 모델 ID를 찾을 수 없습니다: {0}', oldId));
         model.id = id;
         modelReferenceFields.forEach(field => {
           const value = model[field];
@@ -374,7 +391,7 @@ function createImportExportModule() {
         const remapView = <View extends ImportView>(source: View): View => {
           const view: View = JSON.parse(JSON.stringify(source));
           const id = viewIds.get(source.id);
-          if (!id) throw new Error(`가져올 뷰 ID를 찾을 수 없습니다: ${source.id}`);
+          if (!id) throw new Error(uiText('Could not find view ID to import: {0}', '가져올 뷰 ID를 찾을 수 없습니다: {0}', source.id));
           view.id = id;
           view.modelId = source.modelId ? modelIds.get(source.modelId) : undefined;
           if ('x' in view) {
@@ -389,7 +406,7 @@ function createImportExportModule() {
         };
         const copy: ImportedDiagram = JSON.parse(JSON.stringify(diagram));
         const id = diagramIds.get(diagram.id);
-        if (!id) throw new Error(`가져올 다이어그램 ID를 찾을 수 없습니다: ${diagram.id}`);
+        if (!id) throw new Error(uiText('Could not find diagram ID to import: {0}', '가져올 다이어그램 ID를 찾을 수 없습니다: {0}', diagram.id));
         return {
           ...copy,
           id,
@@ -413,7 +430,7 @@ function createImportExportModule() {
           resolveDiagramType: resolveImportedDrawioType,
         });
       } catch (error) {
-        alert('draw.io 파일을 읽을 수 없습니다: ' + (error instanceof Error ? error.message : String(error)));
+        alert(uiText('Could not read the draw.io file: ', 'draw.io 파일을 읽을 수 없습니다: ') + (error instanceof Error ? error.message : String(error)));
         return false;
       }
 
@@ -423,7 +440,7 @@ function createImportExportModule() {
         append ? state.diagrams : [],
       );
       const decision = await openDrawioImportPreview(imported, analysis, { append, filename: filename || fallbackName });
-      if (!decision) { flashStatus('draw.io 가져오기를 취소했습니다'); return false; }
+      if (!decision) { flashStatus(uiText('Canceled draw.io import.', 'draw.io 가져오기를 취소했습니다')); return false; }
 
       if (append) {
         snapshot();
@@ -438,7 +455,7 @@ function createImportExportModule() {
           });
         } catch (error) {
           rollbackLastSnapshot();
-          alert('draw.io 병합 검증에 실패하여 변경을 되돌렸습니다: ' + (error instanceof Error ? error.message : String(error)));
+          alert(uiText('Rolled back the draw.io import because validation failed: ', 'draw.io 병합 검증에 실패하여 변경을 되돌렸습니다: ') + (error instanceof Error ? error.message : String(error)));
           return false;
         }
         state.activeId = diagrams[0].id;
@@ -446,7 +463,7 @@ function createImportExportModule() {
         clearValidationResults();
         renderAll();
         scheduleRecoverySave(0);
-        flashStatus(`draw.io 다이어그램 ${diagrams.length}개를 프로젝트로 가져왔습니다`);
+        flashStatus(uiText('Imported {0} draw.io diagrams into the project.', 'draw.io 다이어그램 {0}개를 프로젝트로 가져왔습니다', diagrams.length));
         return true;
       }
 
@@ -463,7 +480,7 @@ function createImportExportModule() {
       rememberActiveProject();
       markDirty();
       scheduleRecoverySave(0);
-      flashStatus(`draw.io 프로젝트를 열었습니다 · ${state.projectName}`);
+      flashStatus(uiText('Opened draw.io project · {0}', 'draw.io 프로젝트를 열었습니다 · {0}', state.projectName));
       return true;
     }
 
@@ -474,11 +491,11 @@ function createImportExportModule() {
       try {
         imported = ddlImporter.parseDdl(sql, { diagramName: fallbackName });
       } catch (error) {
-        alert('DDL 파일을 읽을 수 없습니다: ' + (error instanceof Error ? error.message : String(error)));
+        alert(uiText('Could not read the DDL file: ', 'DDL 파일을 읽을 수 없습니다: ') + (error instanceof Error ? error.message : String(error)));
         return false;
       }
       const confirmed = await openDdlImportPreview(imported, { filename: filename || fallbackName });
-      if (!confirmed) { flashStatus('DDL 가져오기를 취소했습니다'); return false; }
+      if (!confirmed) { flashStatus(uiText('Canceled DDL import.', 'DDL 가져오기를 취소했습니다')); return false; }
 
       snapshot();
       let diagrams;
@@ -492,7 +509,7 @@ function createImportExportModule() {
         });
       } catch (error) {
         rollbackLastSnapshot();
-        alert('DDL 병합 검증에 실패하여 변경을 되돌렸습니다: ' + (error instanceof Error ? error.message : String(error)));
+        alert(uiText('Rolled back the DDL import because validation failed: ', 'DDL 병합 검증에 실패하여 변경을 되돌렸습니다: ') + (error instanceof Error ? error.message : String(error)));
         return false;
       }
       state.activeId = diagrams[0].id;
@@ -500,7 +517,7 @@ function createImportExportModule() {
       clearValidationResults();
       renderAll();
       scheduleRecoverySave(0);
-      flashStatus(`DDL 테이블 ${imported.importMeta.tables}개를 ER Diagram으로 가져왔습니다`);
+      flashStatus(uiText('Imported {0} DDL tables into an ER diagram.', 'DDL 테이블 {0}개를 ER Diagram으로 가져왔습니다', imported.importMeta.tables));
       return true;
     }
 
@@ -513,11 +530,11 @@ function createImportExportModule() {
           && !/^\s*[\[{]/.test(text));
       if (ddl) return importDdlProjectFile(text, filename);
       if (mode === 'append-drawio') {
-        alert('현재 프로젝트 가져오기는 .drawio 또는 .xml 파일만 지원합니다.');
+        alert(uiText('Import into the current project accepts .drawio and .xml files.', '현재 프로젝트 가져오기는 .drawio 또는 .xml 파일만 지원합니다.'));
         return false;
       }
       if (mode === 'append-ddl') {
-        alert('DDL 가져오기는 .sql 파일만 지원합니다.');
+        alert(uiText('DDL import accepts .sql files.', 'DDL 가져오기는 .sql 파일만 지원합니다.'));
         return false;
       }
       return importProjectFile(text, filename);

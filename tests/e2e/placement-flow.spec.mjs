@@ -28,7 +28,7 @@ test('도구로 놓은 요소는 컨테이너에 붙고, 호스트가 필요한 
   await clickTool(page, 'Region');
   await page.locator('#canvas').click({ position: { x: 600, y: 500 } });
   await expect(canvasElements(page)).toHaveCount(0);
-  await expect(status(page)).toContainText('Composite State 내부');
+  await expect(status(page)).toContainText('inside a composite state');
 
   // Composite State는 Region 하나와 함께 생긴다
   await clickTool(page, 'Composite State');
@@ -47,7 +47,7 @@ test('도구로 놓은 요소는 컨테이너에 붙고, 호스트가 필요한 
   await clickTool(page, 'Execution');
   await page.locator('#canvas').click({ position: { x: 500, y: 400 } });
   await expect(canvasElements(page)).toHaveCount(0);
-  await expect(status(page)).toContainText('라이프라인');
+  await expect(status(page)).toContainText('lifeline');
 
   await clickTool(page, 'Lifeline');
   await page.locator('#canvas').click({ position: { x: 300, y: 120 } });
@@ -121,7 +121,7 @@ test('시퀀스 전체를 위아래로 드래그하면 alt와 메시지의 간�
   await page.mouse.down();
   await page.mouse.move(bounds.x + right, bounds.y + bottom, { steps: 8 });
   await page.mouse.up();
-  await expect(page.locator('#props')).toContainText('요소 5개 선택됨');
+  await expect(page.locator('#props')).toContainText('Selected elements: 5');
   await dragMessage(-152);
   const topEdge = -Math.min(...original.elements.map((e) => e.y));
   await waitForStoredProject(page, (data) => coordinatesMatch(data, topEdge));
@@ -174,7 +174,7 @@ test('시퀀스 중간 구간에서 선택한 alt와 화살표만 같이 이동�
   await page.mouse.down();
   await page.mouse.move(x + fragment.x + fragment.w + 12, y + fragment.y + fragment.h + 8, { steps: 8 });
   await page.mouse.up();
-  await expect(page.locator('#props')).toContainText('요소 3개 선택됨');
+  await expect(page.locator('#props')).toContainText('Selected elements: 3');
 
   const moved = (dy) => (project) => {
     const current = sequence(project);
@@ -212,14 +212,14 @@ test('선택하지 않은 alt의 점선을 바로 드래그하면 분기 높이�
   await createEmptyProject(page);
   await addDiagram(page, 'Sequence Diagram');
   const alt = await createCanvasElement(page, 'Combined Fragment', { x: 230, y: 140 });
-  await page.getByLabel('Interaction Operands (구역)', { exact: true }).fill('[success]\n[retry]\n[else]');
+  await page.getByLabel('Interaction Operands', { exact: true }).fill('[success]\n[retry]\n[else]');
   const dividers = alt.locator('line[stroke-dasharray="6 4"]');
   await expect(dividers).toHaveCount(2);
   const originalY = Number(await dividers.first().getAttribute('y1'));
   const secondY = await dividers.last().getAttribute('y1');
   await page.locator('#canvas-wrap').focus();
   await page.keyboard.press('Escape');
-  await expect(page.locator('#props')).toContainText('선택된 요소가 없습니다');
+  await expect(page.locator('#props')).toContainText('Nothing selected.');
 
   const firstHandle = alt.locator('[data-operand-divider="1"]');
   await expect(firstHandle).toBeVisible();

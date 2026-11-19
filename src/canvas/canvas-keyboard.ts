@@ -9,6 +9,9 @@ declare var UMLCanvasKeyboard: CanvasKeyboardApi;
 
 function createCanvasKeyboardModule() {
   'use strict';
+  const { text: uiText } = globalThis.UMLLanguage
+    ?? require('../editor/language.js') as typeof UMLLanguage;
+
 
   const REQUIRED_FUNCTIONS = Object.freeze([
     'byId', 'dg', 'diagramKindLabel', 'flashStatus', 'render', 'renderProps', 'setSelection',
@@ -111,7 +114,14 @@ function createCanvasKeyboardModule() {
     function announce(item: NavigationItem, index: number, total: number) {
       const label = diagramKindLabel(item.view.kind, dg()?.type);
       const name = String(item.view.name || '').trim();
-      return `${label}${name ? ` "${name}"` : ''} · ${index + 1}/${total} 선택 · Tab 다음 · Shift+Tab 이전 · Esc 해제`;
+      return uiText(
+        '{0}{1} · Selected {2}/{3} · Tab next · Shift+Tab previous · Esc clear selection',
+        '{0}{1} · {2}/{3} 선택 · Tab 다음 · Shift+Tab 이전 · Esc 해제',
+        label,
+        name ? ` "${name}"` : '',
+        index + 1,
+        total,
+      );
     }
 
     function selectAt(items: NavigationItem[], index: number) {
@@ -142,7 +152,7 @@ function createCanvasKeyboardModule() {
       const next = index + (forward ? 1 : -1);
       if (next < 0 || next >= items.length) {
         clearSelection();
-        flashStatus('캔버스 선택 해제 — Tab으로 캔버스를 벗어납니다');
+        flashStatus(uiText('Canvas selection cleared. Press Tab to leave the canvas.', '캔버스 선택 해제 — Tab으로 캔버스를 벗어납니다'));
         return false;
       }
       return selectAt(items, next);

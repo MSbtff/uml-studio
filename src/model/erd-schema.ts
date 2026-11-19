@@ -13,6 +13,9 @@ declare var UMLErdSchema: ErdSchemaApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createErdSchema);
 
 function createErdSchema() {
+  const { text: uiText } = globalThis.UMLLanguage
+    ?? require('../editor/language.js') as typeof UMLLanguage;
+
   const MAX_EXPRESSION_LENGTH = 4000;
   const MAX_SCHEMA_ITEMS = 500;
   const MAX_INDEX_COLUMNS = 32;
@@ -21,7 +24,7 @@ function createErdSchema() {
     'NO ACTION', 'RESTRICT', 'CASCADE', 'SET NULL', 'SET DEFAULT',
   ]);
   const ERD_REFERENTIAL_ACTION_OPTIONS = Object.freeze([
-    Object.freeze(['', '(DB 기본값 · NO ACTION)']),
+    Object.freeze(['', uiText('(Database default · NO ACTION)', '(DB 기본값 · NO ACTION)')]),
     ...ERD_REFERENTIAL_ACTIONS.map(value => Object.freeze([value, value])),
   ]);
   const ERD_RELATION_KINDS = new Set(['erd-11', 'erd-1n', 'erd-nm']);
@@ -62,25 +65,34 @@ function createErdSchema() {
 
   function schemaName(value: unknown, description: string, allowEmpty = true) {
     if (value !== undefined && value !== null && typeof value !== 'string') {
-      throw new Error(`${description} 이름은 문자열이어야 합니다.`);
+      throw new Error(uiText('{0} name must be a string.', '{0} 이름은 문자열이어야 합니다.', description));
     }
     const name = String(value || '').trim();
     if (!name && allowEmpty) return '';
-    if (!name) throw new Error(`${description} 이름이 없습니다.`);
-    if (name.length > MAX_NAME_LENGTH) throw new Error(`${description} 이름은 ${MAX_NAME_LENGTH}자 이하여야 합니다.`);
-    if (/\0|[\r\n]/.test(name)) throw new Error(`${description} 이름에 제어 문자를 사용할 수 없습니다.`);
+    if (!name) throw new Error(uiText('{0} name is required.', '{0} 이름이 없습니다.', description));
+    if (name.length > MAX_NAME_LENGTH) throw new Error(uiText(
+      '{0} name must be at most {1} characters.',
+      '{0} 이름은 {1}자 이하여야 합니다.',
+      description,
+      MAX_NAME_LENGTH,
+    ));
+    if (/\0|[\r\n]/.test(name)) throw new Error(uiText(
+      '{0} name cannot contain control characters.',
+      '{0} 이름에 제어 문자를 사용할 수 없습니다.',
+      description,
+    ));
     return name;
   }
 
-  function safeSqlFragment(value: unknown, description = 'SQL 표현식', allowEmpty = false) {
+  function safeSqlFragment(value: unknown, description = uiText('SQL expression', 'SQL 표현식'), allowEmpty = false) {
     if (value !== undefined && value !== null && typeof value !== 'string') {
-      throw new Error(`${description}은(는) 문자열이어야 합니다.`);
+      throw new Error(uiText('{0} must be a string.', '{0}은(는) 문자열이어야 합니다.', description));
     }
     const source = String(value == null ? '' : value).trim();
     if (!source && allowEmpty) return '';
-    if (!source) throw new Error(`${description}이(가) 비어 있습니다.`);
+    if (!source) throw new Error(uiText('{0} is empty.', '{0}이(가) 비어 있습니다.', description));
     if (source.length > MAX_EXPRESSION_LENGTH) {
-      throw new Error(`${description}은(는) ${MAX_EXPRESSION_LENGTH}자 이하여야 합니다.`);
+      throw new Error(uiText('{0} must be at most {1} characters.', '{0}은(는) {1}자 이하여야 합니다.', description, MAX_EXPRESSION_LENGTH));
     }
     let quote = '';
     let depth = 0;
@@ -99,7 +111,11 @@ function createErdSchema() {
         const marker = source.slice(index).match(/^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/)?.[0];
         if (marker) {
           const close = source.indexOf(marker, index + marker.length);
-          if (close < 0) throw new Error(`${description}의 PostgreSQL dollar 문자열이 닫히지 않았습니다.`);
+          if (close < 0) throw new Error(uiText(
+            'Unclosed PostgreSQL dollar-quoted string in {0}.',
+            '{0}의 PostgreSQL dollar 문자열이 닫히지 않았습니다.',
+            description,
+          ));
           index = close + marker.length - 1;
           continue;
         }
@@ -109,30 +125,30 @@ function createErdSchema() {
         continue;
       }
       if (char === '\0' || char === '\r' || char === '\n') {
-        throw new Error(`${description}에 제어 문자나 줄바꿈을 사용할 수 없습니다.`);
+        throw new Error(uiText('{0} cannot contain control characters or line breaks.', '{0}에 제어 문자나 줄바꿈을 사용할 수 없습니다.', description));
       }
       if (char === ';' || (char === '-' && next === '-') || (char === '/' && next === '*')
         || (char === '#' && next !== '>')) {
-        throw new Error(`${description}에 SQL 문장 구분자나 주석을 사용할 수 없습니다.`);
+        throw new Error(uiText('{0} cannot contain SQL statement separators or comments.', '{0}에 SQL 문장 구분자나 주석을 사용할 수 없습니다.', description));
       }
       if (char === '(') depth++;
       if (char === ')') {
         depth--;
-        if (depth < 0) throw new Error(`${description}의 괄호가 올바르지 않습니다.`);
+        if (depth < 0) throw new Error(uiText('Unbalanced parentheses in {0}.', '{0}의 괄호가 올바르지 않습니다.', description));
       }
     }
-    if (quote) throw new Error(`${description}의 문자열 또는 식별자가 닫히지 않았습니다.`);
-    if (depth !== 0) throw new Error(`${description}의 괄호가 올바르지 않습니다.`);
+    if (quote) throw new Error(uiText('Unclosed string or identifier in {0}.', '{0}의 문자열 또는 식별자가 닫히지 않았습니다.', description));
+    if (depth !== 0) throw new Error(uiText('Unbalanced parentheses in {0}.', '{0}의 괄호가 올바르지 않습니다.', description));
     return source;
   }
 
-  function normalizeReferentialAction(value: unknown, description = 'FK 참조 동작') {
+  function normalizeReferentialAction(value: unknown, description = uiText('Foreign key action', 'FK 참조 동작')) {
     if (value === undefined) return '';
-    if (typeof value !== 'string') throw new Error(`${description}은(는) 문자열이어야 합니다.`);
+    if (typeof value !== 'string') throw new Error(uiText('{0} must be a string.', '{0}은(는) 문자열이어야 합니다.', description));
     const action = value.trim().replace(/\s+/g, ' ').toUpperCase();
     if (!action) return '';
     if (!ERD_REFERENTIAL_ACTIONS.includes(action)) {
-      throw new Error(`${description}이(가) 올바르지 않습니다: ${value}`);
+      throw new Error(uiText('Invalid {0}: {1}', '{0}이(가) 올바르지 않습니다: {1}', description, value));
     }
     return action;
   }
@@ -147,15 +163,19 @@ function createErdSchema() {
   function normalizeColumnDetails(value: unknown): Record<string, ErdColumnDetails> {
     if (value === undefined || value === null) return {};
     if (!isRecord(value)) {
-      throw new Error('ERD 컬럼 상세 정보가 객체가 아닙니다.');
+      throw new Error(uiText('ERD column details must be an object.', 'ERD 컬럼 상세 정보가 객체가 아닙니다.'));
     }
     const result: Record<string, ErdColumnDetails> = {};
     const entries = Object.entries(value);
-    if (entries.length > MAX_SCHEMA_ITEMS) throw new Error(`ERD 컬럼 상세 정보는 ${MAX_SCHEMA_ITEMS}개 이하여야 합니다.`);
+    if (entries.length > MAX_SCHEMA_ITEMS) throw new Error(uiText(
+      'ERD column details may contain at most {0} entries.',
+      'ERD 컬럼 상세 정보는 {0}개 이하여야 합니다.',
+      MAX_SCHEMA_ITEMS,
+    ));
     entries.forEach(([rawName, rawDetails]) => {
-      const name = schemaName(rawName, 'ERD 컬럼', false);
+      const name = schemaName(rawName, uiText('ERD column', 'ERD 컬럼'), false);
       if (!isRecord(rawDetails)) {
-        throw new Error(`'${name}' 컬럼 상세 정보가 올바르지 않습니다.`);
+        throw new Error(uiText('Invalid details for column \'{0}\'.', '\'{0}\' 컬럼 상세 정보가 올바르지 않습니다.', name));
       }
       const defaultValue = safeSqlFragment(rawDetails.defaultValue, `'${name}' DEFAULT`, true);
       const uniqueName = schemaName(rawDetails.uniqueName, `'${name}' UNIQUE`, true);
@@ -167,22 +187,31 @@ function createErdSchema() {
   function normalizeErdChecks(value: unknown, columnNames: readonly string[] = []): ErdSchemaCheck[] {
     if (value === undefined || value === null) return [];
     if (!Array.isArray(value) || value.length > MAX_SCHEMA_ITEMS) {
-      throw new Error(`ERD CHECK 목록은 배열이며 ${MAX_SCHEMA_ITEMS}개 이하여야 합니다.`);
+      throw new Error(uiText(
+        'ERD CHECK constraints must be an array with at most {0} entries.',
+        'ERD CHECK 목록은 배열이며 {0}개 이하여야 합니다.',
+        MAX_SCHEMA_ITEMS,
+      ));
     }
     const columns = Array.isArray(columnNames) ? columnNames : [];
     const names = new Set();
     return value.map((raw: unknown, index) => {
       if (!isRecord(raw)) {
-        throw new Error(`ERD CHECK ${index + 1} 정보가 올바르지 않습니다.`);
+        throw new Error(uiText('Invalid ERD CHECK constraint {0}.', 'ERD CHECK {0} 정보가 올바르지 않습니다.', index + 1));
       }
       const name = schemaName(raw.name, `ERD CHECK ${index + 1}`, true);
       const expression = safeSqlFragment(raw.expression, `ERD CHECK ${name || index + 1}`);
-      const column = schemaName(raw.column, `ERD CHECK ${name || index + 1} 컬럼`, true);
+      const column = schemaName(raw.column, uiText('ERD CHECK {0} column', 'ERD CHECK {0} 컬럼', name || index + 1), true);
       if (column && columns.length && !columns.some(value => sameName(value, column))) {
-        throw new Error(`ERD CHECK '${name || expression}'의 컬럼을 찾을 수 없습니다: ${column}`);
+        throw new Error(uiText(
+          'ERD CHECK \'{0}\' references a missing column: {1}',
+          'ERD CHECK \'{0}\'의 컬럼을 찾을 수 없습니다: {1}',
+          name || expression,
+          column,
+        ));
       }
       const key = name.toLocaleLowerCase();
-      if (key && names.has(key)) throw new Error(`중복된 ERD CHECK 이름입니다: ${name}`);
+      if (key && names.has(key)) throw new Error(uiText('Duplicate ERD CHECK name: {0}', '중복된 ERD CHECK 이름입니다: {0}', name));
       if (key) names.add(key);
       return { name, expression, column };
     });
@@ -191,48 +220,68 @@ function createErdSchema() {
   function normalizeErdIndexes(value: unknown, columnNames: readonly string[] = []): ErdSchemaIndex[] {
     if (value === undefined || value === null) return [];
     if (!Array.isArray(value) || value.length > MAX_SCHEMA_ITEMS) {
-      throw new Error(`ERD 인덱스 목록은 배열이며 ${MAX_SCHEMA_ITEMS}개 이하여야 합니다.`);
+      throw new Error(uiText('ERD indexes must be an array with at most {0} entries.', 'ERD 인덱스 목록은 배열이며 {0}개 이하여야 합니다.', MAX_SCHEMA_ITEMS));
     }
     const available = Array.isArray(columnNames) ? columnNames : [];
     const names = new Set();
     return value.map((raw: unknown, index) => {
       if (!isRecord(raw)) {
-        throw new Error(`ERD 인덱스 ${index + 1} 정보가 올바르지 않습니다.`);
+        throw new Error(uiText('Invalid ERD index {0}.', 'ERD 인덱스 {0} 정보가 올바르지 않습니다.', index + 1));
       }
       if (raw.kind !== undefined && raw.kind !== 'unique' && raw.kind !== 'index') {
-        throw new Error(`ERD 인덱스 ${index + 1} 종류가 올바르지 않습니다: ${raw.kind}`);
+        throw new Error(uiText('Invalid type for ERD index {0}: {1}', 'ERD 인덱스 {0} 종류가 올바르지 않습니다: {1}', index + 1, raw.kind));
       }
       if (raw.unique !== undefined && typeof raw.unique !== 'boolean') {
-        throw new Error(`ERD 인덱스 ${index + 1} Unique 값이 올바르지 않습니다.`);
+        throw new Error(uiText('Invalid unique flag for ERD index {0}.', 'ERD 인덱스 {0} Unique 값이 올바르지 않습니다.', index + 1));
       }
       const kind = raw.kind === 'unique' ? 'unique' : 'index';
-      const name = schemaName(raw.name, `ERD ${kind === 'unique' ? 'UNIQUE' : '인덱스'} ${index + 1}`, true);
+      const name = schemaName(raw.name, `ERD ${kind === 'unique' ? 'UNIQUE' : uiText('index', '인덱스')} ${index + 1}`, true);
       const columns = Array.isArray(raw.columns) ? raw.columns : [];
       if (!columns.length || columns.length > MAX_INDEX_COLUMNS) {
-        throw new Error(`ERD ${name || index + 1} 인덱스 컬럼은 1~${MAX_INDEX_COLUMNS}개여야 합니다.`);
+        throw new Error(uiText(
+          'ERD {0} index must have between 1 and {1} columns.',
+          'ERD {0} 인덱스 컬럼은 1~{1}개여야 합니다.',
+          name || index + 1,
+          MAX_INDEX_COLUMNS,
+        ));
       }
       const normalizedColumns = columns.map((entry: unknown, columnIndex): ErdSchemaIndex['columns'][number] => {
         const source = typeof entry === 'string' ? { name: entry } : entry;
         if (!isRecord(source)) {
-          throw new Error(`ERD 인덱스 '${name || index + 1}'의 ${columnIndex + 1}번째 컬럼이 올바르지 않습니다.`);
+          throw new Error(uiText(
+            'ERD index \'{0}\' has an invalid column at position {1}.',
+            'ERD 인덱스 \'{0}\'의 {1}번째 컬럼이 올바르지 않습니다.',
+            name || index + 1,
+            columnIndex + 1,
+          ));
         }
-        const columnName = schemaName(source.name, `ERD 인덱스 '${name || index + 1}' 컬럼`, false);
+        const columnName = schemaName(source.name, uiText('ERD index \'{0}\' column', 'ERD 인덱스 \'{0}\' 컬럼', name || index + 1), false);
         if (available.length && !available.some(value => sameName(value, columnName))) {
-          throw new Error(`ERD 인덱스 '${name || index + 1}'의 컬럼을 찾을 수 없습니다: ${columnName}`);
+          throw new Error(uiText(
+            'ERD index \'{0}\' references a missing column: {1}',
+            'ERD 인덱스 \'{0}\'의 컬럼을 찾을 수 없습니다: {1}',
+            name || index + 1,
+            columnName,
+          ));
         }
         if (source.order !== undefined && typeof source.order !== 'string') {
-          throw new Error(`ERD 인덱스 '${name || index + 1}'의 정렬 방향이 문자열이 아닙니다.`);
+          throw new Error(uiText('ERD index \'{0}\' sort direction must be a string.', 'ERD 인덱스 \'{0}\'의 정렬 방향이 문자열이 아닙니다.', name || index + 1));
         }
         const order = String(source.order || '').trim().toUpperCase();
         if (order !== '' && order !== 'ASC' && order !== 'DESC') {
-          throw new Error(`ERD 인덱스 '${name || index + 1}'의 정렬 방향이 올바르지 않습니다: ${order}`);
+          throw new Error(uiText(
+            'ERD index \'{0}\' has an invalid sort direction: {1}',
+            'ERD 인덱스 \'{0}\'의 정렬 방향이 올바르지 않습니다: {1}',
+            name || index + 1,
+            order,
+          ));
         }
         return { name: columnName, order };
       });
       const unique = kind === 'unique' ? true : raw.unique === true;
-      const where = safeSqlFragment(raw.where, `ERD 인덱스 '${name || index + 1}' WHERE`, true);
+      const where = safeSqlFragment(raw.where, uiText('ERD index \'{0}\' WHERE clause', 'ERD 인덱스 \'{0}\' WHERE', name || index + 1), true);
       const key = name.toLocaleLowerCase();
-      if (key && names.has(key)) throw new Error(`중복된 ERD 인덱스 이름입니다: ${name}`);
+      if (key && names.has(key)) throw new Error(uiText('Duplicate ERD index name: {0}', '중복된 ERD 인덱스 이름입니다: {0}', name));
       if (key) names.add(key);
       return { kind, name, unique, columns: normalizedColumns, where };
     });
@@ -440,7 +489,7 @@ function createErdSchema() {
     const details = normalizeColumnDetails(entity?.erdColumnDetails);
     Object.keys(details).forEach(name => {
       if (available.length && !available.some(column => sameName(column, name))) {
-        throw new Error(`ERD 컬럼 상세 정보의 컬럼을 찾을 수 없습니다: ${name}`);
+        throw new Error(uiText('ERD column details refer to a missing column: {0}', 'ERD 컬럼 상세 정보의 컬럼을 찾을 수 없습니다: {0}', name));
       }
     });
     return {

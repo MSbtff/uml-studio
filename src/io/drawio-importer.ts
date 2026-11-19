@@ -18,6 +18,9 @@ declare var UMLDrawioImporter: DrawioImporterApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createDrawioImporter);
 
 function createDrawioImporter() {
+  const { text: uiText } = globalThis.UMLLanguage
+    ?? require('../editor/language.js') as typeof UMLLanguage;
+
   interface XmlNode {
     name: string;
     attrs: Record<string, string>;
@@ -72,7 +75,7 @@ function createDrawioImporter() {
         ? Number.parseInt(entity[1].toLowerCase() === 'x' ? entity.slice(2) : entity.slice(1), entity[1].toLowerCase() === 'x' ? 16 : 10)
         : NaN;
       if (!Number.isInteger(codePoint) || codePoint < 0 || codePoint > 0x10ffff) {
-        throw new Error('XML 문자 엔티티가 올바르지 않습니다.');
+        throw new Error(uiText('Invalid XML character entity.', 'XML 문자 엔티티가 올바르지 않습니다.'));
       }
       return String.fromCodePoint(codePoint);
     });
@@ -85,19 +88,19 @@ function createDrawioImporter() {
       while (/\s/.test(source[index] || '')) index++;
       if (index >= source.length) break;
       const nameMatch = source.slice(index).match(/^([A-Za-z_][A-Za-z0-9_.:-]*)/);
-      if (!nameMatch) throw new Error('XML 속성 이름이 올바르지 않습니다.');
+      if (!nameMatch) throw new Error(uiText('Invalid XML attribute name.', 'XML 속성 이름이 올바르지 않습니다.'));
       const name = nameMatch[1];
       index += name.length;
       while (/\s/.test(source[index] || '')) index++;
-      if (source[index++] !== '=') throw new Error(`XML 속성 값이 없습니다: ${name}`);
+      if (source[index++] !== '=') throw new Error(uiText('Missing XML attribute value: {0}', 'XML 속성 값이 없습니다: {0}', name));
       while (/\s/.test(source[index] || '')) index++;
       const quote = source[index++];
-      if (quote !== '"' && quote !== "'") throw new Error(`XML 속성 따옴표가 없습니다: ${name}`);
+      if (quote !== '"' && quote !== "'") throw new Error(uiText('Missing quote around XML attribute: {0}', 'XML 속성 따옴표가 없습니다: {0}', name));
       const end = source.indexOf(quote, index);
-      if (end < 0) throw new Error(`XML 속성 따옴표가 닫히지 않았습니다: ${name}`);
+      if (end < 0) throw new Error(uiText('Unclosed XML attribute quote: {0}', 'XML 속성 따옴표가 닫히지 않았습니다: {0}', name));
       const raw = source.slice(index, end);
-      if (raw.length > MAX_ATTRIBUTE_LENGTH) throw new Error(`XML 속성이 너무 큽니다: ${name}`);
-      if (own(attributes, name)) throw new Error(`중복된 XML 속성입니다: ${name}`);
+      if (raw.length > MAX_ATTRIBUTE_LENGTH) throw new Error(uiText('XML attribute exceeds the size limit: {0}', 'XML 속성이 너무 큽니다: {0}', name));
+      if (own(attributes, name)) throw new Error(uiText('Duplicate XML attribute: {0}', '중복된 XML 속성입니다: {0}', name));
       attributes[name] = decodeEntities(raw);
       index = end + 1;
     }
@@ -118,9 +121,12 @@ function createDrawioImporter() {
 
   function parseXml(xml: unknown) {
     const source = String(xml || '').replace(/^\uFEFF/, '');
-    if (!source.trim()) throw new Error('draw.io XML 내용이 없습니다.');
-    if (source.length > MAX_XML_BYTES) throw new Error('draw.io 파일이 10MB 제한을 초과합니다.');
-    if (/<!DOCTYPE|<!ENTITY/i.test(source)) throw new Error('DOCTYPE과 외부 엔티티는 허용하지 않습니다.');
+    if (!source.trim()) throw new Error(uiText('The draw.io XML is empty.', 'draw.io XML 내용이 없습니다.'));
+    if (source.length > MAX_XML_BYTES) throw new Error(uiText('The draw.io file exceeds the 10 MB limit.', 'draw.io 파일이 10MB 제한을 초과합니다.'));
+    if (/<!DOCTYPE|<!ENTITY/i.test(source)) throw new Error(uiText(
+      'DOCTYPE and external entities are prohibited.',
+      'DOCTYPE과 외부 엔티티는 허용하지 않습니다.',
+    ));
     const documentNode: XmlNode = { name: '#document', attrs: {}, children: [], text: '' };
     const stack = [documentNode];
     let index = 0, nodeCount = 0;
@@ -134,32 +140,32 @@ function createDrawioImporter() {
       }
       if (source.startsWith('<!--', index)) {
         const end = source.indexOf('-->', index + 4);
-        if (end < 0) throw new Error('XML 주석이 닫히지 않았습니다.');
+        if (end < 0) throw new Error(uiText('Unclosed XML comment.', 'XML 주석이 닫히지 않았습니다.'));
         index = end + 3;
         continue;
       }
       if (source.startsWith('<?', index)) {
         const end = source.indexOf('?>', index + 2);
-        if (end < 0) throw new Error('XML 선언이 닫히지 않았습니다.');
+        if (end < 0) throw new Error(uiText('Unclosed XML declaration.', 'XML 선언이 닫히지 않았습니다.'));
         index = end + 2;
         continue;
       }
       if (source.startsWith('<![CDATA[', index)) {
         const end = source.indexOf(']]>', index + 9);
-        if (end < 0) throw new Error('CDATA가 닫히지 않았습니다.');
+        if (end < 0) throw new Error(uiText('Unclosed CDATA section.', 'CDATA가 닫히지 않았습니다.'));
         stack[stack.length - 1].text += source.slice(index + 9, end);
         index = end + 3;
         continue;
       }
       const end = findTagEnd(source, index);
-      if (end < 0) throw new Error('XML 태그가 닫히지 않았습니다.');
+      if (end < 0) throw new Error(uiText('Unclosed XML tag.', 'XML 태그가 닫히지 않았습니다.'));
       let body = source.slice(index + 1, end).trim();
-      if (!body) throw new Error('빈 XML 태그입니다.');
-      if (body[0] === '!') throw new Error('지원하지 않는 XML 선언입니다.');
+      if (!body) throw new Error(uiText('Empty XML tag.', '빈 XML 태그입니다.'));
+      if (body[0] === '!') throw new Error(uiText('Unsupported XML declaration.', '지원하지 않는 XML 선언입니다.'));
       if (body[0] === '/') {
         const name = body.slice(1).trim();
         if (stack.length === 1 || stack[stack.length - 1].name !== name) {
-          throw new Error(`XML 닫기 태그가 일치하지 않습니다: ${name}`);
+          throw new Error(uiText('Mismatched XML closing tag: {0}', 'XML 닫기 태그가 일치하지 않습니다: {0}', name));
         }
         stack.pop();
         index = end + 1;
@@ -168,24 +174,24 @@ function createDrawioImporter() {
       const selfClosing = /\/\s*$/.test(body);
       if (selfClosing) body = body.replace(/\/\s*$/, '').trimEnd();
       const nameMatch = body.match(/^([A-Za-z_][A-Za-z0-9_.:-]*)/);
-      if (!nameMatch) throw new Error('XML 태그 이름이 올바르지 않습니다.');
+      if (!nameMatch) throw new Error(uiText('Invalid XML tag name.', 'XML 태그 이름이 올바르지 않습니다.'));
       const node: XmlNode = {
         name: nameMatch[1],
         attrs: parseAttributes(body.slice(nameMatch[1].length)),
         children: [],
         text: '',
       };
-      if (++nodeCount > MAX_NODES) throw new Error('draw.io XML 노드 수가 제한을 초과합니다.');
+      if (++nodeCount > MAX_NODES) throw new Error(uiText('The draw.io XML exceeds the node limit.', 'draw.io XML 노드 수가 제한을 초과합니다.'));
       stack[stack.length - 1].children.push(node);
       if (!selfClosing) {
         stack.push(node);
-        if (stack.length > MAX_DEPTH) throw new Error('draw.io XML 중첩 깊이가 제한을 초과합니다.');
+        if (stack.length > MAX_DEPTH) throw new Error(uiText('The draw.io XML exceeds the nesting limit.', 'draw.io XML 중첩 깊이가 제한을 초과합니다.'));
       }
       index = end + 1;
     }
-    if (stack.length !== 1) throw new Error(`XML 태그가 닫히지 않았습니다: ${stack[stack.length - 1].name}`);
+    if (stack.length !== 1) throw new Error(uiText('Unclosed XML tag: {0}', 'XML 태그가 닫히지 않았습니다: {0}', stack[stack.length - 1].name));
     const roots = documentNode.children.filter(node => node.name !== '#text');
-    if (roots.length !== 1) throw new Error('draw.io XML 루트가 하나가 아닙니다.');
+    if (roots.length !== 1) throw new Error(uiText('The draw.io XML must have one root element.', 'draw.io XML 루트가 하나가 아닙니다.'));
     return roots[0];
   }
 
@@ -204,12 +210,12 @@ function createDrawioImporter() {
   function decodeBase64(payload: string) {
     const text = String(payload || '').replace(/\s+/g, '');
     if (!text || text.length > MAX_XML_BYTES || !/^[A-Za-z0-9+/]*={0,2}$/.test(text)) {
-      throw new Error('압축 draw.io 데이터가 올바르지 않습니다.');
+      throw new Error(uiText('Invalid compressed draw.io data.', '압축 draw.io 데이터가 올바르지 않습니다.'));
     }
     const binary = typeof atob === 'function'
       ? atob(text)
       : typeof Buffer !== 'undefined' ? Buffer.from(text, 'base64').toString('binary') : null;
-    if (binary == null) throw new Error('Base64 디코더를 사용할 수 없습니다.');
+    if (binary == null) throw new Error(uiText('Base64 decoder is unavailable.', 'Base64 디코더를 사용할 수 없습니다.'));
     const bytes = new Uint8Array(binary.length);
     for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
     return bytes;
@@ -221,7 +227,10 @@ function createDrawioImporter() {
       const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
       return new Uint8Array(await new Response(stream).arrayBuffer());
     }
-    throw new Error('이 브라우저는 압축 draw.io 파일 해제를 지원하지 않습니다. 비압축 XML로 저장해 주세요.');
+    throw new Error(uiText(
+      'This browser cannot decompress draw.io files. Save the file as uncompressed XML.',
+      '이 브라우저는 압축 draw.io 파일 해제를 지원하지 않습니다. 비압축 XML로 저장해 주세요.',
+    ));
   }
 
   function bytesToText(bytes: Uint8Array | ArrayBuffer) {
@@ -232,13 +241,16 @@ function createDrawioImporter() {
     const direct = child(diagram, 'mxGraphModel');
     if (direct) return direct;
     const payload = diagram.text.trim();
-    if (!payload) throw new Error('draw.io 페이지에 mxGraphModel이 없습니다.');
+    if (!payload) throw new Error(uiText('The draw.io page is missing mxGraphModel.', 'draw.io 페이지에 mxGraphModel이 없습니다.'));
     const inflated = await inflateRaw(decodeBase64(payload), options);
     let encoded = bytesToText(inflated);
     try { encoded = decodeURIComponent(encoded); }
-    catch (_) { throw new Error('압축 draw.io URL 인코딩이 올바르지 않습니다.'); }
+    catch (_) { throw new Error(uiText('Invalid URL encoding in a compressed draw.io file.', '압축 draw.io URL 인코딩이 올바르지 않습니다.')); }
     const root = parseXml(encoded);
-    if (root.name !== 'mxGraphModel') throw new Error('압축 draw.io 페이지의 그래프 모델이 올바르지 않습니다.');
+    if (root.name !== 'mxGraphModel') throw new Error(uiText(
+      'Invalid graph model in a compressed draw.io page.',
+      '압축 draw.io 페이지의 그래프 모델이 올바르지 않습니다.',
+    ));
     return root;
   }
 
@@ -246,7 +258,7 @@ function createDrawioImporter() {
     if (!node || !own(node.attrs, name) || node.attrs[name] === '') return fallback;
     const value = Number(node.attrs[name]);
     if (!Number.isFinite(value) || value < min || value > max) {
-      throw new Error(`draw.io 좌표가 올바르지 않습니다: ${name}`);
+      throw new Error(uiText('Invalid draw.io coordinate: {0}', 'draw.io 좌표가 올바르지 않습니다: {0}', name));
     }
     return value;
   }
@@ -258,7 +270,7 @@ function createDrawioImporter() {
   function stringAttribute(node: XmlNode | null, name: string, fallback = '') {
     const value = node?.attrs?.[name];
     if (value === undefined) return fallback;
-    if (value.length > 100000) throw new Error(`draw.io UML 속성이 너무 큽니다: ${name}`);
+    if (value.length > 100000) throw new Error(uiText('draw.io UML attribute exceeds the size limit: {0}', 'draw.io UML 속성이 너무 큽니다: {0}', name));
     return value;
   }
 
@@ -267,10 +279,10 @@ function createDrawioImporter() {
     if (!source) return undefined;
     let parsed: unknown;
     try { parsed = JSON.parse(source); }
-    catch (_) { throw new Error(`draw.io 배열 속성이 올바르지 않습니다: ${name}`); }
+    catch (_) { throw new Error(uiText('Invalid draw.io array attribute: {0}', 'draw.io 배열 속성이 올바르지 않습니다: {0}', name)); }
     if (!Array.isArray(parsed) || parsed.length > 1000
       || parsed.some(value => typeof value !== 'string' || value.length > 10000)) {
-      throw new Error(`draw.io 배열 속성이 올바르지 않습니다: ${name}`);
+      throw new Error(uiText('Invalid draw.io array attribute: {0}', 'draw.io 배열 속성이 올바르지 않습니다: {0}', name));
     }
     return parsed;
   }
@@ -280,12 +292,12 @@ function createDrawioImporter() {
     if (!source) return undefined;
     let parsed: unknown;
     try { parsed = JSON.parse(source); }
-    catch (_) { throw new Error(`draw.io ERD 스키마 속성이 올바르지 않습니다: ${name}`); }
+    catch (_) { throw new Error(uiText('Invalid draw.io ERD schema attribute: {0}', 'draw.io ERD 스키마 속성이 올바르지 않습니다: {0}', name)); }
     const valid = expected === 'array'
       ? Array.isArray(parsed) && parsed.length <= 500
       : parsed && typeof parsed === 'object' && !Array.isArray(parsed)
         && Object.keys(parsed).length <= 500;
-    if (!valid) throw new Error(`draw.io ERD 스키마 속성이 올바르지 않습니다: ${name}`);
+    if (!valid) throw new Error(uiText('Invalid draw.io ERD schema attribute: {0}', 'draw.io ERD 스키마 속성이 올바르지 않습니다: {0}', name));
     return parsed;
   }
 
@@ -364,7 +376,10 @@ function createDrawioImporter() {
       if (indexes !== undefined) model.erdIndexes = indexes;
     }
     if (own(cell.attrs, 'umlVisibility')) {
-      if (!VISIBILITY.has(cell.attrs.umlVisibility)) throw new Error('draw.io UML 가시성이 올바르지 않습니다.');
+      if (!VISIBILITY.has(cell.attrs.umlVisibility)) throw new Error(uiText(
+        'Invalid UML visibility in draw.io.',
+        'draw.io UML 가시성이 올바르지 않습니다.',
+      ));
       model.visibility = cell.attrs.umlVisibility;
     }
     if (own(cell.attrs, 'umlAbstract')) model.isAbstract = booleanAttribute(cell, 'umlAbstract');
@@ -392,13 +407,17 @@ function createDrawioImporter() {
       if (own(cell.attrs, attribute) && cell.attrs[attribute] !== '') model[field] = stringAttribute(cell, attribute);
     });
     if (model.foreignKeyEnd && !['source', 'target'].includes(model.foreignKeyEnd)) {
-      throw new Error('draw.io ERD FK 보유 끝점이 올바르지 않습니다.');
+      throw new Error(uiText('Invalid draw.io ERD foreign key owner.', 'draw.io ERD FK 보유 끝점이 올바르지 않습니다.'));
     }
     for (const field of ['foreignKeyOnDelete', 'foreignKeyOnUpdate'] as const) {
       if (model[field]) {
         model[field] = model[field].trim().replace(/\s+/g, ' ').toUpperCase();
         if (!REFERENTIAL_ACTIONS.has(model[field])) {
-          throw new Error(`draw.io ERD ${field === 'foreignKeyOnDelete' ? 'ON DELETE' : 'ON UPDATE'} 동작이 올바르지 않습니다.`);
+          throw new Error(uiText(
+            'Invalid draw.io ERD {0} action.',
+            'draw.io ERD {0} 동작이 올바르지 않습니다.',
+            field === 'foreignKeyOnDelete' ? 'ON DELETE' : 'ON UPDATE',
+          ));
         }
       }
     }
@@ -406,9 +425,21 @@ function createDrawioImporter() {
       const nav = model[`${end}Navigability`];
       const aggregation = model[`${end}Aggregation`];
       const visibility = model[`${end}EndVisibility`];
-      if (nav && !END_NAVIGABILITY.has(nav)) throw new Error(`draw.io ${end} Navigability가 올바르지 않습니다.`);
-      if (aggregation && !END_AGGREGATION.has(aggregation)) throw new Error(`draw.io ${end} Aggregation이 올바르지 않습니다.`);
-      if (visibility && !VISIBILITY.has(visibility)) throw new Error(`draw.io ${end} End Visibility가 올바르지 않습니다.`);
+      if (nav && !END_NAVIGABILITY.has(nav)) throw new Error(uiText(
+        'Invalid draw.io {0} navigability.',
+        'draw.io {0} Navigability가 올바르지 않습니다.',
+        end,
+      ));
+      if (aggregation && !END_AGGREGATION.has(aggregation)) throw new Error(uiText(
+        'Invalid draw.io {0} aggregation.',
+        'draw.io {0} Aggregation이 올바르지 않습니다.',
+        end,
+      ));
+      if (visibility && !VISIBILITY.has(visibility)) throw new Error(uiText(
+        'Invalid draw.io {0} end visibility.',
+        'draw.io {0} End Visibility가 올바르지 않습니다.',
+        end,
+      ));
       const qualifierText = stringAttribute(cell, `uml${end[0].toUpperCase()}${end.slice(1)}Qualifiers`, '');
       if (qualifierText) model[`${end}Qualifiers`] = qualifierText.split(/\r?\n/).map(value => value.trim()).filter(Boolean).slice(0, 50);
     });
@@ -420,7 +451,11 @@ function createDrawioImporter() {
 
   function geometryOf(cell: XmlNode) {
     const geometry = child(cell, 'mxGeometry');
-    if (!geometry) throw new Error(`draw.io 도형의 mxGeometry가 없습니다: ${cell.attrs.id || '?'}`);
+    if (!geometry) throw new Error(uiText(
+      'Missing mxGeometry for draw.io shape: {0}',
+      'draw.io 도형의 mxGeometry가 없습니다: {0}',
+      cell.attrs.id || '?',
+    ));
     return {
       x: numberAttribute(geometry, 'x', 0), y: numberAttribute(geometry, 'y', 0),
       w: numberAttribute(geometry, 'width', 120, 1, 1000000),
@@ -452,23 +487,38 @@ function createDrawioImporter() {
 
   function diagramFromGraph(graph: XmlNode, diagramNode: XmlNode, context: ImportContext, options: DrawioOptions, index: number): ImportedDiagram {
     const root = child(graph, 'root');
-    if (!root) throw new Error('draw.io mxGraphModel의 root가 없습니다.');
+    if (!root) throw new Error(uiText('Missing root in draw.io mxGraphModel.', 'draw.io mxGraphModel의 root가 없습니다.'));
     const cells = descendants(root, 'mxCell').filter(node => node.attrs.id);
-    if (cells.length > MAX_CELLS) throw new Error('draw.io 셀 수가 제한을 초과합니다.');
+    if (cells.length > MAX_CELLS) throw new Error(uiText('The draw.io file exceeds the cell limit.', 'draw.io 셀 수가 제한을 초과합니다.'));
     const unsupportedCells = cells.filter(node => (node.attrs.vertex === '1' || node.attrs.edge === '1') && !node.attrs.umlKind);
     if (unsupportedCells.length) {
-      throw new Error(`umlKind 메타데이터가 없는 draw.io 도형/관계 ${unsupportedCells.length}개는 의미를 보존해 가져올 수 없습니다.`);
+      throw new Error(uiText(
+        'Could not preserve the meaning of {0} draw.io shapes or relationships without umlKind metadata.',
+        'umlKind 메타데이터가 없는 draw.io 도형/관계 {0}개는 의미를 보존해 가져올 수 없습니다.',
+        unsupportedCells.length,
+      ));
     }
     const vertices = cells.filter(node => node.attrs.vertex === '1' && node.attrs.umlKind);
     const edges = cells.filter(node => node.attrs.edge === '1' && node.attrs.umlKind);
-    if (!vertices.length) throw new Error('UML Studio umlKind 메타데이터가 있는 도형을 찾을 수 없습니다.');
+    if (!vertices.length) throw new Error(uiText(
+      'No shapes with UML Studio umlKind metadata found.',
+      'UML Studio umlKind 메타데이터가 있는 도형을 찾을 수 없습니다.',
+    ));
     const allowedElements = options.allowedElementKinds ? new Set(options.allowedElementKinds) : null;
     const allowedRelations = options.allowedRelationKinds ? new Set(options.allowedRelationKinds) : null;
     vertices.forEach(cell => {
-      if (allowedElements && !allowedElements.has(cell.attrs.umlKind)) throw new Error(`지원하지 않는 UML 요소 종류입니다: ${cell.attrs.umlKind}`);
+      if (allowedElements && !allowedElements.has(cell.attrs.umlKind)) throw new Error(uiText(
+        'Unsupported UML element type: {0}',
+        '지원하지 않는 UML 요소 종류입니다: {0}',
+        cell.attrs.umlKind,
+      ));
     });
     edges.forEach(cell => {
-      if (allowedRelations && !allowedRelations.has(cell.attrs.umlKind)) throw new Error(`지원하지 않는 UML 관계 종류입니다: ${cell.attrs.umlKind}`);
+      if (allowedRelations && !allowedRelations.has(cell.attrs.umlKind)) throw new Error(uiText(
+        'Unsupported UML relationship type: {0}',
+        '지원하지 않는 UML 관계 종류입니다: {0}',
+        cell.attrs.umlKind,
+      ));
     });
 
     const vertexById = new Map(vertices.map(cell => [cell.attrs.id, cell]));
@@ -478,11 +528,11 @@ function createDrawioImporter() {
     const absolute = (cellId: string, path = new Set<string>()): DiagramBounds => {
       const cached = absoluteGeometry.get(cellId);
       if (cached) return cached;
-      if (path.has(cellId)) throw new Error('draw.io 도형의 부모 관계가 순환합니다.');
+      if (path.has(cellId)) throw new Error(uiText('The draw.io shape hierarchy contains a cycle.', 'draw.io 도형의 부모 관계가 순환합니다.'));
       path.add(cellId);
       const cell = vertexById.get(cellId);
       const local = localGeometry.get(cellId);
-      if (!local) throw new Error(`draw.io 도형의 좌표를 찾을 수 없습니다: ${cellId}`);
+      if (!local) throw new Error(uiText('Missing draw.io shape coordinates: {0}', 'draw.io 도형의 좌표를 찾을 수 없습니다: {0}', cellId));
       const parent = cell?.attrs?.parent && vertexById.get(cell.attrs.parent);
       const parentGeometry = parent ? absolute(parent.attrs.id, path) : { x: 0, y: 0 };
       const result = { x: parentGeometry.x + local.x, y: parentGeometry.y + local.y, w: local.w, h: local.h };
@@ -504,7 +554,7 @@ function createDrawioImporter() {
     const elements = vertices.map(cell => {
       const geometry = absolute(cell.attrs.id);
       const id = viewIdByCell.get(cell.attrs.id);
-      if (!id) throw new Error(`draw.io 도형의 ID를 찾을 수 없습니다: ${cell.attrs.id}`);
+      if (!id) throw new Error(uiText('Missing draw.io shape ID: {0}', 'draw.io 도형의 ID를 찾을 수 없습니다: {0}', cell.attrs.id));
       const view: ImportedElement & { modelId: string } = {
         id, modelId: modelFor(cell, cell.attrs.umlKind),
         x: geometry.x, y: geometry.y, w: geometry.w, h: geometry.h,
@@ -516,7 +566,11 @@ function createDrawioImporter() {
     });
     const relations = edges.map(cell => {
       const from = viewIdByCell.get(cell.attrs.source), to = viewIdByCell.get(cell.attrs.target);
-      if (!from || !to) throw new Error(`draw.io 관계의 연결 대상을 찾을 수 없습니다: ${cell.attrs.id}`);
+      if (!from || !to) throw new Error(uiText(
+        'Missing draw.io relationship endpoint: {0}',
+        'draw.io 관계의 연결 대상을 찾을 수 없습니다: {0}',
+        cell.attrs.id,
+      ));
       const view: ImportedRelation & { modelId: string } = {
         id: safeIdentifier(cell.attrs.id, 'relation', context.usedViewIds),
         modelId: modelFor(cell, cell.attrs.umlKind, true), from, to,
@@ -531,7 +585,7 @@ function createDrawioImporter() {
     const diagramType = typeof options.resolveDiagramType === 'function'
       ? options.resolveDiagramType(elements.map(view => context.models[view.modelId]), relations.map(view => context.models[view.modelId]), requestedType)
       : requestedType || inferDiagramType(elements.map(view => context.models[view.modelId]), relations.map(view => context.models[view.modelId]));
-    if (!diagramType) throw new Error('draw.io 다이어그램 종류를 결정할 수 없습니다.');
+    if (!diagramType) throw new Error(uiText('Could not determine the draw.io diagram type.', 'draw.io 다이어그램 종류를 결정할 수 없습니다.'));
     return {
       id: safeIdentifier(diagramNode.attrs.id || index + 1, 'diagram', context.usedDiagramIds),
       type: diagramType,
@@ -688,9 +742,12 @@ function createDrawioImporter() {
     } else if (parsed.name === 'mxfile') {
       pageNodes = parsed.children.filter(node => node.name === 'diagram');
     } else {
-      throw new Error('draw.io XML은 mxfile 또는 mxGraphModel 루트여야 합니다.');
+      throw new Error(uiText('The draw.io XML must have an mxfile or mxGraphModel root.', 'draw.io XML은 mxfile 또는 mxGraphModel 루트여야 합니다.'));
     }
-    if (!pageNodes.length || pageNodes.length > MAX_PAGES) throw new Error('draw.io 페이지 수가 올바르지 않습니다.');
+    if (!pageNodes.length || pageNodes.length > MAX_PAGES) throw new Error(uiText(
+      'Invalid number of draw.io pages.',
+      'draw.io 페이지 수가 올바르지 않습니다.',
+    ));
     const context: ImportContext = {
       models: {}, modelByKey: new Map(), originalModelMap: new Map(),
       modelOrigins: {}, modelRoles: {},

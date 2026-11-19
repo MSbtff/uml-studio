@@ -14,6 +14,9 @@ declare var UMLRelationEndEditor: RelationEndEditorApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createRelationEndEditorModule);
 
 function createRelationEndEditorModule() {
+  const { text: uiText } = globalThis.UMLLanguage
+    ?? require('./language.js') as typeof UMLLanguage;
+
   const REQUIRED_FUNCTIONS = Object.freeze([
     'byId',
     'closeOtherQuickEditors',
@@ -160,7 +163,12 @@ function createRelationEndEditorModule() {
       title.className = 'relation-end-editor-title';
       title.id = `uml-quickedit-title-${nextFieldSequence()}`;
       title.textContent = erd
-        ? `${end === 'source' ? '출발' : '도착'} 엔티티 · ${endpoint?.name || '(이름 없음)'}`
+        ? uiText(
+          '{0} entity · {1}',
+          '{0} 엔티티 · {1}',
+          end === 'source' ? uiText('Source', '출발') : uiText('Target', '도착'),
+          endpoint?.name || uiText('(Unnamed)', '(이름 없음)'),
+        )
         : `${end === 'source' ? 'Source' : 'Target'} End · ${endpoint?.name || '(unnamed)'}`;
       /* the visible heading already says which end this is */
       editor.setAttribute('aria-labelledby', title.id);
@@ -207,15 +215,18 @@ function createRelationEndEditorModule() {
       const expressionInput = input('expression', expression);
       addField(erd ? 'End Name' : 'Name Expression',
         expressionInput,
-        erd ? '관계 끝점 역할 이름' : '예: «role» + owner');
+        erd ? uiText('Role at this end of the relationship', '관계 끝점 역할 이름') : uiText('Example: «role» + owner', '예: «role» + owner'));
       const multiplicity = erd
         ? select('multiplicity', erdRelationCardinality(r, end), ERD_CARDINALITY_OPTIONS)
         : input('multiplicity', relationEndMultiplicity(r, end));
       if (erd) {
-        addField('참여 개수 (Cardinality)', multiplicity,
-          '○는 0(선택), |는 1(필수), 까마귀발은 여러 개를 뜻합니다.');
+        addField(uiText('Cardinality', '참여 개수 (Cardinality)'), multiplicity,
+          uiText(
+            'A circle means zero (optional), a bar means one (required), and a crow\'s foot means many.',
+            '○는 0(선택), |는 1(필수), 까마귀발은 여러 개를 뜻합니다.',
+          ));
       } else {
-        addField('Multiplicity', multiplicity, '예: 1, *, 0..1, 0..*');
+        addField('Multiplicity', multiplicity, uiText('Examples: 1, *, 0..1, 0..*', '예: 1, *, 0..1, 0..*'));
       }
 
       let associationFields: { navigability: HTMLSelectElement; aggregation: HTMLSelectElement; qualifiers?: HTMLTextAreaElement } | undefined;
@@ -235,7 +246,7 @@ function createRelationEndEditorModule() {
           const values = r[`${prefix}Qualifiers`];
           qualifiers.value = Array.isArray(values) ? values.join('\n') : '';
           associationFields.qualifiers = qualifiers;
-          addField('Qualifiers', qualifiers, '한 줄에 하나씩 입력');
+          addField('Qualifiers', qualifiers, uiText('Enter one item per line.', '한 줄에 하나씩 입력'));
         }
       }
 
@@ -258,7 +269,7 @@ function createRelationEndEditorModule() {
         if (!erd && rawExpression) {
           parsed = parseQuickEditExpression('name', rawExpression);
           if (!parsed.valid) {
-            expressionInput.setCustomValidity(parsed.error || '이름 표현식이 올바르지 않습니다.');
+            expressionInput.setCustomValidity(parsed.error || uiText('Invalid name expression.', '이름 표현식이 올바르지 않습니다.'));
             expressionInput.reportValidity();
             expressionInput.focus();
             return;
@@ -267,8 +278,8 @@ function createRelationEndEditorModule() {
         const multiplicityValue = multiplicity.value.trim();
         if (!validRelationEndMultiplicity(multiplicityValue, erd)) {
           const message = erd
-            ? 'Cardinality는 0..1, 1, 0..N, 1..N 중에서 선택하세요.'
-            : 'Multiplicity는 1, *, 0..1, 0..* 형식으로 입력하세요.';
+            ? uiText('Choose a cardinality of 0..1, 1, 0..N, or 1..N.', 'Cardinality는 0..1, 1, 0..N, 1..N 중에서 선택하세요.')
+            : uiText('Enter a multiplicity such as 1, *, 0..1, or 0..*.', 'Multiplicity는 1, *, 0..1, 0..* 형식으로 입력하세요.');
           multiplicity.setCustomValidity(message);
           multiplicity.reportValidity();
           multiplicity.focus();
@@ -295,7 +306,7 @@ function createRelationEndEditorModule() {
           snapshot();
           Object.assign(r, updates);
           render(); renderProps();
-          flashStatus(`${end === 'source' ? 'Source' : 'Target'} End를 수정했습니다`);
+          flashStatus(uiText('Updated the {0} end.', '{0} End를 수정했습니다', end === 'source' ? 'Source' : 'Target'));
         }
         closeRelationEndEditor();
       };

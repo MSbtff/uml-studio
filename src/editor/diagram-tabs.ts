@@ -10,6 +10,9 @@ declare var UMLDiagramTabs: DiagramTabsApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createDiagramTabsModule);
 
 function createDiagramTabsModule() {
+  const { text: uiText } = globalThis.UMLLanguage
+    ?? require('./language.js') as typeof UMLLanguage;
+
   const REQUIRED_FUNCTIONS = Object.freeze([
     'adoptView',
     'clearLinking',
@@ -124,9 +127,13 @@ function createDiagramTabsModule() {
           && model.interactionDiagramId === diagram.id)
         : [];
       const referenceWarning = interactionReferences.length
-        ? `\n\n이 Sequence를 참조하는 Interaction ${interactionReferences.length}개의 참조는 안전하게 해제됩니다.`
+        ? uiText(
+          '\n\nThis removes references from {0} interactions that use the sequence.',
+          '\n\n이 Sequence를 참조하는 Interaction {0}개의 참조는 안전하게 해제됩니다.',
+          interactionReferences.length,
+        )
         : '';
-      if (!confirmAction(`"${diagram.name}" 다이어그램을 삭제할까요?${referenceWarning}`)) return false;
+      if (!confirmAction(uiText('Delete the diagram "{0}"?{1}', '"{0}" 다이어그램을 삭제할까요?{1}', diagram.name, referenceWarning))) return false;
       snapshot();
       interactionReferences.forEach(model => { model.interactionDiagramId = ''; });
       state.diagrams = state.diagrams.filter(candidate => candidate.id !== diagram.id);
@@ -160,7 +167,7 @@ function createDiagramTabsModule() {
       const input = document.createElement('input');
       input.className = 'tab-rename';
       input.value = diagram.name;
-      input.setAttribute('aria-label', `${diagram.name} 다이어그램 이름 변경`);
+      input.setAttribute('aria-label', uiText('Rename {0} diagram', '{0} 다이어그램 이름 변경', diagram.name));
       tab.replaceWith(input);
       input.focus();
       input.select();
@@ -219,7 +226,7 @@ function createDiagramTabsModule() {
     function render() {
       tabs.textContent = '';
       tabs.setAttribute('role', 'tablist');
-      tabs.setAttribute('aria-label', '다이어그램 탭');
+      tabs.setAttribute('aria-label', uiText('Diagram tabs', '다이어그램 탭'));
       tabs.setAttribute('aria-orientation', 'horizontal');
       state.diagrams.forEach((diagram, index) => {
         const meta = DIAGRAM_META[diagram.type];
@@ -236,7 +243,11 @@ function createDiagramTabsModule() {
         tab.setAttribute('aria-selected', String(active));
         tab.setAttribute('aria-controls', 'canvas-wrap');
         tab.setAttribute('aria-keyshortcuts', 'F2 Delete');
-        tab.title = `${diagram.name} · 방향키 이동 · F2 이름 변경 · Delete 닫기`;
+        tab.title = uiText(
+          '{0} · Arrow keys to navigate · F2 to rename · Delete to close',
+          '{0} · 방향키 이동 · F2 이름 변경 · Delete 닫기',
+          diagram.name,
+        );
         const icon = document.createElement('span');
         icon.className = 'tab-icon';
         icon.style.background = meta.color;
@@ -258,8 +269,8 @@ function createDiagramTabsModule() {
           close.type = 'button';
           close.className = 'tab-close';
           close.textContent = '×';
-          close.title = `${diagram.name} 닫기`;
-          close.setAttribute('aria-label', `${diagram.name} 다이어그램 닫기`);
+          close.title = uiText('Close {0}', '{0} 닫기', diagram.name);
+          close.setAttribute('aria-label', uiText('Close {0} diagram', '{0} 다이어그램 닫기', diagram.name));
           close.addEventListener('click', event => {
             event.stopPropagation();
             deleteDiagram(diagram);
@@ -272,8 +283,8 @@ function createDiagramTabsModule() {
       add.type = 'button';
       add.className = 'tab-add';
       add.textContent = '+';
-      add.title = '새 다이어그램 추가';
-      add.setAttribute('aria-label', '새 다이어그램 추가');
+      add.title = uiText('Add Diagram', '새 다이어그램 추가');
+      add.setAttribute('aria-label', uiText('Add Diagram', '새 다이어그램 추가'));
       add.setAttribute('aria-haspopup', 'true');
       add.setAttribute('aria-expanded', 'false');
       add.addEventListener('click', () => openMenu(add));
@@ -287,7 +298,7 @@ function createDiagramTabsModule() {
       anchor.setAttribute('aria-expanded', 'true');
       const menu = document.createElement('div');
       menu.id = 'tab-menu';
-      menu.setAttribute('aria-label', '새 다이어그램 종류');
+      menu.setAttribute('aria-label', uiText('New diagram type', '새 다이어그램 종류'));
       const rect = anchor.getBoundingClientRect();
       menu.style.left = `${rect.left}px`;
       menu.style.top = `${rect.bottom + 4}px`;

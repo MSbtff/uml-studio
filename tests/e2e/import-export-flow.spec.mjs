@@ -58,13 +58,13 @@ test('draw.io 가져오기 충돌을 미리 보고 기존 모델 재사용 정�
 
   const preview = page.locator('#drawio-import-preview-modal');
   await expect(preview).toBeVisible();
-  await expect(preview.locator('.drawio-import-stat').filter({ hasText: '호환 충돌' })).toContainText('2');
+  await expect(preview.locator('.drawio-import-stat').filter({ hasText: 'Compatible conflicts' })).toContainText('2');
   await expect(preview.locator('.drawio-conflict-table tbody tr')).toHaveCount(2);
   await preview.locator('#drawio-conflict-policy').selectOption('reuse');
-  await expect(preview.locator('.drawio-policy-summary')).toContainText('기존 재사용 2');
+  await expect(preview.locator('.drawio-policy-summary')).toContainText('Reuse 2');
   await preview
     .locator('.project-dialog-footer')
-    .getByRole('button', { name: /가져오기/ })
+    .getByRole('button', { name: /Import/ })
     .click();
 
   await expect(preview).toBeHidden();
@@ -91,13 +91,13 @@ test('CREATE TABLE DDL을 미리 보고 의미적 FK가 있는 ERD로 가져온�
 
   const preview = page.locator('#ddl-import-preview-modal');
   await expect(preview).toBeVisible();
-  await expect(preview.locator('.ddl-import-stat').filter({ hasText: '테이블' })).toContainText('2');
-  await expect(preview.locator('.ddl-import-stat').filter({ hasText: '컬럼' })).toContainText('5');
-  await expect(preview.locator('.ddl-import-stat').filter({ hasText: '연결 관계' })).toContainText('1');
+  await expect(preview.locator('.ddl-import-stat').filter({ hasText: 'Tables' })).toContainText('2');
+  await expect(preview.locator('.ddl-import-stat').filter({ hasText: 'Columns' })).toContainText('5');
+  await expect(preview.locator('.ddl-import-stat').filter({ hasText: 'Relationships' })).toContainText('1');
   await expect(preview.locator('.ddl-import-stat').filter({ hasText: 'CHECK' })).toContainText('0');
-  await expect(preview.locator('.ddl-import-stat').filter({ hasText: '인덱스' })).toContainText('1');
+  await expect(preview.locator('.ddl-import-stat').filter({ hasText: 'Indexes' })).toContainText('1');
   await expect(preview.locator('.ddl-import-warnings')).toHaveCount(0);
-  await preview.getByRole('button', { name: '가져오기 (2)', exact: true }).click();
+  await preview.getByRole('button', { name: 'Import (2)', exact: true }).click();
 
   await expect(preview).toBeHidden();
   await expect(page.locator('#tabs .tab.active .tab-name')).toHaveText('erd-import');

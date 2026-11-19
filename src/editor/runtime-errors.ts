@@ -17,6 +17,9 @@ declare var UMLRuntimeErrors: RuntimeErrorsApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createRuntimeErrorsModule);
 
 function createRuntimeErrorsModule() {
+  const { text: uiText } = globalThis.UMLLanguage
+    ?? require('./language.js') as typeof UMLLanguage;
+
   const REQUIRED_FUNCTIONS = Object.freeze([
     'flashStatus',
     'now',
@@ -44,10 +47,10 @@ function createRuntimeErrorsModule() {
     if (event && event.type === 'unhandledrejection') {
       const reason = event.reason;
       const text = reason instanceof Error ? reason.message : String(reason ?? '');
-      return text || '처리되지 않은 Promise 거부';
+      return text || uiText('Unhandled promise rejection', '처리되지 않은 Promise 거부');
     }
     const text = event?.error instanceof Error ? event.error.message : String(event?.message ?? '');
-    return text.replace(/^Uncaught (?:\w*Error: )?/, '') || '알 수 없는 오류';
+    return text.replace(/^Uncaught (?:\w*Error: )?/, '') || uiText('Unknown error', '알 수 없는 오류');
   }
 
   function create(dependencies?: RuntimeErrorDependencies) {
@@ -75,7 +78,7 @@ function createRuntimeErrorsModule() {
       state.runtimeErrors = { count: previous.count + 1, last: message, at };
       renderStatus();
       if (!repeat) {
-        flashStatus(`⚠ 동작 중 오류: ${message} · 최근 변경이 저장되지 않았을 수 있습니다`);
+        flashStatus(uiText('⚠ Editor error: {0} · Recent changes may be unsaved.', '⚠ 동작 중 오류: {0} · 최근 변경이 저장되지 않았을 수 있습니다', message));
       }
     }
 

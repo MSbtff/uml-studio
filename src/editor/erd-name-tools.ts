@@ -33,6 +33,9 @@ function createErdNameToolsModule(
   erdColumn?: ErdNameColumnApi | null,
   erdSchema?: ErdNameSchemaApi | null,
 ) {
+  const { text: uiText } = globalThis.UMLLanguage
+    ?? require('./language.js') as typeof UMLLanguage;
+
   if (!erdColumn || !(['formatColumn', 'parseColumn', 'validateColumn'] as const)
     .every(name => typeof erdColumn[name] === 'function')) {
     throw new TypeError('ERD Name Tools에는 UMLErdColumn 파서와 검증 API가 필요합니다.');
@@ -168,9 +171,9 @@ function createErdNameToolsModule(
 
   function validateEntityName(name: unknown, field: NameField) {
     const value = normalizeText(name).trim();
-    if (field === 'physical' && !value) return '엔터티 물리명은 비워둘 수 없습니다.';
-    if (value.length > MAX_NAME_LENGTH) return `이름은 ${MAX_NAME_LENGTH}자 이하여야 합니다.`;
-    if (/\0|[\r\n]/.test(value)) return '이름에 제어 문자나 줄바꿈을 사용할 수 없습니다.';
+    if (field === 'physical' && !value) return uiText('An entity\'s physical name cannot be empty.', '엔터티 물리명은 비워둘 수 없습니다.');
+    if (value.length > MAX_NAME_LENGTH) return uiText('Names must be at most {0} characters.', '이름은 {0}자 이하여야 합니다.', MAX_NAME_LENGTH);
+    if (/\0|[\r\n]/.test(value)) return uiText('Names cannot contain control characters or line breaks.', '이름에 제어 문자나 줄바꿈을 사용할 수 없습니다.');
     return '';
   }
 
@@ -190,8 +193,8 @@ function createErdNameToolsModule(
       const entityLogical = changedValue(changes, model.id, 'entity', 'logical', model.logicalName);
       const physicalError = validateEntityName(entityPhysical, 'physical');
       const logicalError = validateEntityName(entityLogical, 'logical');
-      if (physicalError) errors.push(`${model.name || model.id} · 물리명: ${physicalError}`);
-      if (logicalError) errors.push(`${model.name || model.id} · 논리명: ${logicalError}`);
+      if (physicalError) errors.push(uiText('{0} · Physical name: {1}', '{0} · 물리명: {1}', model.name || model.id, physicalError));
+      if (logicalError) errors.push(uiText('{0} · Logical name: {1}', '{0} · 논리명: {1}', model.name || model.id, logicalError));
 
       const originalColumns = Array.isArray(model.columns) ? model.columns : [];
       const finalColumns = originalColumns.map((raw, columnIndex) => {
@@ -205,7 +208,7 @@ function createErdNameToolsModule(
       finalColumns.forEach((raw, columnIndex) => {
         const validation = validateColumn(parseColumn(raw), finalColumns, columnIndex);
         if (!validation.valid) {
-          errors.push(`${model.name || model.id} · 컬럼 ${columnIndex + 1}: ${validation.error}`);
+          errors.push(uiText('{0} · Column {1}: {2}', '{0} · 컬럼 {1}: {2}', model.name || model.id, columnIndex + 1, validation.error));
         }
       });
     });
@@ -225,7 +228,7 @@ function createErdNameToolsModule(
         if (!key) return;
         const existingId = names.get(key);
         if (existingId && (changedPhysicalEntities.has(modelId) || changedPhysicalEntities.has(existingId))) {
-          errors.push(`${diagram.name || 'ERD'} · 중복된 엔터티 물리명: ${name}`);
+          errors.push(uiText('{0} · Duplicate entity physical name: {1}', '{0} · 중복된 엔터티 물리명: {1}', diagram.name || 'ERD', name));
         } else names.set(key, modelId);
       });
     });
@@ -250,7 +253,7 @@ function createErdNameToolsModule(
         options: opt,
         ready: true,
         changes: [],
-        errors: [`찾을 이름은 ${MAX_NAME_LENGTH}자 이하여야 합니다.`],
+        errors: [uiText('The search term must be at most {0} characters.', '찾을 이름은 {0}자 이하여야 합니다.', MAX_NAME_LENGTH)],
         affectedDiagrams: [],
         modelCount: 0,
       };
@@ -261,7 +264,7 @@ function createErdNameToolsModule(
       .filter(entry => entry.after !== entry.before);
     const errors: string[] = [];
     if (changes.length > MAX_NAME_CHANGES) {
-      errors.push(`한 번에 변경할 수 있는 이름은 ${MAX_NAME_CHANGES}개입니다.`);
+      errors.push(uiText('You can rename up to {0} items at a time.', '한 번에 변경할 수 있는 이름은 {0}개입니다.', MAX_NAME_CHANGES));
     } else errors.push(...validateChanges(models, diagrams, changes));
     return {
       options: opt,
@@ -279,7 +282,10 @@ function createErdNameToolsModule(
       : normalizeText(change.field === 'physical'
         ? columns[change.columnIndex]?.phys
         : columns[change.columnIndex]?.logical);
-    if (current !== change.before) throw new Error('미리보기 이후 ERD 이름이 변경되었습니다. 다시 시도하세요.');
+    if (current !== change.before) throw new Error(uiText(
+      'ERD names changed since the preview. Try again.',
+      '미리보기 이후 ERD 이름이 변경되었습니다. 다시 시도하세요.',
+    ));
   }
 
   function temporaryColumnName(usedNames: Set<string>, modelIndex: number, columnIndex: number) {
@@ -294,7 +300,7 @@ function createErdNameToolsModule(
 
   function applyErdNameChanges(models: DiagramModels, preview?: NamePreview | null) {
     if (!preview || !Array.isArray(preview.changes) || preview.errors?.length) {
-      throw new Error('검증을 통과한 ERD 이름 변경 미리보기가 필요합니다.');
+      throw new Error(uiText('A validated ERD rename preview is required.', '검증을 통과한 ERD 이름 변경 미리보기가 필요합니다.'));
     }
     const grouped = new Map<string, NameChange[]>();
     preview.changes.forEach(change => {
@@ -309,7 +315,7 @@ function createErdNameToolsModule(
 
     grouped.forEach((changes, modelId) => {
       const model = models?.[modelId];
-      if (!model || model.kind !== 'entity') throw new Error(`ERD 모델을 찾을 수 없습니다: ${modelId}`);
+      if (!model || model.kind !== 'entity') throw new Error(uiText('ERD model not found: {0}', 'ERD 모델을 찾을 수 없습니다: {0}', modelId));
       const originalColumns = (Array.isArray(model.columns) ? model.columns : []).map(parseColumn);
       changes.forEach(change => assertFreshChange(model, originalColumns, change));
 
@@ -441,41 +447,50 @@ function createErdNameToolsModule(
       dialog.setAttribute('aria-labelledby', titleId);
 
       const header = document.createElement('div'); header.className = 'project-dialog-header';
-      const title = document.createElement('strong'); title.id = titleId; title.textContent = 'ERD 이름 일괄 변환';
+      const title = document.createElement('strong'); title.id = titleId; title.textContent = uiText('Rename ERD Names', 'ERD 이름 일괄 변환');
       const closeButton = document.createElement('button');
       closeButton.type = 'button'; closeButton.className = 'modal-close'; closeButton.textContent = '×';
-      closeButton.title = '닫기'; closeButton.setAttribute('aria-label', 'ERD 이름 일괄 변환 닫기');
+      closeButton.title = uiText('Close', '닫기'); closeButton.setAttribute('aria-label', uiText('Close Rename ERD Names', 'ERD 이름 일괄 변환 닫기'));
       header.append(title, closeButton);
 
       const hint = document.createElement('p'); hint.className = 'erd-name-tools-hint';
-      hint.textContent = '프로젝트 전체의 엔터티와 컬럼을 미리 검증한 뒤 한 번의 Undo 작업으로 변경합니다.';
+      hint.textContent = uiText(
+        'Preview and validate changes across the project. Undo reverses the entire rename in one step.',
+        '프로젝트 전체의 엔터티와 컬럼을 미리 검증한 뒤 한 번의 Undo 작업으로 변경합니다.',
+      );
       const controls = document.createElement('div'); controls.className = 'erd-name-tools-controls';
-      const scope = document.createElement('select'); scope.setAttribute('aria-label', '변환 대상');
-      scope.append(option('both', '논리명 + 물리명'), option('logical', '논리명만'), option('physical', '물리명만'));
+      const scope = document.createElement('select'); scope.setAttribute('aria-label', uiText('Rename Target', '변환 대상'));
+      scope.append(option('both', uiText('Logical and Physical Names', '논리명 + 물리명')), option('logical', uiText('Logical Names Only', '논리명만')), option('physical', uiText('Physical Names Only', '물리명만')));
       const query = document.createElement('input');
-      query.type = 'search'; query.maxLength = MAX_NAME_LENGTH; query.setAttribute('aria-label', '찾을 이름');
+      query.type = 'search'; query.maxLength = MAX_NAME_LENGTH; query.setAttribute('aria-label', uiText('Find Name', '찾을 이름'));
       const replacement = document.createElement('input');
-      replacement.type = 'text'; replacement.maxLength = MAX_NAME_LENGTH; replacement.setAttribute('aria-label', '바꿀 이름');
-      const matchMode = document.createElement('select'); matchMode.setAttribute('aria-label', '일치 방식');
-      matchMode.append(option('contains', '포함된 문자열'), option('exact', '전체 이름 일치'));
+      replacement.type = 'text'; replacement.maxLength = MAX_NAME_LENGTH; replacement.setAttribute('aria-label', uiText(
+        'Replace With',
+        '바꿀 이름',
+      ));
+      const matchMode = document.createElement('select'); matchMode.setAttribute('aria-label', uiText('Match', '일치 방식'));
+      matchMode.append(option('contains', uiText('Contains', '포함된 문자열')), option('exact', uiText('Exact Name', '전체 이름 일치')));
       controls.append(
-        field('변환 대상', scope),
-        field('찾을 이름', query),
-        field('바꿀 이름', replacement),
-        field('일치 방식', matchMode),
+        field(uiText('Rename Target', '변환 대상'), scope),
+        field(uiText('Find Name', '찾을 이름'), query),
+        field(uiText('Replace With', '바꿀 이름'), replacement),
+        field(uiText('Match', '일치 방식'), matchMode),
       );
       const caseLabel = document.createElement('label'); caseLabel.className = 'erd-name-tools-case';
       const caseSensitive = document.createElement('input'); caseSensitive.type = 'checkbox';
-      caseSensitive.setAttribute('aria-label', '대소문자 구분');
-      caseLabel.append(caseSensitive, document.createTextNode(' 대소문자 구분'));
+      caseSensitive.setAttribute('aria-label', uiText('Case Sensitive', '대소문자 구분'));
+      caseLabel.append(caseSensitive, document.createTextNode(uiText(' Case sensitive', ' 대소문자 구분')));
 
       const summary = document.createElement('div'); summary.className = 'erd-name-tools-summary';
       summary.setAttribute('aria-live', 'polite');
       const results = document.createElement('div'); results.className = 'erd-name-tools-results';
       const footer = document.createElement('div'); footer.className = 'project-dialog-footer';
-      const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'project-action'; cancel.textContent = '취소';
+      const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'project-action'; cancel.textContent = uiText(
+        'Cancel',
+        '취소',
+      );
       const apply = document.createElement('button');
-      apply.type = 'button'; apply.className = 'project-action project-primary'; apply.textContent = '변환 적용'; apply.disabled = true;
+      apply.type = 'button'; apply.className = 'project-action project-primary'; apply.textContent = uiText('Apply Rename', '변환 적용'); apply.disabled = true;
       footer.append(cancel, apply);
       dialog.append(header, hint, controls, caseLabel, summary, results, footer);
       overlay.appendChild(dialog); document.body.appendChild(overlay);
@@ -493,30 +508,47 @@ function createErdNameToolsModule(
         const preview = previewErdNameChanges(state.models, state.diagrams, currentOptions());
         results.textContent = '';
         if (!preview.ready) {
-          summary.textContent = '찾을 이름을 입력하면 변경 후보를 보여줍니다.';
+          summary.textContent = uiText('Enter a search term to preview matches.', '찾을 이름을 입력하면 변경 후보를 보여줍니다.');
         } else if (preview.errors.length) {
-          summary.textContent = `변경할 수 없습니다 · ${preview.errors.length}개 문제`;
+          summary.textContent = uiText('Cannot rename · Issues: {0}', '변경할 수 없습니다 · {0}개 문제', preview.errors.length);
           preview.errors.slice(0, 20).forEach(message => {
             const error = document.createElement('div'); error.className = 'erd-name-tools-error'; error.textContent = message;
             results.appendChild(error);
           });
         } else if (!preview.changes.length) {
-          summary.textContent = '일치하는 이름이 없습니다.';
+          summary.textContent = uiText('No matching names.', '일치하는 이름이 없습니다.');
         } else {
-          summary.textContent = `변경 후보 ${preview.changes.length}개 · 모델 ${preview.modelCount}개 · 다이어그램 ${preview.affectedDiagrams.length}개`;
+          summary.textContent = uiText(
+            'Matches: {0} · Models: {1} · Diagrams: {2}',
+            '변경 후보 {0}개 · 모델 {1}개 · 다이어그램 {2}개',
+            preview.changes.length,
+            preview.modelCount,
+            preview.affectedDiagrams.length,
+          );
           preview.changes.slice(0, 100).forEach(change => {
             const row = document.createElement('div'); row.className = 'erd-name-tools-row';
             const context = document.createElement('span'); context.className = 'erd-name-tools-context';
             context.textContent = change.item === 'entity'
-              ? `${change.modelName} · 엔터티 ${change.field === 'physical' ? '물리명' : '논리명'}`
-              : `${change.modelName} · ${change.columnPhysical || `컬럼 ${change.columnIndex + 1}`} ${change.field === 'physical' ? '물리명' : '논리명'}`;
+              ? uiText(
+                '{0} · Entity {1}',
+                '{0} · 엔터티 {1}',
+                change.modelName,
+                change.field === 'physical' ? uiText('Physical Name', '물리명') : uiText('Logical Name', '논리명'),
+              )
+              : `${change.modelName} · ${change.columnPhysical || uiText('Column {0}', '컬럼 {0}', change.columnIndex + 1)} ${change.field === 'physical' ? uiText(
+                'Physical Name',
+                '물리명',
+              ) : uiText(
+                'Logical Name',
+                '논리명',
+              )}`;
             const names = document.createElement('span'); names.className = 'erd-name-tools-change';
-            names.textContent = `${change.before || '(비어 있음)'} → ${change.after || '(비움)'}`;
+            names.textContent = `${change.before || uiText('(empty)', '(비어 있음)')} → ${change.after || uiText('(clear)', '(비움)')}`;
             row.append(context, names); results.appendChild(row);
           });
           if (preview.changes.length > 100) {
             const more = document.createElement('div'); more.className = 'erd-name-tools-more';
-            more.textContent = `외 ${preview.changes.length - 100}개`;
+            more.textContent = uiText('and {0} more', '외 {0}개', preview.changes.length - 100);
             results.appendChild(more);
           }
         }
@@ -538,12 +570,12 @@ function createErdNameToolsModule(
         try {
           const result = applyErdNameChanges(state.models, preview);
           renderAll();
-          const relationNote = result.relations ? ` · FK 관계 ${result.relations}개 갱신` : '';
-          flashStatus(`ERD 이름 ${result.changes}개를 일괄 변환했습니다${relationNote}`);
+          const relationNote = result.relations ? uiText(' · Updated foreign key relationships: {0}', ' · FK 관계 {0}개 갱신', result.relations) : '';
+          flashStatus(uiText('Renamed {0} ERD names{1}', 'ERD 이름 {0}개를 일괄 변환했습니다{1}', result.changes, relationNote));
           modal.close();
         } catch (error) {
           rollbackLastSnapshot();
-          flashStatus(`ERD 이름 변환 실패 · ${error instanceof Error ? error.message : String(error)}`);
+          flashStatus(uiText('Could not rename ERD names · {0}', 'ERD 이름 변환 실패 · {0}', error instanceof Error ? error.message : String(error)));
         }
       });
       renderPreview(); modal.focusInitial(query);
