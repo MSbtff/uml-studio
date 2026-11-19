@@ -249,8 +249,11 @@ const REQUIREMENT_RELATION_KINDS = new Set([
 ]);
 
 function diagramKindLabel(kind: string, diagramType = activeDiagram()?.type) {
-  if ((diagramType === 'bdd' || diagramType === 'ibd') && kind === 'connector') return 'Connector';
-  return (Object.hasOwn(KIND_META, kind) && KIND_META[kind as keyof typeof KIND_META].label) || kind;
+  if ((diagramType === 'bdd' || diagramType === 'ibd') && kind === 'connector') {
+    return UMLLanguage.label('Connector', '커넥터');
+  }
+  const meta = Object.hasOwn(KIND_META, kind) ? KIND_META[kind as keyof typeof KIND_META] : undefined;
+  return UMLLanguage.displayLabel(meta, kind);
 }
 
 /* ── State ─────────────────────────────────────────────────── */

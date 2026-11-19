@@ -591,7 +591,7 @@ function createCanvasInteractionModule() {
       if (!connector) {
         flashStatus(uiText(
           'Click an existing connector to add a communication message.',
-          'Communication Message는 먼저 만든 Connector 선을 클릭해 추가하세요',
+          '통신 메시지는 먼저 만든 커넥터 선을 클릭해 추가하세요',
         ));
         return;
       }
@@ -966,13 +966,13 @@ function createCanvasInteractionModule() {
       /* dropped on another element → reconnect the relation to it */
       if (target && target.id !== curId && target.id !== otherId) {
         if (r.kind === 'transition' && !STATE_VERTEX_KINDS.has(target.kind)) {
-          flashStatus(uiText('Reconnect transitions to a state or pseudostate.', 'Transition은 State 또는 Pseudostate에만 재연결할 수 있습니다'));
+          flashStatus(uiText('Reconnect transitions to a state or pseudostate.', '전이는 상태 또는 의사 상태에만 재연결할 수 있습니다'));
         } else if ((r.kind === 'link' || r.kind === 'directedlink') && !INSTANCE_KINDS.has(target.kind)) {
           flashStatus(uiText('Reconnect links between objects or instances.', 'Link는 Object 또는 Instance 사이에만 재연결할 수 있습니다'));
         } else if (r.kind === 'commconnector' && target.kind !== 'lifeline') {
-          flashStatus(uiText('Reconnect communication connectors between lifelines.', 'Communication Connector는 Lifeline 사이에만 재연결할 수 있습니다'));
+          flashStatus(uiText('Reconnect communication connectors between lifelines.', '통신 커넥터는 라이프라인 사이에만 재연결할 수 있습니다'));
         } else if (r.kind === 'timingmessage' && target.kind !== 'timesegment') {
-          flashStatus(uiText('Reconnect timing messages between time segments.', 'Timing Message는 Time Segment 사이에만 재연결할 수 있습니다'));
+          flashStatus(uiText('Reconnect timing messages between time segments.', '타이밍 메시지는 시간 구간 사이에만 재연결할 수 있습니다'));
         } else {
           const nextFrom = drag.end === 'src' ? target : byId(r.from);
           const nextTo = drag.end === 'dst' ? target : byId(r.to);

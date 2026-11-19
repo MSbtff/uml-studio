@@ -213,7 +213,7 @@ function createErdColumnEditorModule() {
       flashStatus(uiText('Deleted column \'{0}\'.', '컬럼 \'{0}\'을(를) 삭제했습니다', name)
         + `${affected ? uiText(' · Removed linked CHECK constraints or indexes: {0}', ' · 연결된 CHECK/인덱스 {0}개도 제거', affected) : ''}`
         + `${disconnected.relations ? uiText(' · Cleared foreign key bindings: {0}', ' · FK 연결 {0}개 해제', disconnected.relations) : ''}`
-        + uiText(' · Use Undo to restore.', ' · Undo로 복구할 수 있습니다'));
+        + uiText(' · Use Undo to restore.', ' · 실행 취소로 복구할 수 있습니다'));
       return true;
     }
 
@@ -293,7 +293,7 @@ function createErdColumnEditorModule() {
       flashStatus(uiText('Applied the bulk column edit.', '컬럼 일괄 편집을 적용했습니다')
         + `${renamedRelations ? uiText(' · Updated foreign key bindings: {0}', ' · FK 연결 {0}개 갱신', renamedRelations) : ''}`
         + `${disconnectedRelations ? uiText(' · Cleared foreign key bindings: {0}', ' · FK 연결 {0}개 해제', disconnectedRelations) : ''}`
-        + uiText(' · Use Undo to restore.', ' · Undo로 복구할 수 있습니다'));
+        + uiText(' · Use Undo to restore.', ' · 실행 취소로 복구할 수 있습니다'));
       return true;
     }
 

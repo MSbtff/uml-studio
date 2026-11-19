@@ -13,7 +13,7 @@ declare var UMLProjectImport: ProjectImportApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createImportExportModule);
 
 function createImportExportModule() {
-  const { text: uiText } = globalThis.UMLLanguage
+  const { displayLabel, text: uiText } = globalThis.UMLLanguage
     ?? require('../editor/language.js') as typeof UMLLanguage;
 
   /* names below marked "forwarded" are not used here — they are handed to
@@ -299,7 +299,7 @@ function createImportExportModule() {
         if (!compatible(requestedType)) throw new Error(uiText(
           'The draw.io cell types do not match {0}.',
           'draw.io 셀 종류가 {0}과 맞지 않습니다.',
-          DIAGRAM_META[requestedType].label,
+          displayLabel(DIAGRAM_META[requestedType]),
         ));
         return requestedType;
       }

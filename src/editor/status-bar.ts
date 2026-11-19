@@ -12,7 +12,7 @@ declare var UMLStatusBar: StatusBarApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createStatusBarModule);
 
 function createStatusBarModule() {
-  const { label: uiLabel, text: uiText, locale } = globalThis.UMLLanguage
+  const { displayLabel, label: uiLabel, text: uiText, locale } = globalThis.UMLLanguage
     ?? require('./language.js') as typeof UMLLanguage;
 
   const REQUIRED_FUNCTIONS = Object.freeze([
@@ -26,7 +26,6 @@ function createStatusBarModule() {
   const REQUIRED_VALUES = Object.freeze([
     'ACTIVITY_PIN_KINDS',
     'DIAGRAM_META',
-    'KIND_META',
     'REL_STYLE',
     'REQUIREMENT_RELATION_KINDS',
     'state',
@@ -55,7 +54,6 @@ function createStatusBarModule() {
     ACTIVITY_PIN_KINDS: ReadonlySet<string>;
     REQUIREMENT_RELATION_KINDS: ReadonlySet<string>;
     DIAGRAM_META: Record<string, { label: string }>;
-    KIND_META: Record<string, { label: string }>;
     REL_STYLE: Record<string, unknown>;
     state: StatusBarState;
     statusLeft: Pick<HTMLElement, 'textContent'>;
@@ -71,7 +69,7 @@ function createStatusBarModule() {
     for (const name of ['ACTIVITY_PIN_KINDS', 'REQUIREMENT_RELATION_KINDS'] as const) {
       if (deps[name] && typeof deps[name].has !== 'function') missing.push(`${name}.has`);
     }
-    for (const name of ['DIAGRAM_META', 'KIND_META', 'REL_STYLE', 'state', 'statusLeft', 'statusRight'] as const) {
+    for (const name of ['DIAGRAM_META', 'REL_STYLE', 'state', 'statusLeft', 'statusRight'] as const) {
       if (deps[name] != null && typeof deps[name] !== 'object') missing.push(name);
     }
     if (missing.length) {
@@ -81,7 +79,6 @@ function createStatusBarModule() {
     const {
       ACTIVITY_PIN_KINDS,
       DIAGRAM_META,
-      KIND_META,
       REL_STYLE,
       REQUIREMENT_RELATION_KINDS,
       clearTimeout,
@@ -109,28 +106,28 @@ function createStatusBarModule() {
         if (tool === 'informationflow') {
           return uiText(
             'Information Flow: click the sender, then the receiver. Set conveyed information in Properties. Esc to cancel.',
-            'Information Flow: 정보 송신 주체를 클릭한 뒤 수신 주체를 클릭하세요 · 전달 정보는 생성 후 속성에서 선택 · Esc 취소',
+            '정보 흐름: 정보 송신 주체를 클릭한 뒤 수신 주체를 클릭하세요 · 전달 정보는 생성 후 속성에서 선택 · Esc 취소',
           );
         }
         if (REQUIREMENT_RELATION_KINDS.has(tool)) {
           return uiText(
             '{0}: click the start, then the requirement or target. The editor checks SysML direction rules. Esc to cancel.',
-            '{0}: 시작 요소를 클릭한 뒤 Requirement 또는 대상 요소를 클릭하세요 · SysML 방향 규칙을 자동 검사합니다 · Esc 취소',
-            KIND_META[tool].label,
+            '{0}: 시작 요소를 클릭한 뒤 요구사항 또는 대상 요소를 클릭하세요 · SysML 방향 규칙을 자동 검사합니다 · Esc 취소',
+            diagramKindLabel(tool),
           );
         }
         if (isCommMsg(tool)) {
           return uiText(
             '{0}: click a connector to add a message. Esc to cancel.',
-            '{0}: 기존 Connector 선을 클릭해 메시지를 추가하세요 · Esc 취소',
-            KIND_META[tool].label,
+            '{0}: 기존 커넥터 선을 클릭해 메시지를 추가하세요 · Esc 취소',
+            diagramKindLabel(tool),
           );
         }
         if (isMsg(tool)) {
           return uiText(
             '{0}: click the source and target lifelines. Use the same lifeline for a self-message. Esc to cancel.',
-            '{0}: 시작 라이프라인 클릭 → 대상 라이프라인 클릭 (같은 라이프라인 = self message) · Esc 취소',
-            KIND_META[tool].label,
+            '{0}: 시작 라이프라인 클릭 → 대상 라이프라인 클릭 (같은 라이프라인 = 자기 호출) · Esc 취소',
+            diagramKindLabel(tool),
           );
         }
         return uiText(
@@ -142,84 +139,84 @@ function createStatusBarModule() {
       if (tool === 'region') {
         return uiText(
           'Click inside a composite state to add a region. Multiple regions run in parallel.',
-          'Composite State 내부를 클릭해 Region 추가 · 여러 Region은 직교(동시) 영역으로 표시됩니다',
+          '복합 상태 내부를 클릭해 영역 추가 · 여러 영역은 직교(동시) 영역으로 표시됩니다',
         );
       }
       if (tool === 'connectionpointref') {
         return uiText(
           'Click the edge of a submachine state to add a connection point reference. Drag along the edge to move it.',
-          'Submachine State의 테두리를 클릭해 Connection Point Reference 추가 · 생성 후 드래그로 테두리를 따라 이동',
+          '하위 상태 머신의 테두리를 클릭해 접점 참조 추가 · 생성 후 드래그로 테두리를 따라 이동',
         );
       }
       if (tool === 'part' || tool === 'collaborationuse') {
         return diagram.type === 'ibd'
           ? uiText(
             'Click inside an IBD frame, part, or reference to add {0}.',
-            'IBD Frame 또는 Part/Reference 내부를 클릭해 {0} 추가',
-            KIND_META[tool].label,
+            '내부 블록 프레임 또는 파트/참조 내부를 클릭해 {0} 추가',
+            diagramKindLabel(tool),
           )
-          : uiText('Click inside a class or collaboration to add {0}.', 'Class 또는 Collaboration 내부를 클릭해 {0} 추가', KIND_META[tool].label);
+          : uiText('Click inside a class or collaboration to add {0}.', '클래스 또는 협업 내부를 클릭해 {0} 추가', diagramKindLabel(tool));
       }
       if (tool === 'reference' || tool === 'value') {
         return diagram.type === 'parametric'
-          ? uiText('Click inside a parametric frame to add a {0} property.', 'Parametric Frame 내부를 클릭해 {0} Property 추가', KIND_META[tool].label)
+          ? uiText('Click inside a parametric frame to add a {0} property.', '파라메트릭 프레임 내부를 클릭해 {0} 속성 추가', diagramKindLabel(tool))
           : uiText(
             'Click inside an IBD frame, part, or reference to add {0}.',
-            'IBD Frame 또는 Part/Reference 내부를 클릭해 {0} 추가',
-            KIND_META[tool].label,
+            '내부 블록 프레임 또는 파트/참조 내부를 클릭해 {0} 추가',
+            diagramKindLabel(tool),
           );
       }
       if (tool === 'constraintproperty') {
-        return uiText('Click inside a parametric frame to add a constraint property.', 'Parametric Frame 내부를 클릭해 Constraint Property 추가');
+        return uiText('Click inside a parametric frame to add a constraint property.', '파라메트릭 프레임 내부를 클릭해 제약 속성 추가');
       }
       if (tool === 'constraintparameter') {
         return uiText(
           'Click the edge of a parametric frame or constraint property to add a constraint parameter.',
-          'Parametric Frame 또는 Constraint Property의 테두리를 클릭해 Constraint Parameter 추가',
+          '파라메트릭 프레임 또는 제약 속성의 테두리를 클릭해 제약 매개변수 추가',
         );
       }
       if (tool === 'port') {
         if (diagram.type === 'bdd') {
           return uiText(
             'Click the edge of a block, interface block, or constraint block to add a port. Drag along the edge to move it.',
-            'Block, Interface Block 또는 Constraint Block의 테두리를 클릭해 Port 추가 · 생성 후 드래그로 테두리를 따라 이동',
+            '블록, 인터페이스 블록 또는 제약 블록의 테두리를 클릭해 포트 추가 · 생성 후 드래그로 테두리를 따라 이동',
           );
         }
         return diagram.type === 'ibd'
           ? uiText(
             'Click the edge of an IBD frame, part, or reference to add a port. Drag along the edge to move it.',
-            'IBD Frame, Part 또는 Reference의 테두리를 클릭해 Port 추가 · 생성 후 드래그로 테두리를 따라 이동',
+            '내부 블록 프레임, 파트 또는 참조의 테두리를 클릭해 포트 추가 · 생성 후 드래그로 테두리를 따라 이동',
           )
           : uiText(
             'Click the edge of a class, collaboration, or part to add a port. Drag along the edge to move it.',
-            'Class, Collaboration 또는 Part의 테두리를 클릭해 Port 추가 · 생성 후 드래그로 테두리를 따라 이동',
+            '클래스, 협업 또는 파트의 테두리를 클릭해 포트 추가 · 생성 후 드래그로 테두리를 따라 이동',
           );
       }
       if (ACTIVITY_PIN_KINDS.has(tool)) {
         const owner = tool === 'expansioninput' || tool === 'expansionoutput'
-          ? 'Expansion Region'
-          : uiText('action, signal event action, or time event action', 'Action 또는 Signal/Time Event Action');
+          ? diagramKindLabel('expansionregion')
+          : uiText('action, signal event action, or time event action', '동작 또는 신호·시간 이벤트 동작');
         return uiText(
           'Add {1} at the edge of the {0}. Drag along the edge to move it.',
           '{0}의 테두리를 클릭해 {1} 추가 · 생성 후 드래그로 테두리를 따라 이동',
           owner,
-          KIND_META[tool].label,
+          diagramKindLabel(tool),
         );
       }
       if (tool === 'timingstate') return uiText(
         'Click inside a timing lifeline to add a state or condition.',
-        'Timing Lifeline 내부를 클릭해 State / Condition 행 추가',
+        '타이밍 라이프라인 내부를 클릭해 상태·조건 행 추가',
       );
       if (tool === 'timesegment') return uiText(
         'Click a state or condition row to add a time segment. Drag to move or resize it.',
-        'State / Condition 행을 클릭해 Time Segment 추가 · 생성 후 좌우 이동과 기간 조절 가능',
+        '상태·조건 행을 클릭해 시간 구간 추가 · 생성 후 좌우 이동과 기간 조절 가능',
       );
       if (tool === 'timeconstraint') return uiText(
         'Click a time segment or timing message to attach a time constraint.',
-        'Time Segment 또는 Timing Message를 클릭해 Time Constraint 부착',
+        '시간 구간 또는 타이밍 메시지를 클릭해 시간 제약 부착',
       );
-      if (tool === 'timetick') return uiText('Click the time axis to add a time tick.', '시간축 위치를 클릭해 Time Tick 추가');
-      return uiText('Click the canvas to add {0}.', '캔버스를 클릭해 {0} 생성', KIND_META[tool].label);
+      if (tool === 'timetick') return uiText('Click the time axis to add a time tick.', '시간축 위치를 클릭해 시간 눈금 추가');
+      return uiText('Click the canvas to add {0}.', '캔버스를 클릭해 {0} 생성', diagramKindLabel(tool));
     }
 
     /* stays until reload — a flash alone is gone in two seconds, and the point
@@ -246,7 +243,7 @@ function createStatusBarModule() {
     function render() {
       const diagram = dg();
       statusLeft.textContent = toolInstruction();
-      statusRight.textContent = `${runtimeErrorText()}${state.dirty ? uiText('● Unsaved changes · ', '● 파일 저장 필요 · ') : ''}${autosaveStatusText()}${state.projectName} · ${DIAGRAM_META[diagram.type].label} · ${uiLabel('Elements', '요소')} ${diagram.elements.length} · ${uiLabel('Relations', '관계')} ${diagram.relations.length} · ${uiLabel('Zoom', '배율')} ${Math.round(state.zoom * 100)}%`;
+      statusRight.textContent = `${runtimeErrorText()}${state.dirty ? uiText('● Unsaved changes · ', '● 파일 저장 필요 · ') : ''}${autosaveStatusText()}${state.projectName} · ${displayLabel(DIAGRAM_META[diagram.type])} · ${uiLabel('Elements', '요소')} ${diagram.elements.length} · ${uiLabel('Relations', '관계')} ${diagram.relations.length} · ${uiLabel('Zoom', '배율')} ${Math.round(state.zoom * 100)}%`;
     }
 
     function flash(message: string) {

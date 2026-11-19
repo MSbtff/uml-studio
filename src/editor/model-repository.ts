@@ -14,7 +14,7 @@ declare var UMLModelRepository: ModelRepositoryApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createModelRepositoryModule);
 
 function createModelRepositoryModule() {
-  const { text: uiText } = globalThis.UMLLanguage
+  const { displayLabel, label: uiLabel, text: uiText } = globalThis.UMLLanguage
     ?? require('./language.js') as typeof UMLLanguage;
 
   const REQUIRED_FUNCTIONS = Object.freeze([
@@ -207,7 +207,7 @@ function createModelRepositoryModule() {
       const q = String(query || '').trim().toLowerCase();
       return Object.values(state.models)
         .filter(m => KIND_META[m.kind] && !REL_STYLE[m.kind] && m.kind !== 'execution')
-        .filter(m => !q || `${m.name || ''} ${KIND_META[m.kind].label}`.toLowerCase().includes(q))
+        .filter(m => !q || `${m.name || ''} ${KIND_META[m.kind].label} ${displayLabel(KIND_META[m.kind])}`.toLowerCase().includes(q))
         .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
     }
 
@@ -220,13 +220,13 @@ function createModelRepositoryModule() {
       if (type === 'informationflow') {
         return uiText(
           'Use Add View to place a class, component, or actor as the sender or receiver of an information flow.',
-          'Class, Component, Actor 등 기존 모델을 Add View로 배치한 뒤 Information Flow의 송신·수신 주체로 사용하세요.',
+          '클래스, 컴포넌트, 액터 등의 기존 모델을 뷰로 추가한 뒤 정보 흐름의 송신·수신 주체로 사용하세요.',
         );
       }
       if (type === 'requirement') {
         return uiText(
           'Use Add View to place a model, then connect it to a requirement with Satisfy, Verify, Refine, or Trace.',
-          '기존 모델을 Add View로 배치한 뒤 Requirement에 Satisfy, Verify, Refine, Trace 관계로 연결하세요.',
+          '기존 모델을 뷰로 추가한 뒤 요구사항에 충족, 검증, 구체화, 추적 관계로 연결하세요.',
         );
       }
       return uiText('Views of the same model share its name and properties.', '같은 모델을 여러 다이어그램에 배치하면 이름과 속성이 함께 동기화됩니다.');
@@ -262,20 +262,20 @@ function createModelRepositoryModule() {
       name.id = `uml-model-row-${++rowNameSequence}`;
       const count = viewCount(model.id);
       const meta = document.createElement('div'); meta.className = 'model-repository-meta';
-      meta.textContent = `${KIND_META[model.kind].label} · ${model.id} · ${count} view${count === 1 ? '' : 's'}`;
+      meta.textContent = uiLabel('{0} · {1} · {2} view{3}', '{0} · {1} · 뷰 {2}개', displayLabel(KIND_META[model.kind]), model.id, count, count === 1 ? '' : 's');
       info.append(name, meta);
       const action = document.createElement('button'); action.className = 'model-repository-action';
       const existing = dg().elements.find(v => v.modelId === model.id);
       if (existing) {
-        action.textContent = 'Select';
+        action.textContent = uiLabel('Select', '선택');
         action.addEventListener('click', () => {
           setSelection([existing.id]); modal.close(); render(); renderProps();
         });
       } else if (canPlaceKind(model.kind)) {
-        action.textContent = 'Add View';
+        action.textContent = uiLabel('Add View', '뷰 추가');
         action.addEventListener('click', () => addView(model.id, modal));
       } else {
-        action.textContent = 'Not compatible'; action.disabled = true;
+        action.textContent = uiLabel('Not compatible', '이 다이어그램에서 사용할 수 없음'); action.disabled = true;
       }
       icon.setAttribute('aria-hidden', 'true');
       action.id = `${name.id}-action`;
@@ -293,9 +293,9 @@ function createModelRepositoryModule() {
       dialog.className = 'model-repository-dialog';
       const header = document.createElement('div');
       header.className = 'model-repository-header';
-      const title = document.createElement('strong'); title.textContent = 'Project Models';
+      const title = document.createElement('strong'); title.textContent = uiLabel('Project Models', '프로젝트 모델');
       const closeButton = document.createElement('button'); closeButton.type = 'button'; closeButton.className = 'modal-close'; closeButton.textContent = '×';
-      closeButton.title = uiText('Close', '닫기'); closeButton.setAttribute('aria-label', uiText('Close Project Models', 'Project Models 닫기'));
+      closeButton.title = uiText('Close', '닫기'); closeButton.setAttribute('aria-label', uiText('Close Project Models', '프로젝트 모델 닫기'));
       header.append(title, closeButton);
       const search = document.createElement('input');
       search.className = 'model-search'; search.type = 'search'; search.placeholder = uiText('Search by model name or type', '모델 이름 또는 종류 검색');

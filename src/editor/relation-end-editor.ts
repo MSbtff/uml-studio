@@ -14,7 +14,7 @@ declare var UMLRelationEndEditor: RelationEndEditorApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createRelationEndEditorModule);
 
 function createRelationEndEditorModule() {
-  const { text: uiText } = globalThis.UMLLanguage
+  const { label: uiLabel, text: uiText } = globalThis.UMLLanguage
     ?? require('./language.js') as typeof UMLLanguage;
 
   const REQUIRED_FUNCTIONS = Object.freeze([
@@ -169,7 +169,9 @@ function createRelationEndEditorModule() {
           end === 'source' ? uiText('Source', '출발') : uiText('Target', '도착'),
           endpoint?.name || uiText('(Unnamed)', '(이름 없음)'),
         )
-        : `${end === 'source' ? 'Source' : 'Target'} End · ${endpoint?.name || '(unnamed)'}`;
+        : uiLabel('{0} End · {1}', '{0}점 · {1}',
+          end === 'source' ? uiLabel('Source', '출발') : uiLabel('Target', '도착'),
+          endpoint?.name || uiLabel('(unnamed)', '(이름 없음)'));
       /* the visible heading already says which end this is */
       editor.setAttribute('aria-labelledby', title.id);
       editor.appendChild(title);
@@ -213,32 +215,32 @@ function createRelationEndEditorModule() {
 
       const expression = erd ? (r[`${prefix}EndName`] || '') : relationEndExpression(r, end);
       const expressionInput = input('expression', expression);
-      addField(erd ? 'End Name' : 'Name Expression',
+      addField(erd ? uiLabel('End Name', '끝점 이름') : uiLabel('Name Expression', '이름 표현식'),
         expressionInput,
         erd ? uiText('Role at this end of the relationship', '관계 끝점 역할 이름') : uiText('Example: «role» + owner', '예: «role» + owner'));
       const multiplicity = erd
         ? select('multiplicity', erdRelationCardinality(r, end), ERD_CARDINALITY_OPTIONS)
         : input('multiplicity', relationEndMultiplicity(r, end));
       if (erd) {
-        addField(uiText('Cardinality', '참여 개수 (Cardinality)'), multiplicity,
+        addField(uiText('Cardinality', '참여 개수'), multiplicity,
           uiText(
             'A circle means zero (optional), a bar means one (required), and a crow\'s foot means many.',
             '○는 0(선택), |는 1(필수), 까마귀발은 여러 개를 뜻합니다.',
           ));
       } else {
-        addField('Multiplicity', multiplicity, uiText('Examples: 1, *, 0..1, 0..*', '예: 1, *, 0..1, 0..*'));
+        addField(uiLabel('Multiplicity', '다중성'), multiplicity, uiText('Examples: 1, *, 0..1, 0..*', '예: 1, *, 0..1, 0..*'));
       }
 
       let associationFields: { navigability: HTMLSelectElement; aggregation: HTMLSelectElement; qualifiers?: HTMLTextAreaElement } | undefined;
       if (!erd) {
         const navigability = select('navigability', relationEndNavigability(r, end), [
-          ['unspecified', 'Unspecified'], ['navigable', 'Navigable'], ['notNavigable', 'Not Navigable'],
+          ['unspecified', uiLabel('Unspecified', '미지정')], ['navigable', uiLabel('Navigable', '탐색 가능')], ['notNavigable', uiLabel('Not Navigable', '탐색 불가')],
         ]);
         const aggregation = select('aggregation', relationEndAggregation(r, end), [
-          ['none', 'None'], ['shared', 'Shared'], ['composite', 'Composite'],
+          ['none', uiLabel('None', '없음')], ['shared', uiLabel('Shared', '공유')], ['composite', uiLabel('Composite', '합성')],
         ]);
-        addField('Navigability', navigability);
-        addField('Aggregation', aggregation);
+        addField(uiLabel('Navigability', '탐색 가능성'), navigability);
+        addField(uiLabel('Aggregation', '집합 관계'), aggregation);
         associationFields = { navigability, aggregation };
         if (ASSOCIATION_QUALIFIER_KINDS.has(r.kind)) {
           const qualifiers = document.createElement('textarea');
@@ -246,7 +248,7 @@ function createRelationEndEditorModule() {
           const values = r[`${prefix}Qualifiers`];
           qualifiers.value = Array.isArray(values) ? values.join('\n') : '';
           associationFields.qualifiers = qualifiers;
-          addField('Qualifiers', qualifiers, uiText('Enter one item per line.', '한 줄에 하나씩 입력'));
+          addField(uiLabel('Qualifiers', '한정자'), qualifiers, uiText('Enter one item per line.', '한 줄에 하나씩 입력'));
         }
       }
 
@@ -257,9 +259,9 @@ function createRelationEndEditorModule() {
       const actions = document.createElement('div');
       actions.className = 'relation-end-editor-actions';
       const cancel = document.createElement('button');
-      cancel.type = 'button'; cancel.textContent = 'Cancel';
+      cancel.type = 'button'; cancel.textContent = uiLabel('Cancel', '취소');
       const apply = document.createElement('button');
-      apply.type = 'button'; apply.className = 'primary'; apply.textContent = 'Apply';
+      apply.type = 'button'; apply.className = 'primary'; apply.textContent = uiLabel('Apply', '적용');
       actions.append(cancel, apply); editor.appendChild(actions);
 
       const commit = () => {
