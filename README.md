@@ -107,6 +107,24 @@ For SQL conversion from a Node.js script, see the [npm quick start](#ddl-to-merm
 
 The status bar announces canvas selection and scrolls off-screen selections into view. QuickEdit and the Properties panel expose field labels and group relationship endpoints. Property refreshes restore focus to the control being edited. Project and recovery lists include item names in row action labels.
 
+## Architecture
+
+### Components
+
+`src/app.ts` wires together canvas input, SVG rendering, project import and export, and persistence. The editor and the `uml-studio-ddl-to-mermaid` npm package share the DDL parser, model hydration, and exporters.
+
+![Component diagram showing editor modules, shared conversion code, and the Python project storage API](docs/images/architecture-components.png)
+
+_Editor modules, shared DDL conversion code, and the project storage API._
+
+### Deployment
+
+`npm start` builds the browser assets and starts `server.py` on the local machine. The browser keeps a recovery copy in IndexedDB, and the server stores projects in `uml-studio.db`. Node.js projects install the conversion library from npm and run it in their own process.
+
+![Deployment diagram showing browser and Python resources inside the local PC boundary and npm resources inside a dashed external boundary](docs/images/architecture-deployment.png)
+
+_Local editor deployment with `npm start` and npm package usage in a separate Node.js project._
+
 ## Development and tests
 
 | Path                       | Contents                                                  |
