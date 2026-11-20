@@ -14,6 +14,8 @@ declare var UMLRelationRules: RelationRulesApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createRelationRulesModule);
 
 function createRelationRulesModule() {
+  const c4Model = globalThis.UMLC4Model
+    ?? require('./c4-model.js') as C4ModelApi;
   const { displayLabel, text: uiText } = globalThis.UMLLanguage
     ?? require('../editor/language.js') as typeof UMLLanguage;
 
@@ -42,7 +44,7 @@ function createRelationRulesModule() {
   const KIND_SETS = Object.freeze(REQUIRED_VALUES.filter((name): name is KindSetName => name.endsWith('_KINDS')));
 
   type KindSetName = Extract<typeof REQUIRED_VALUES[number], `${string}_KINDS`>;
-  type Endpoint = Pick<DiagramElementBounds, 'id' | 'kind' | 'parentId'> & {
+  type Endpoint = Pick<DiagramElementBounds, 'id' | 'kind' | 'parentId' | 'c4Boundary'> & {
     referenceKind?: string;
     classifierModelId?: string;
   };
@@ -409,6 +411,13 @@ function createRelationRulesModule() {
     ]);
 
     function relationError(kind: string, from: CandidateEndpoint, to: CandidateEndpoint, ignoredRelationId = '') {
+      if (kind === 'c4relationship' && (from === to || !c4Model.isRelationshipEndpoint(from?.kind, from)
+        || !c4Model.isRelationshipEndpoint(to?.kind, to))) {
+        return uiText(
+          'Connect C4 relationships between distinct people, software systems, or containers.',
+          'C4 관계는 서로 다른 사용자, 소프트웨어 시스템 또는 컨테이너 사이에 연결하세요',
+        );
+      }
       for (const rule of DIAGRAM_RULES) {
         const message = rule(kind, from, to, ignoredRelationId);
         if (message) return message;

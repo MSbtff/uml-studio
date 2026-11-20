@@ -324,4 +324,27 @@ const owner = (kind, extra = {}) => ({ id: `${kind}-owner`, kind, x: 40, y: 60, 
   assert.match(statuses.at(-1), /인라인 시퀀스 다이어그램을 만들었습니다/);
 }
 
+{
+  const boundary = { id: 'scope', modelId: 'system-model', kind: 'c4system', c4Boundary: true,
+    x: 100, y: 100, w: 500, h: 320 };
+  const { placement, diagram, state } = harness({ diagram: { type: 'c4container', elements: [boundary] } });
+  placement.placeElementForTool({ x: 10, y: 10 }, 'c4container', null);
+  assert.equal(diagram.elements.length, 1);
+  assert.equal(called('snapshot').length, 0, 'Rejected placements must not create history');
+  assert.match(statuses.at(-1), /시스템 경계 안/);
+
+  placement.placeElementForTool({ x: 175, y: 200 }, 'c4container', null);
+  const container = diagram.elements[1];
+  assert.equal(container.parentId, boundary.id);
+  assert.equal(container.c4OwnerModelId, boundary.modelId);
+  assert.deepEqual(state.selection, [container.id]);
+}
+{
+  const { placement, diagram } = harness({ diagram: { type: 'c4context' } });
+  placement.placeElementForTool({ x: 160, y: 120 }, 'c4system', null);
+  placement.placeElementForTool({ x: 460, y: 120 }, 'c4system', null);
+  assert.equal(diagram.elements[0].c4ContextFocus, true);
+  assert.equal(diagram.elements[1].c4ContextFocus, undefined);
+}
+
 console.log('element placement tests: ok');

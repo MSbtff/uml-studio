@@ -122,6 +122,7 @@ const dependencies = {
   DIAGRAM_META: {
     class: { label: 'Class Diagram', color: '#111', code: 'CL' },
     sequence: { label: 'Sequence Diagram', color: '#222', code: 'SQ' },
+    c4container: { label: 'C4 Container', color: '#35739c', code: 'L2', fromContext: true },
     ibd: { label: 'Internal Block Diagram', color: '#333', code: 'IB' },
   },
 };
@@ -186,5 +187,25 @@ assert.equal(ibd.elements[0].kind, 'ibdframe');
 assert.deepEqual(state.selection, [ibd.elements[0].id]);
 assert.equal(state.activeId, ibd.id);
 assert.ok(snapshotCalls >= 3);
+
+const system = { id: 'system-view', modelId: 'm-erp', name: 'ERP', kind: 'c4system', c4ContextFocus: true };
+const context = { id: 'c4-context', type: 'c4context', name: 'C4 System Context', elements: [system], relations: [] };
+state.diagrams.push(context);
+state.models[system.modelId] = { id: system.modelId, kind: system.kind, name: system.name };
+controller.switchDiagram(context.id);
+controller.openC4Container(system);
+const container = state.diagrams.at(-1);
+const boundary = container.elements[0];
+assert.equal(container.type, 'c4container');
+assert.equal(container.c4AutoName, true);
+assert.equal(boundary.c4Boundary, true);
+assert.equal(boundary.modelId, system.modelId);
+assert.deepEqual(controller.c4ContextFor(boundary), { diagram: context, view: system });
+controller.switchDiagram(context.id);
+const beforeReopen = snapshotCalls;
+controller.openC4Container(system);
+assert.equal(state.activeId, container.id);
+assert.deepEqual(state.selection, [boundary.id]);
+assert.equal(snapshotCalls, beforeReopen, 'Reopening L2 should keep the existing diagram');
 
 console.log('diagram tabs tests: ok');

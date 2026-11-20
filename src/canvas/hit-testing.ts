@@ -190,12 +190,12 @@ function createHitTestingModule() {
           if (nearFragmentEdge(element, point)) return element;
           continue;
         }
-        if (element.kind === 'boundary' || element.kind === 'frame') {
+        if (element.kind === 'boundary' || element.kind === 'frame' || element.c4Boundary) {
           if (!inRect(element, point)) continue;
           const border = HIT_TOLERANCES.containerBorder;
           if (point.x < element.x + border || point.x > element.x + element.w - border
             || point.y < element.y + border || point.y > element.y + element.h - border
-            || point.y < element.y + HIT_TOLERANCES.frameTitleHeight) return element;
+            || point.y < element.y + (element.c4Boundary ? 52 : HIT_TOLERANCES.frameTitleHeight)) return element;
           continue;
         }
         if (element.kind === 'compositestate') {

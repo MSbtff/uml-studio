@@ -14,6 +14,8 @@ declare var UMLModelRepository: ModelRepositoryApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createModelRepositoryModule);
 
 function createModelRepositoryModule() {
+  const c4Model = globalThis.UMLC4Model
+    ?? require('../model/c4-model.js') as C4ModelApi;
   const { displayLabel, label: uiLabel, text: uiText } = globalThis.UMLLanguage
     ?? require('./language.js') as typeof UMLLanguage;
 
@@ -161,6 +163,13 @@ function createModelRepositoryModule() {
         && !TIMING_INTERNAL_KINDS.has(kind);
     }
 
+    function canPlaceModel(model: DiagramModel) {
+      if (!canPlaceKind(model.kind)) return false;
+      if (model.kind !== 'c4container') return true;
+      const boundary = c4Model.systemBoundary(dg());
+      return !!boundary && model.c4OwnerModelId === boundary.modelId;
+    }
+
     /* drop the new view in the middle of what the user is currently looking at */
     function viewportCentre() {
       return {
@@ -172,17 +181,24 @@ function createModelRepositoryModule() {
     function createViewForModel(modelId: string) {
       const model = state.models[modelId];
       if (!model) return null;
-      if (model.kind === 'execution' || !canPlaceKind(model.kind)) return null;
+      if (model.kind === 'execution' || !canPlaceModel(model)) return null;
       const centre = viewportCentre();
       const y = dg().type === 'sequence' && model.kind === 'lifeline'
         ? sequenceLifelineTop(dg())
         : centre.y;
-      const view = {
+      const view: UnhydratedView = {
         id: uid(), modelId,
         x: Math.max(DEFAULT_VIEW_SIZE.margin, centre.x),
         y: Math.max(DEFAULT_VIEW_SIZE.margin, y),
         w: 0, h: 0, fill: FILL_DEFAULT,
       };
+      if (model.kind === 'c4container') {
+        const boundary = c4Model.systemBoundary(dg());
+        if (!boundary) return null;
+        view.parentId = boundary.id;
+        view.x = Math.min(view.x, boundary.x + boundary.w - 216);
+        view.y = Math.min(view.y, boundary.y + boundary.h - 96);
+      }
       if (VIEW_PRESETS[model.kind]) Object.assign(view, VIEW_PRESETS[model.kind]);
       if (model.kind === 'boundary' && dg().type === 'deployment') view.fill = '#ffffff';
       if (BDD_CLASSIFIER_KINDS.has(model.kind)) Object.assign(view, BDD_CLASSIFIER_PRESET);
@@ -273,7 +289,7 @@ function createModelRepositoryModule() {
         action.addEventListener('click', () => {
           setSelection([existing.id]); modal.close(); render(); renderProps();
         });
-      } else if (canPlaceKind(model.kind)) {
+      } else if (canPlaceModel(model)) {
         action.textContent = uiLabel('Add View', '뷰 추가');
         action.addEventListener('click', () => addView(model.id, modal));
       } else {

@@ -64,6 +64,7 @@ For a static preview, run `npm run preview` and open [http://127.0.0.1:8765](htt
 | UML structure                 | Class, Object, Package, Profile, Component, Deployment, Composite Structure                                |
 | UML behavior and interactions | Use Case, Activity, State Machine, Sequence, Communication, Timing, Interaction Overview, Information Flow |
 | SysML                         | Requirement, Block Definition, Internal Block, Parametric                                                  |
+| C4                            | System Context (L1), Container (L2)                                                                        |
 | Other                         | ER Diagram, Data Flow Diagram, Mind Map                                                                    |
 
 - Use **Models** to place another view of an existing model on a diagram. Copies of class, interface, and enumeration views share the same underlying model, so a rename appears in every view.
@@ -71,6 +72,12 @@ For a static preview, run `npm run preview` and open [http://127.0.0.1:8765](htt
 - In a sequence diagram, use **Edit → Select All** before dragging to move lifelines, messages, execution bars, and fragments together. Drag a selection rectangle on empty canvas to move a smaller region. Drag a fragment's dashed divider to resize its operands.
 - Use **Validate** or `F9` to check the project against its modeling rules.
 - Use **Save** for a portable JSON project backup. Export diagrams to SVG, PNG, Mermaid (`.mmd`), or editable draw.io files. **All PNG** exports every diagram as an image. Use **Import draw.io** to bring draw.io diagrams into the current project.
+
+### C4 architecture diagrams
+
+Create a **C4 System Context** diagram and add people, software systems, and their relationships. Select a software system and choose **Open Container Diagram** in Properties. UML Studio creates the L2 diagram on the first visit and reopens it on later visits. Its system boundary shares the L1 system model, so changes to the system name appear in both views.
+
+Place applications and databases inside the boundary and set their technologies and relationship protocols in Properties. Select the boundary to return to a **System Context** view. Both C4 diagrams support project JSON, autosave, and SVG export.
 
 ## Import and export SQL DDL
 

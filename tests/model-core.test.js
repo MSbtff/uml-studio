@@ -7,12 +7,80 @@ const {
   validateProjectData,
   stringifyProject,
 } = require('../dist/browser/model/model-core.js');
+const { layoutContainers, updateContainerDiagramNames } = require('../dist/browser/model/c4-model.js');
 
 const options = {
   diagramTypes: ['class'],
   elementKinds: ['class', 'interface'],
   relationKinds: ['association'],
 };
+
+{
+  const c4Options = {
+    diagramTypes: ['c4context', 'c4container'],
+    elementKinds: ['c4system', 'c4container', 'c4person'],
+    relationKinds: ['c4relationship'],
+  };
+  const project = {
+    version: 30,
+    models: {
+      system: { id: 'system', kind: 'c4system', name: 'ERP' },
+      other: { id: 'other', kind: 'c4system', name: 'External' },
+      employee: { id: 'employee', kind: 'c4person', name: 'Employee' },
+      web: { id: 'web', kind: 'c4container', name: 'Web', c4OwnerModelId: 'system', c4ContainerType: 'application' },
+      rel: { id: 'rel', kind: 'c4relationship', name: 'Uses', c4Technology: 'HTTPS' },
+    },
+    diagrams: [{
+      id: 'context', type: 'c4context', elements: [{ id: 'system-view', modelId: 'system', c4ContextFocus: true }], relations: [],
+    }, {
+      id: 'container', type: 'c4container',
+      elements: [
+        { id: 'boundary', modelId: 'system', c4Boundary: true },
+        { id: 'web-view', modelId: 'web', parentId: 'boundary' },
+        { id: 'employee-view', modelId: 'employee' },
+      ],
+      relations: [{ id: 'rel-view', modelId: 'rel', from: 'employee-view', to: 'web-view' }],
+    }],
+  };
+  assert.equal(validateProjectData(project, c4Options), true);
+  const wrongOwner = structuredClone(project);
+  wrongOwner.models.web.c4OwnerModelId = 'other';
+  assert.throws(() => validateProjectData(wrongOwner, c4Options), /소속 시스템/);
+  const missingBoundary = structuredClone(project);
+  delete missingBoundary.diagrams[1].elements[0].c4Boundary;
+  assert.throws(() => validateProjectData(missingBoundary, c4Options), /시스템 경계/);
+  const linkToBoundary = structuredClone(project);
+  linkToBoundary.diagrams[1].relations[0].to = 'boundary';
+  assert.throws(() => validateProjectData(linkToBoundary, c4Options), /C4 관계의 연결 대상/);
+  const duplicate = structuredClone(project);
+  duplicate.diagrams.push({ ...duplicate.diagrams[1], id: 'duplicate' });
+  assert.throws(() => validateProjectData(duplicate, c4Options), /다이어그램이 중복/);
+  hydrateProject(project.diagrams, project.models, () => assert.fail('같은 시스템 모델을 재사용해야 합니다'));
+  project.diagrams[1].elements[0].name = 'ERP Platform';
+  const restored = JSON.parse(stringifyProject(project));
+  assert.equal(validateProjectData(restored, c4Options), true);
+  assert.equal(restored.models[restored.diagrams[0].elements[0].modelId].name, 'ERP Platform');
+
+  const l2 = project.diagrams[1];
+  const [boundary, container, person] = l2.elements;
+  Object.assign(boundary, { x: 100, y: 100, w: 280, h: 144 });
+  Object.assign(container, { x: 560, y: 80, w: 192, h: 72 });
+  Object.assign(person, { x: 0, y: 0 });
+  layoutContainers(l2);
+  assert.equal(container.y, 164);
+  assert.equal(boundary.x + boundary.w, container.x + container.w + 24);
+  assert.equal(person.y, 0, 'People outside the boundary keep their own placement');
+  assert.equal(container.c4OwnerModelId, boundary.modelId);
+
+  l2.c4AutoName = true;
+  updateContainerDiagramNames(project.diagrams);
+  assert.equal(l2.name, 'ERP Platform · 컨테이너');
+  delete l2.c4AutoName;
+  l2.name = 'Billing architecture';
+  boundary.name = 'ERP Cloud';
+  updateContainerDiagramNames(project.diagrams);
+  assert.equal(l2.name, 'Billing architecture', 'Renaming the system preserves a custom diagram title');
+}
 
 function legacyProject() {
   return {

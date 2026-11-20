@@ -14,6 +14,8 @@ declare var UMLSelectionEditing: SelectionEditingApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createSelectionEditingModule);
 
 function createSelectionEditingModule() {
+  const c4Model = globalThis.UMLC4Model
+    ?? require('../model/c4-model.js') as C4ModelApi;
   const { text: uiText } = globalThis.UMLLanguage
     ?? require('./language.js') as typeof UMLLanguage;
 
@@ -63,6 +65,7 @@ function createSelectionEditingModule() {
      kind in the paste message; kinds sharing a label are counted together. */
   const INDEPENDENT_COPY_KINDS: Readonly<Partial<Record<string, string>>> = Object.freeze({
     entity: uiText('table', '테이블'),
+    c4container: uiText('C4 Container', 'C4 컨테이너'),
     lifeline: uiText('lifeline', '라이프라인'),
     fragment: uiText('combined fragment', '결합 프래그먼트'),
     object: uiText('instance', '인스턴스'),
@@ -190,7 +193,7 @@ function createSelectionEditingModule() {
     }
 
     function expandedElementSelection() {
-      const base = state.selection.map(byId).filter(present);
+      const base = state.selection.map(byId).filter(present).filter(view => !view.c4Boundary);
       const roots = base.map(e => e.kind === 'region' ? byId(e.parentId) : e).filter(present);
       return [...new Map(roots.flatMap(root => [root, ...descendantViews(root.id)]).map(e => [e.id, e])).values()];
     }
@@ -259,7 +262,15 @@ function createSelectionEditingModule() {
       const src: ClipboardData = JSON.parse(currentClipboard.data);
       const sourceModels = src.models || {};
       const kindOf = (view: ImportedElement) => (view.modelId && sourceModels[view.modelId]?.kind) || view.kind;
-      const usable = src.elements.filter(e => diagramAllowsElementKind(dg().type, kindOf(e)));
+      const d = dg();
+      const boundary = c4Model.systemBoundary(d);
+      const sameProject = currentClipboard.sourceRepository === state.models;
+      const usable = src.elements.filter(view => {
+        const kind = kindOf(view);
+        return !view.c4Boundary && diagramAllowsElementKind(d.type, kind)
+          && (kind !== 'c4container' || !!boundary)
+          && !(boundary && sameProject && view.modelId === boundary.modelId);
+      });
       if (!usable.length) {
         flashStatus(uiText('The copied elements cannot be pasted into this diagram.', '복사한 요소를 이 다이어그램에 붙여넣을 수 없습니다'));
         return;
@@ -269,18 +280,20 @@ function createSelectionEditingModule() {
       const off = PASTE_OFFSET * currentClipboard.count;
       const idMap: Record<string, string> = Object.create(null);
       const modelIdMap: Record<string, string> = Object.create(null);
-      const sameProject = currentClipboard.sourceRepository === state.models;
       /* `viaReference` marks a model the copied view only points at — a lifeline's
          classifier, a component's interface. Cloning those too would duplicate the
          classifier itself, so within the same project they stay shared. */
       const targetModelId = (sourceId: string | undefined, viaReference = false): string => {
         const oldId = sourceId || String(sourceId);
-        if (sameProject && state.models[oldId] && (!currentClipboard.cloneModels || viaReference)) return oldId;
+        const source: Omit<DiagramModel, 'id'> = sourceModels[oldId] || { kind: 'note', name: 'Imported Element' };
+        const changesC4Owner = source.kind === 'c4container' && source.c4OwnerModelId !== boundary?.modelId;
+        const reuseModel = !currentClipboard.cloneModels || viaReference || source.kind === 'c4system';
+        if (sameProject && state.models[oldId] && reuseModel && !changesC4Owner) return oldId;
         if (!modelIdMap[oldId]) {
           const nextId = modelUid();
-          const source: Omit<DiagramModel, 'id'> = sourceModels[oldId] || { kind: 'note', name: 'Imported Element' };
           modelIdMap[oldId] = nextId;
           state.models[nextId] = { ...source, id: nextId };
+          if (source.kind === 'c4container') state.models[nextId].c4OwnerModelId = boundary?.modelId;
           CLONED_MODEL_LIST_FIELDS.forEach(k => {
             const list = state.models[nextId][k];
             if (list) state.models[nextId][k] = [...list];
@@ -317,7 +330,9 @@ function createSelectionEditingModule() {
       });
       usable.forEach((source, index) => {
         const pasted = newEls[index];
-        if (source.parentId && idMap[source.parentId]) pasted.parentId = idMap[source.parentId];
+        delete pasted.c4ContextFocus;
+        if (pasted.kind === 'c4container') pasted.parentId = boundary?.id;
+        else if (source.parentId && idMap[source.parentId]) pasted.parentId = idMap[source.parentId];
         else delete pasted.parentId;
       });
       const relationIdMap: Record<string, string> = Object.create(null);
@@ -345,7 +360,6 @@ function createSelectionEditingModule() {
         if (mapped) newEls[index].constrainedViewId = mapped;
         else delete newEls[index].constrainedViewId;
       });
-      const d = dg();
       d.elements.push(...newEls);
       d.relations.push(...newRels);
       newRels.forEach(r => syncRelationModel(r, d));
@@ -380,8 +394,16 @@ function createSelectionEditingModule() {
     }
 
     function deleteSelection(selectedIds = state.selection) {
-      const ids = new Set(selectedIds);
-      selectedIds.map(byId).filter(present).forEach(root => descendantViews(root.id).forEach(child => ids.add(child.id)));
+      const boundary = c4Model.systemBoundary(dg());
+      const deletable = selectedIds.filter(id => id !== boundary?.id);
+      const ids = new Set(deletable);
+      deletable.map(byId).filter(present).forEach(root => descendantViews(root.id).forEach(child => ids.add(child.id)));
+      if (!ids.size && boundary && selectedIds.includes(boundary.id)) {
+        flashStatus(uiText(
+          'Close the C4 Container diagram to remove its system boundary.',
+          '시스템 경계를 삭제하려면 C4 컨테이너 다이어그램을 닫으세요',
+        ));
+      }
       if (!ids.size) return;
       snapshot();
       const d = dg();
@@ -398,6 +420,21 @@ function createSelectionEditingModule() {
         .filter(v => state.selection.includes(v.id));
       const modelIds = new Set(selectedViews.map(v => v.modelId).filter(present));
       if (!modelIds.size) return;
+      if (state.diagrams.some(diagram => {
+        const systemId = c4Model.systemBoundary(diagram)?.modelId;
+        return systemId && modelIds.has(systemId);
+      })) {
+        flashStatus(uiText(
+          'Close the linked C4 Container diagram before deleting its system model.',
+          '시스템 모델을 삭제하려면 연결된 C4 컨테이너 다이어그램을 먼저 닫으세요',
+        ));
+        return;
+      }
+      Object.values(state.models).forEach(model => {
+        if (model.kind === 'c4container' && model.c4OwnerModelId && modelIds.has(model.c4OwnerModelId)) {
+          modelIds.add(model.id);
+        }
+      });
       snapshot();
       const relationModelIds = new Set<string>();
       state.diagrams.forEach(d => {

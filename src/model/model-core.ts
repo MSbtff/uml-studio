@@ -27,6 +27,8 @@ declare var UMLModelCore: ModelCoreApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createModelCore);
 
 function createModelCore(erdSchema?: ModelSchemaValidation) {
+  const c4Model = globalThis.UMLC4Model
+    ?? require('./c4-model.js') as C4ModelApi;
   const { text: uiText } = globalThis.UMLLanguage
     ?? require('../editor/language.js') as typeof UMLLanguage;
 
@@ -55,6 +57,7 @@ function createModelCore(erdSchema?: ModelSchemaValidation) {
     'requirementType', 'requirementId', 'requirementText', 'risk', 'verificationMethod',
     'parts', 'references', 'values', 'flowProperties', 'constraintProperties',
     'properties', 'constraints', 'constraintParameters', 'valueTypeUnit', 'quantityKind',
+    'c4Description', 'c4Technology', 'c4ContainerType', 'c4OwnerModelId',
   ]);
 
   type ProjectObject = Record<string, unknown>;
@@ -228,6 +231,12 @@ function createModelCore(erdSchema?: ModelSchemaValidation) {
           throw new Error(uiText('Invalid relationship end visibility: {0}.{1}', '관계 끝점 가시성이 올바르지 않습니다: {0}.{1}', id, field));
         }
       }
+      for (const field of ['c4Description', 'c4Technology']) {
+        const value = model[field];
+        if (value !== undefined && (typeof value !== 'string' || value.length > 100000)) {
+          throw new Error(uiText('Invalid C4 text: {0}.{1}', 'C4 텍스트가 올바르지 않습니다: {0}.{1}', id, field));
+        }
+      }
       for (const field of ['sourceNavigability', 'targetNavigability']) {
         if (model[field] !== undefined
           && !matchesOneOf(model[field], ['unspecified', 'navigable', 'notNavigable'])) {
@@ -250,8 +259,17 @@ function createModelCore(erdSchema?: ModelSchemaValidation) {
     });
 
     const models = rawModels as Models;
+    Object.values(models).forEach(model => {
+      if (model.kind !== 'c4container') return;
+      const ownerId = model.c4OwnerModelId;
+      if (typeof ownerId !== 'string' || models[ownerId]?.kind !== 'c4system'
+        || !matchesOneOf(model.c4ContainerType, ['application', 'database'])) {
+        throw new Error(uiText('Invalid C4 container model: {0}', 'C4 Container 모델이 올바르지 않습니다: {0}', model.id));
+      }
+    });
     let viewCount = 0;
     const diagramIds = new Set<string>();
+    const c4ContainerSystems = new Set<string>();
     const diagramById = new Map<string, ValidatedDiagram>();
     diagrams.forEach((diagram, index) => {
       if (!isObject(diagram)) throw new Error(uiText('Invalid data for diagram {0}.', '다이어그램 {0} 데이터가 올바르지 않습니다.', index + 1));
@@ -381,6 +399,18 @@ function createModelCore(erdSchema?: ModelSchemaValidation) {
             throw new Error(uiText('Time constraint target not found: {0}', 'Time Constraint의 연결 대상을 찾을 수 없습니다: {0}', view.id));
           }
         });
+      }
+      const systemId = c4Model.validateDiagram(
+        { id: diagram.id, type: diagram.type, elements, relations },
+        view => referencedModel(view, models),
+      );
+      if (systemId) {
+        if (c4ContainerSystems.has(systemId)) throw new Error(uiText(
+          'A C4 Container diagram already exists for this system: {0}',
+          '같은 시스템의 C4 Container 다이어그램이 중복되었습니다: {0}',
+          diagram.id,
+        ));
+        c4ContainerSystems.add(systemId);
       }
       diagramById.set(diagram.id, { type: diagram.type, elements });
     });

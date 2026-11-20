@@ -20,6 +20,7 @@ function createPresentationRegistry() {
   const REL_STYLE = {
     association:    { dash: null,                   head: null },
     directed:       { dash: null,                   head: 'open' },
+    c4relationship: { dash: DASH_PATTERNS.relation, head: 'filled' },
     generalization: { dash: null,                   head: 'triangle' },
     realization:    { dash: DASH_PATTERNS.relation, head: 'triangle' },
     dependency:     { dash: DASH_PATTERNS.relation, head: 'open' },
@@ -81,6 +82,9 @@ function createPresentationRegistry() {
     actor:        { label: 'Actor', labelKo: '액터', icon: 'A',  color: '#2e9e5b' },
     usecase:      { label: 'Use Case', labelKo: '유스케이스', icon: 'U',  color: '#2e9e5b' },
     boundary:     { label: 'System Boundary', labelKo: '시스템 경계', icon: 'B',  color: '#2e9e5b' },
+    c4person:     { label: 'Person', labelKo: '사용자', icon: 'P', color: '#225085' },
+    c4system:     { label: 'Software System', labelKo: '소프트웨어 시스템', icon: 'S', color: '#225085' },
+    c4container:  { label: 'Container', labelKo: '컨테이너', icon: 'C', color: '#35739c' },
     action:       { label: 'Action', labelKo: '동작', icon: 'A',  color: '#d1583a' },
     initial:      { label: 'Initial Node', labelKo: '시작 노드', icon: '●',  color: '#d1583a' },
     final:        { label: 'Final Node', labelKo: '종료 노드', icon: '◉',  color: '#d1583a' },
@@ -167,6 +171,7 @@ function createPresentationRegistry() {
     /* relations */
     association:  { label: 'Association', labelKo: '연관', icon: '—',  color: '#5a7ba6' },
     directed:     { label: 'Directed Association', labelKo: '방향성 연관', icon: '→', color: '#5a7ba6' },
+    c4relationship:{ label: 'Relationship', labelKo: '관계', icon: '→', color: '#35739c' },
     generalization:{ label: 'Generalization', labelKo: '일반화', icon: '▷',  color: '#5a7ba6' },
     realization:  { label: 'Realization', labelKo: '실현', icon: '⇢',  color: '#5a7ba6' },
     dependency:   { label: 'Dependency', labelKo: '의존', icon: '⤳',  color: '#5a7ba6' },

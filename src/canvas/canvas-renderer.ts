@@ -61,7 +61,7 @@ interface CanvasRendererDependencies {
   FILL_DEFAULT: string;
   STROKE: string;
   document: Document;
-  state: CanvasSelectionState;
+  state: CanvasSelectionState & { diagrams: EditorDiagram[] };
   svg: SVGSVGElement;
 }
 
@@ -75,6 +75,8 @@ declare var UMLCanvasRenderer: CanvasRendererApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createCanvasRendererModule);
 
 function createCanvasRendererModule() {
+  const c4Model = globalThis.UMLC4Model
+    ?? require('../model/c4-model.js') as C4ModelApi;
   const { text: uiText } = globalThis.UMLLanguage
     ?? require('../editor/language.js') as typeof UMLLanguage;
 
@@ -266,6 +268,9 @@ function createCanvasRendererModule() {
     }
 
     function orderedElements(d: EditorDiagram) {
+      if (d.type === 'c4container') {
+        return d.elements.slice().sort((a, b) => Number(!!b.c4Boundary) - Number(!!a.c4Boundary));
+      }
       if (d.type === 'sequence' || d.type === 'state') {
         return d.elements.slice().sort((a, b) => {
           const order = drawOrder(a.kind) - drawOrder(b.kind);
@@ -299,6 +304,7 @@ function createCanvasRendererModule() {
 
     function runLayoutPasses(d: EditorDiagram) {
       d.elements.forEach(normalizeSize);
+      if (d.type === 'c4container') c4Model.layoutContainers(d);
       if (d.type === 'state') {
         layoutCompositeRegions(d);
         layoutConnectionPointRefs(d);
@@ -471,6 +477,9 @@ function createCanvasRendererModule() {
 
     function render() {
       const d = dg();
+      if (d.type === 'c4context' || d.type === 'c4container') {
+        c4Model.updateContainerDiagramNames(state.diagrams);
+      }
       const { drag, linking, marquee, hoveredMessageId } = interactionState();
       runLayoutPasses(d);
 

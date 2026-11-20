@@ -73,6 +73,26 @@ assert.equal(new Set(Object.values(FAMILY_KINDS).flat()).size,
   Object.values(FAMILY_KINDS).flat().length,
   '요소 종류는 하나의 렌더러 계열에만 속해야 합니다');
 
+{
+  const person = base('c4person', { title: 'Employee', subtitle: 'Person', lines: ['Approves invoices'] });
+  const system = base('c4system', { title: 'ERP', subtitle: 'Software System', lines: [] });
+  const externalSystem = { ...system, id: 'identity', name: 'Identity' };
+  diagram = { type: 'c4context', relations: [], elements: [system, externalSystem, person] };
+  assert.equal(render(person).group.attrs['data-element-family'], 'c4');
+  assert.deepEqual(render(person).group.children.map(child => child.tag), ['rect', 'circle', 'path', 'text', 'text', 'text']);
+  assert.equal(render(system).group.children.at(-1).textContent, 'Software System');
+  assert.equal(render(externalSystem).group.children.at(-1).textContent, 'External Software System');
+
+  const boundary = { ...system, c4Boundary: true, w: 400, h: 300 };
+  const db = { ...base('c4container', { title: 'Invoices', subtitle: 'Container · Database · SQLite', lines: [] }),
+    c4ContainerType: 'database' };
+  diagram = { type: 'c4container', relations: [], elements: [boundary, db] };
+  assert.deepEqual(render(boundary).group.children.map(child => child.tag), ['rect', 'text', 'text']);
+  assert.equal(render(boundary).group.children.at(-1).textContent, 'Software System Boundary');
+  assert.deepEqual(render(db).group.children.map(child => child.tag), ['path', 'path', 'text', 'text']);
+  diagram = { type: 'class', elements: [], relations: [] };
+}
+
 const note = render(base('note', { lines: ['first', 'second'] })).group;
 assert.equal(note.attrs['data-id'], 'note-1');
 assert.equal(note.attrs['data-element-family'], 'structure');

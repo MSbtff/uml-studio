@@ -19,6 +19,10 @@ function createToolboxModule() {
   function toolIcon(id: string) {
     const s = 'class="ic-stroke" stroke="#4a4e57" stroke-width="1.3" fill="none"';
     const icons: Partial<Record<string, string>> = {
+      c4person: `<circle cx="10" cy="6" r="3" ${s}/><path d="M4 16a6 5 0 0 1 12 0Z" ${s}/>`,
+      c4system: `<rect x="3" y="4" width="14" height="12" rx="2" ${s}/><path d="M6 8h8m-8 4h5" ${s}/>`,
+      c4container: `<rect x="3" y="4" width="14" height="12" rx="2" ${s}/><path d="M7 7h6v6H7z" ${s}/>`,
+      c4relationship: `<path d="M3 10h14" ${s} stroke-dasharray="3 2"/><path d="m13 6 4 4-4 4" ${s}/>`,
       object: `<rect x="3" y="3" width="14" height="14" ${s} fill="#f8f0fb"/><line x1="3" y1="8" x2="17" y2="8" ${s}/><line x1="5" y1="5.5" x2="15" y2="5.5" ${s}/>` ,
       artifactinstance: `<path d="M5 3 L13 3 L16 6 L16 17 L5 17 Z" ${s} fill="#f5f1fb"/><path d="M13 3 L13 6 L16 6" ${s}/><line x1="7" y1="12" x2="14" y2="12" ${s}/>` ,
       componentinstance: `<rect x="5" y="3" width="12" height="14" ${s} fill="#f5f1fb"/><rect x="2.5" y="6" width="6" height="3" ${s}/><rect x="2.5" y="11" width="6" height="3" ${s}/>` ,

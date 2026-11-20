@@ -78,6 +78,10 @@ interface ModelFields {
   constraints?: string[];
   constraintParameters?: string[];
   valueTypeUnit?: string;
+  c4Description?: string;
+  c4Technology?: string;
+  c4ContainerType?: 'application' | 'database';
+  c4OwnerModelId?: string;
   quantityKind?: string;
 }
 
@@ -116,6 +120,7 @@ interface DiagramRelation extends DiagramLink, ModelFields {
 }
 
 interface EditorDiagram {
+  c4AutoName?: boolean;
   erdMode?: string;
   seqNumbers?: boolean;
   id: string;

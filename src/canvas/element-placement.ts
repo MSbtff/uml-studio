@@ -15,6 +15,8 @@ declare var UMLElementPlacement: ElementPlacementApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createElementPlacementModule);
 
 function createElementPlacementModule() {
+  const c4Model = globalThis.UMLC4Model
+    ?? require('../model/c4-model.js') as C4ModelApi;
   const { displayLabel, text: uiText } = globalThis.UMLLanguage
     ?? require('../editor/language.js') as typeof UMLLanguage;
 
@@ -59,6 +61,8 @@ function createElementPlacementModule() {
   ] as const);
 
   interface PlaceableElement extends DiagramElementBounds {
+    modelId?: string;
+    c4OwnerModelId?: string;
     name?: string;
     lifeId?: string;
     interactionDiagramId?: string;
@@ -417,9 +421,23 @@ function createElementPlacementModule() {
         renderAll();
         return;
       }
+      const diagram = dg();
+      const boundary = tool === 'c4container' ? c4Model.systemBoundary(diagram) : undefined;
+      if (tool === 'c4container' && (!boundary || p.x < boundary.x || p.y < boundary.y
+        || p.x > boundary.x + boundary.w || p.y > boundary.y + boundary.h)) {
+        flashStatus(uiText('Click inside the system boundary to place a container.', '시스템 경계 안을 클릭해 컨테이너를 배치하세요'));
+        return;
+      }
       snapshot();
       const e = adoptView(createElement(tool, snap(p.x), snap(p.y)));
-      dg().elements.push(e);
+      if (boundary) {
+        e.parentId = boundary.id;
+        e.c4OwnerModelId = boundary.modelId;
+      }
+      if (diagram.type === 'c4context' && tool === 'c4system' && !c4Model.contextSystem(diagram)) {
+        e.c4ContextFocus = true;
+      }
+      diagram.elements.push(e);
       if (dg().type === 'state' && STATE_VERTEX_KINDS.has(e.kind)) attachToContainingRegion(e);
       if (dg().type === 'activity') attachToActivityContainer(e);
       if (dg().type === 'package' && PACKAGE_CONTAINER_KINDS.has(e.kind)) {

@@ -648,6 +648,9 @@ function drawElement(parent: SVGElement, element: DiagramElement) {
 }
 
 function relLabel(r: DiagramRelation) {
+  if (r.kind === 'c4relationship') {
+    return [r.name, r.c4Technology && `[${r.c4Technology}]`].filter(Boolean).join(' ');
+  }
   if (r.kind === 'transition') {
     const trigger = String(r.trigger || '').trim();
     const rawGuard = String(r.guard || '').trim();
@@ -747,9 +750,11 @@ const diagramTabs = UMLDiagramTabs.create(provide(UMLDiagramTabs));
 const {
   addDiagram,
   switchDiagram,
+  openC4Container,
+  c4ContextFor,
   closeMenu: closeTabMenu,
 } = diagramTabs;
-register({ addDiagram, switchDiagram, closeTabMenu });
+register({ addDiagram, switchDiagram, openC4Container, c4ContextFor, closeTabMenu });
 
 /* the ERD column sheet closes QuickEdit's other two editors, so QuickEdit
    constructs it; app.js wires the factory, not a controller */
@@ -856,6 +861,14 @@ function contentBBox() {
     });
   });
   const P = 32;
+  if (d.type === 'c4context' || d.type === 'c4container') {
+    svg.querySelectorAll<SVGGElement>('g[data-rel]').forEach(group => {
+      const { x, y, width, height } = group.getBBox();
+      x0 = Math.min(x0, x); y0 = Math.min(y0, y);
+      x1 = Math.max(x1, x + width); y1 = Math.max(y1, y + height);
+    });
+    return { x: x0 - P, y: y0 - P, w: x1 - x0 + P * 2, h: y1 - y0 + P * 2 };
+  }
   return { x: Math.max(0, x0 - P), y: Math.max(0, y0 - P), w: (x1 - x0) + P * 2, h: (y1 - y0) + P * 2 };
 }
 
