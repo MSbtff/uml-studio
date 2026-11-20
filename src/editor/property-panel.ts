@@ -22,7 +22,9 @@ type PropertyPanelDependencies = Omit<NonNullable<Parameters<ErdPropertySections
   relationEndNavigability: RelationRendererDependencies['relationEndNavigability'];
   relationEndAggregation: RelationRendererDependencies['relationEndAggregation'];
   openRelationEndQuickEdit: ReturnType<QuickEditApi['create']>['openRelationEndQuickEdit'];
-  switchDiagram(id: string): void;
+  switchDiagram(id: string, selection?: string[]): void;
+  openC4Container(system: DiagramElement): void;
+  c4ContextFor(system: DiagramElement): { diagram: EditorDiagram; view: DiagramElement } | undefined;
   parseIconScript: IconScriptApi['parseIconScript'];
   descendantViews(id: string): DiagramElement[];
   constraintPropertyEquations(element: DiagramElement): string[];
@@ -76,6 +78,8 @@ declare var UMLPropertyPanel: PropertyPanelApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createPropertyPanelModule);
 
 function createPropertyPanelModule() {
+  const c4Model = globalThis.UMLC4Model
+    ?? require('../model/c4-model.js') as C4ModelApi;
   const { label: uiLabel, text: uiText } = globalThis.UMLLanguage
     ?? require('./language.js') as typeof UMLLanguage;
 
@@ -112,6 +116,8 @@ function createPropertyPanelModule() {
   "relationEndAggregation",
   "openRelationEndQuickEdit",
   "switchDiagram",
+  "openC4Container",
+  "c4ContextFor",
   "parseIconScript",
   "descendantViews",
   "constraintPropertyEquations",
@@ -195,6 +201,8 @@ function createPropertyPanelModule() {
       relationEndAggregation,
       openRelationEndQuickEdit,
       switchDiagram,
+      openC4Container,
+      c4ContextFor,
       parseIconScript,
       descendantViews,
       constraintPropertyEquations,
@@ -606,10 +614,61 @@ function createPropertyPanelModule() {
       return false;
     }
     
+    function c4Action(box: HTMLElement, label: string, onClick: () => void) {
+      const row = document.createElement('div');
+      row.className = 'prop-row';
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'prop-btn';
+      button.textContent = label;
+      button.addEventListener('click', onClick);
+      row.appendChild(button);
+      box.appendChild(row);
+    }
+
+    function renderC4Properties(box: HTMLElement, element: DiagramElement) {
+      box.appendChild(propRow(uiLabel('Description', '설명'), textArea(element.c4Description, value => { element.c4Description = value; })));
+      const diagram = dg();
+      if (element.kind === 'c4container') {
+        const type = document.createElement('select');
+        ([['application', uiLabel('Application', '애플리케이션')], ['database', uiLabel('Database', '데이터베이스')]] as const).forEach(([value, label]) => {
+          const option = document.createElement('option');
+          option.value = value;
+          option.textContent = label;
+          option.selected = element.c4ContainerType === value;
+          type.appendChild(option);
+        });
+        type.addEventListener('change', () => {
+          snapshot(); element.c4ContainerType = type.value === 'database' ? 'database' : 'application'; render();
+        });
+        box.appendChild(propRow(uiLabel('Container Type', '컨테이너 종류'), type));
+        box.appendChild(propRow(uiLabel('Technology', '기술'), textInput(element.c4Technology, value => { element.c4Technology = value; })));
+      } else if (element.kind === 'c4system' && diagram.type === 'c4context') {
+        c4Action(box, uiLabel('Open Container Diagram', '컨테이너 다이어그램 열기'), () => openC4Container(element));
+        if (c4Model.contextSystem(diagram) !== element) {
+          c4Action(box, uiLabel('Set as Context System', '중심 시스템으로 지정'), () => {
+            snapshot();
+            diagram.elements.forEach(view => { delete view.c4ContextFocus; });
+            element.c4ContextFocus = true;
+            render(); renderProps();
+            box.querySelector('button')?.focus();
+          });
+        }
+      } else if (element.c4Boundary) {
+        const context = c4ContextFor(element);
+        if (context) c4Action(box, uiLabel('Open System Context', '시스템 컨텍스트 열기'), () => {
+          switchDiagram(context.diagram.id, [context.view.id]);
+          document.getElementById('canvas-wrap')?.focus();
+        });
+      }
+    }
+
     function renderElementProperties(box: HTMLElement, e: DiagramElement) {
         const kind = document.createElement('span');
         kind.className = 'prop-kind';
-        kind.textContent = diagramKindLabel(e.kind === 'lifeline' && e.isActor ? 'actor' : e.kind);
+        kind.textContent = e.c4Boundary
+          ? uiLabel('Software System Boundary', '소프트웨어 시스템 경계')
+          : diagramKindLabel(e.kind === 'lifeline' && e.isActor ? 'actor' : e.kind);
         box.appendChild(kind);
         const usage = document.createElement('div');
         usage.className = 'prop-hint model-usage';
@@ -619,6 +678,10 @@ function createPropertyPanelModule() {
     
         if (!NO_NAME_RENDER.has(e.kind) || e.kind === 'initial' || e.kind === 'final' || e.kind === 'forkbar') {
           box.appendChild(propRow(uiLabel('Name', '이름'), textInput(e.name, v => e.name = v)));
+        }
+        if (e.kind === 'c4person' || e.kind === 'c4system' || e.kind === 'c4container') {
+          renderC4Properties(box, e);
+          return;
         }
         if (dg().type === 'package' && PACKAGE_CONTAINER_KINDS.has(e.kind)) {
           const visibility = document.createElement('select');
@@ -1430,6 +1493,10 @@ function createPropertyPanelModule() {
           box.appendChild(propRow(uiLabel('Name', '이름'), textInput(r.name, v => r.name = v),
             AUTO_LABEL[r.kind] ? uiText('The {0} label is shown automatically.', '{0} 라벨은 자동 표시됩니다', AUTO_LABEL[r.kind]) : undefined));
         }
+        if (r.kind === 'c4relationship' && dg().type === 'c4container') {
+          box.appendChild(propRow(uiLabel('Technology / Protocol', '기술 / 프로토콜'),
+            textInput(r.c4Technology, value => { r.c4Technology = value; })));
+        }
         if (r.kind === 'extension') {
           const required = document.createElement('label');
           required.className = 'prop-check';
@@ -1694,7 +1761,7 @@ function createPropertyPanelModule() {
           relationEndPropertySection(box, r, 'target');
         } else if (!isInteractionMsg(r.kind) && r.kind !== 'notelink' && r.kind !== 'transition'
           && r.kind !== 'timingmessage' && r.kind !== 'informationflow'
-          && r.kind !== 'bindingconnector'
+          && r.kind !== 'bindingconnector' && r.kind !== 'c4relationship'
           && !REQUIREMENT_RELATION_KINDS.has(r.kind)) {
           box.appendChild(propRow(uiLabel('Source label (multiplicity)', '출발 라벨 (다중성)'), textInput(r.sourceLabel, v => r.sourceLabel = v), uiText(
             'Examples: 1, 0..*, owner',

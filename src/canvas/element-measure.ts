@@ -30,6 +30,8 @@ declare var UMLElementMeasure: ElementMeasureApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createElementMeasureModule);
 
 function createElementMeasureModule() {
+  const { label: uiLabel } = globalThis.UMLLanguage
+    ?? require('../editor/language.js') as typeof UMLLanguage;
   const REQUIRED_FUNCTIONS = Object.freeze([
     'childViews',
     'dg',
@@ -227,6 +229,26 @@ function createElementMeasureModule() {
 
     function measure(e: DiagramElement) {
       switch (e.kind) {
+        case 'c4person':
+        case 'c4system':
+        case 'c4container': {
+          const title = e.name || uiLabel('(unnamed)', '(이름 없음)');
+          const titleWidth = tw(title, FONT13B) + 32;
+          if (e.c4Boundary) return { title, minW: snapUp(Math.max(280, titleWidth)), minH: 144 };
+          const typeLabel = {
+            c4person: uiLabel('Person', '사용자'),
+            c4system: uiLabel('Software System', '소프트웨어 시스템'),
+            c4container: uiLabel('Container', '컨테이너'),
+          }[e.kind];
+          const detail = e.kind === 'c4container'
+            ? [e.c4ContainerType === 'database' ? uiLabel('Database', '데이터베이스') : '', e.c4Technology || ''].filter(Boolean) : [];
+          const subtitle = [typeLabel, ...detail].join(' · ');
+          const lines = e.c4Description ? wrapRequirementText(e.c4Description, 200) : [];
+          const minW = [subtitle, ...lines].reduce((width, line) => Math.max(width, tw(line, FONT12) + 32),
+            Math.max(192, titleWidth));
+          const minH = 72 + lines.length * LINE_H + (e.kind === 'c4person' ? 24 : 0);
+          return { title, subtitle, lines, minW: snapUp(minW), minH: snapUp(minH) };
+        }
         case 'note': {
           const lines = (e.text || '').split('\n');
           let w = 70, h = lines.length * LINE_H + 18;

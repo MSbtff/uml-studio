@@ -35,6 +35,8 @@ interface ErdSchemaIndex {
 }
 
 interface DiagramElementBounds extends DiagramBounds {
+  c4Boundary?: boolean;
+  c4ContextFocus?: boolean;
   id: string;
   kind: string;
   parentId?: string | null;

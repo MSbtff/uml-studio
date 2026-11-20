@@ -46,7 +46,12 @@ type StereotypeIcon = ReturnType<IconScriptApi['parseIconScript']>;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createElementRendererModule);
 
 function createElementRendererModule() {
+  const c4Model = globalThis.UMLC4Model
+    ?? require('../model/c4-model.js') as C4ModelApi;
+  const { label: uiLabel } = globalThis.UMLLanguage
+    ?? require('../editor/language.js') as typeof UMLLanguage;
   const FAMILY_KINDS = Object.freeze({
+    c4: Object.freeze(['c4person', 'c4system', 'c4container']),
     structure: Object.freeze(["note","requirement","block","valuetype","interfaceblock","constraintblock","ibdframe","parametricframe","package","model","subsystem","actor","usecase","boundary","collaboration","collaborationuse","part","reference","value","constraintproperty","constraintparameter","port"]),
     activity: Object.freeze(["swimlanev","swimlaneh","interruptibleregion","structuredactivity","expansionregion","inputpin","outputpin","expansioninput","expansionoutput","action","sendsignal","acceptsignal","timeevent","initial","final","flowfinal","decision","merge","forkbar","joinbar","objectnode","activityparameter","centralbuffer","activitydatastore"]),
     state: Object.freeze(["state","compositestate","submachinestate","region","stateinitial","statefinal","choice","junction","statefork","shallowhistory","deephistory","entrypoint","exitpoint","terminate","connectionpointref"]),
@@ -1159,7 +1164,46 @@ function createElementRendererModule() {
     if (m.showReceptions) compartment(m.receptions.map(value => `«signal» ${value}`), m.rH);
     }
 
+    function drawC4Element(e: DiagramElement, { g, m, cx }: ElementDrawingContext) {
+      const { x, y, w, h } = e;
+      if (e.c4Boundary) {
+        el('rect', { x, y, width: w, height: h, rx: 8, fill: '#f8fbff', stroke: '#567390',
+          'stroke-width': 1.5, 'stroke-dasharray': '7 4' }, g);
+        text(g, m.title, x + 16, y + 24, { size: 13, bold: true, color: '#163552' });
+        text(g, uiLabel('Software System Boundary', '소프트웨어 시스템 경계'), x + 16, y + 42, { size: 12, color: '#46627c' });
+        return;
+      }
+      const diagram = currentDiagram();
+      const external = e.kind === 'c4system' && (diagram.type === 'c4container'
+        || c4Model.contextSystem(diagram)?.id !== e.id);
+      const fill = external ? '#eef1f4' : e.kind === 'c4container' ? '#e5f3fa' : '#e4edff';
+      const stroke = external ? '#586674' : '#315b89';
+      const shape = { fill, stroke, 'stroke-width': 1.5 };
+      if (e.c4ContainerType === 'database') {
+        const bottom = y + h - 10;
+        el('path', { ...shape,
+          d: `M ${x} ${y + 10} A ${w / 2} 10 0 0 1 ${x + w} ${y + 10} V ${bottom} A ${w / 2} 10 0 0 1 ${x} ${bottom} Z`,
+        }, g);
+        el('path', { fill: 'none', stroke, 'stroke-width': 1.5,
+          d: `M ${x} ${y + 10} A ${w / 2} 10 0 0 0 ${x + w} ${y + 10}`,
+        }, g);
+      } else {
+        el('rect', { ...shape, x, y, width: w, height: h, rx: 9 }, g);
+      }
+      let titleY = y + 31;
+      if (e.kind === 'c4person') {
+        el('circle', { cx, cy: y + 19, r: 5, fill: stroke }, g);
+        el('path', { d: `M ${cx - 10} ${y + 34} a 10 7 0 0 1 20 0 Z`, fill: stroke }, g);
+        titleY += 24;
+      }
+      const label = { anchor: 'middle' as const, color: '#163552' };
+      text(g, m.title, cx, titleY, { ...label, size: 13, bold: true });
+      text(g, external ? uiLabel('External Software System', '외부 소프트웨어 시스템') : m.subtitle, cx, titleY + 18, { ...label, size: 12 });
+      m.lines?.forEach((line, index) => text(g, line, cx, titleY + 39 + index * LINE_H, { ...label, size: 12 }));
+    }
+
     const FAMILY_RENDERERS = Object.freeze({
+      c4: drawC4Element,
       structure: drawStructureElement,
       activity: drawActivityElement,
       state: drawStateElement,

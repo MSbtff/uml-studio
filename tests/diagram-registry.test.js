@@ -12,11 +12,11 @@ const {
 
 assert.deepEqual(Object.keys(DIAGRAM_TOOLS).sort(), Object.keys(DIAGRAM_META).sort(),
   '모든 다이어그램은 메타데이터와 도구 구성을 함께 가져야 합니다');
-assert.equal(Object.keys(DIAGRAM_META).length, 22);
+assert.equal(Object.keys(DIAGRAM_META).length, 24);
 
 Object.entries(DIAGRAM_META).forEach(([type, meta]) => {
   assert.ok(meta.label, `${type} 다이어그램 라벨이 필요합니다`);
-  assert.match(meta.code, /^[A-Z]{2}$/);
+  assert.match(meta.code, /^[A-Z][A-Z0-9]$/);
   assert.match(meta.color, /^#[0-9a-f]{6}$/i);
 });
 

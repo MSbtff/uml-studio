@@ -429,7 +429,7 @@ for (const kind of ['class', 'interface', 'enumeration']) {
     `${kind}는 여러 다이어그램이 공유하는 분류자이므로 복사해도 같은 모델이어야 합니다`);
 }
 assert.match(selectionEditing, /els\.some\(view => view\.kind in INDEPENDENT_COPY_KINDS\)/);
-assert.match(selectionEditing, /state\.models\[oldId\] && \(!(?:currentClipboard|clipboard)\.cloneModels \|\| viaReference\)/,
+assert.match(selectionEditing, /const reuseModel = !currentClipboard\.cloneModels \|\| viaReference \|\| source\.kind === 'c4system'/,
   '독립 복사에서는 기존 modelId를 재사용하면 안 됩니다');
 assert.match(selectionEditing, /targetModelId\((?:source\[field\]|reference), true\)/,
   '복사한 뷰가 가리키기만 하는 분류자 모델까지 복제하면 안 됩니다');

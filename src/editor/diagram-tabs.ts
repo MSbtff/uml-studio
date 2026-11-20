@@ -10,6 +10,8 @@ declare var UMLDiagramTabs: DiagramTabsApi;
 })(typeof globalThis !== 'undefined' ? globalThis : this, createDiagramTabsModule);
 
 function createDiagramTabsModule() {
+  const c4Model = globalThis.UMLC4Model
+    ?? require('../model/c4-model.js') as C4ModelApi;
   const { displayLabel, text: uiText } = globalThis.UMLLanguage
     ?? require('./language.js') as typeof UMLLanguage;
 
@@ -50,7 +52,7 @@ function createDiagramTabsModule() {
     state: { diagrams: EditorDiagram[]; models: DiagramModels; activeId: string; tool: string };
     tabs: HTMLElement;
     viewport: Pick<Window, 'innerWidth' | 'innerHeight'>;
-    DIAGRAM_META: Record<string, { label: string; color: string; code: string }>;
+    DIAGRAM_META: Record<string, { label: string; labelKo?: string; color: string; code: string; fromContext?: boolean }>;
   }
 
   function create(dependencies?: DiagramTabsDependencies) {
@@ -84,7 +86,9 @@ function createDiagramTabsModule() {
       DIAGRAM_META,
     } = deps as DiagramTabsDependencies;
 
-    function addDiagram(type: string) {
+    function addDiagram(type: string, system?: DiagramElement) {
+      const systemId = system?.modelId;
+      if (type === 'c4container' && (!systemId || state.models[systemId]?.kind !== 'c4system')) return null;
       snapshot();
       const count = state.diagrams.filter(diagram => diagram.type === type).length;
       const diagram: EditorDiagram = {
@@ -105,18 +109,49 @@ function createDiagramTabsModule() {
         diagram.elements.push(frame);
         setSelection([frame.id]);
       }
+      if (type === 'c4container') {
+        const boundary = adoptView({
+          id: uid(), kind: 'c4system', modelId: systemId, c4Boundary: true,
+          x: 192, y: 72, w: 560, h: 360,
+        });
+        diagram.c4AutoName = true;
+        diagram.elements.push(boundary);
+        setSelection([boundary.id]);
+      }
       renderAll();
       return diagram;
     }
 
-    function switchDiagram(id: string) {
+    function switchDiagram(id: string, selection: string[] = []) {
       if (state.activeId === id) return false;
       state.activeId = id;
-      setSelection([]);
+      setSelection(selection);
       state.tool = 'select';
       clearLinking();
       renderAll();
       return true;
+    }
+
+    function openC4Container(system: DiagramElement) {
+      if (!system.modelId) return;
+      for (const diagram of state.diagrams) {
+        const boundary = c4Model.systemBoundary(diagram);
+        if (boundary?.modelId === system.modelId) {
+          switchDiagram(diagram.id, [boundary.id]);
+          focusRenderedTab(diagram.id);
+          return;
+        }
+      }
+      const diagram = addDiagram('c4container', system);
+      if (diagram) focusRenderedTab(diagram.id);
+    }
+
+    function c4ContextFor(system: DiagramElement) {
+      const contexts = state.diagrams.filter(diagram => diagram.type === 'c4context');
+      const diagram = contexts.find(candidate => c4Model.contextSystem(candidate)?.modelId === system.modelId)
+        || contexts.find(candidate => candidate.elements.some(view => view.modelId === system.modelId));
+      const view = diagram?.elements.find(candidate => candidate.modelId === system.modelId);
+      return diagram && view ? { diagram, view } : undefined;
     }
 
     function deleteDiagram(diagram: EditorDiagram) {
@@ -179,6 +214,7 @@ function createDiagramTabsModule() {
         if (nextName && nextName !== diagram.name) {
           snapshot();
           diagram.name = nextName;
+          delete diagram.c4AutoName;
           if (diagram.type === 'sequence') {
             Object.values(state.models)
               .filter(model =>
@@ -304,6 +340,7 @@ function createDiagramTabsModule() {
       menu.style.top = `${rect.bottom + 4}px`;
       Object.keys(DIAGRAM_META).forEach(type => {
         const meta = DIAGRAM_META[type];
+        if (meta.fromContext) return;
         const item = document.createElement('button');
         item.type = 'button';
         item.className = 'tm-item';
@@ -339,6 +376,8 @@ function createDiagramTabsModule() {
     return Object.freeze({
       addDiagram,
       switchDiagram,
+      openC4Container,
+      c4ContextFor,
       deleteDiagram,
       focusRenderedTab,
       render,

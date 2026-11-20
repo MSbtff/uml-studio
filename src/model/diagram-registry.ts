@@ -27,6 +27,8 @@ function createDiagramRegistry() {
     component:  { label: 'Component Diagram', labelKo: '컴포넌트 다이어그램', code: 'CM', color: '#7b46d3' },
     deployment: { label: 'Deployment Diagram', labelKo: '배치 다이어그램', code: 'DP', color: '#3f7f7f' },
     erd:        { label: 'ER Diagram', labelKo: 'ER 다이어그램', code: 'ER', color: '#b3417a' },
+    c4context:  { label: 'C4 System Context', labelKo: 'C4 시스템 컨텍스트', code: 'L1', color: '#225085' },
+    c4container:{ label: 'C4 Container', labelKo: 'C4 컨테이너', code: 'L2', color: '#35739c', fromContext: true },
     dfd:        { label: 'Data Flow Diagram', labelKo: '데이터 흐름 다이어그램', code: 'DF', color: '#3a8fb0' },
     mindmap:    { label: 'Mindmap', labelKo: '마인드맵', code: 'MM', color: '#d1863a' },
     state:      { label: 'State Machine Diagram', labelKo: '상태 머신 다이어그램', code: 'SM', color: '#5b72b2' },
@@ -122,6 +124,14 @@ function createDiagramRegistry() {
     erd: {
       elements: ['entity', 'note'],
       relations: ['erd-11', 'erd-1n', 'erd-nm', 'notelink'],
+    },
+    c4context: {
+      elements: ['c4person', 'c4system', 'note'],
+      relations: ['c4relationship', 'notelink'],
+    },
+    c4container: {
+      elements: ['c4person', 'c4system', 'c4container', 'note'],
+      relations: ['c4relationship', 'notelink'],
     },
     dfd: {
       elements: ['process', 'external', 'datastore', 'note'],

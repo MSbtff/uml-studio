@@ -198,6 +198,10 @@ function createDiagramExportModule() {
     }
 
     function exportDrawioFile() {
+      if (dg().type === 'c4context' || dg().type === 'c4container') {
+        flashStatus(uiText('Export C4 diagrams as SVG or save the project as JSON.', 'C4 다이어그램은 SVG로 내보내거나 프로젝트 JSON으로 저장하세요'));
+        return false;
+      }
       if (!dg().elements.length) { alert(uiText('There are no elements to export.', '내보낼 요소가 없습니다.')); return false; }
       const source = exporters.exportDrawio(dg(), state.models);
       download(exportName(dg()) + '.drawio', new Blob([source], { type: 'application/xml;charset=utf-8' }));

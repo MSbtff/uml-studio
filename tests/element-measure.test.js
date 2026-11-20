@@ -66,6 +66,19 @@ assert.throws(() => create({}), /tw/);
 const { measurer } = harness();
 assert.ok(Object.isFrozen(measurer));
 
+{
+  const boundary = measurer.measure({ kind: 'c4system', name: 'ERP', c4Boundary: true });
+  const container = measurer.measure({
+    kind: 'c4container', name: 'Data Store', c4ContainerType: 'database',
+    c4Technology: 'SQLite', c4Description: 'Stores invoices and purchase orders.',
+  });
+  assert.equal(boundary.title, 'ERP');
+  assert.ok(boundary.minW >= 280);
+  assert.equal(container.subtitle, 'Container · Database · SQLite');
+  assert.ok(container.lines.join(' ').includes('Stores invoices'));
+  assert.ok(container.minH > measurer.measure({ kind: 'c4container' }).minH);
+}
+
 /* ── 가시성 · 이름 조합 ─────────────────────────────────────── */
 assert.equal(measurer.visibilitySymbol('public'), '+');
 assert.equal(measurer.visibilitySymbol('protected'), '#');

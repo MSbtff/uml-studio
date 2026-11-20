@@ -26,6 +26,7 @@ function createElementFactoryModule() {
     'counters',
   ] as const);
   const NAME_PREFIXES: Readonly<Partial<Record<string, string>>> = Object.freeze({
+    c4person: 'Person', c4system: 'System', c4container: 'Container',
     class: 'Class', interface: 'Interface', enumeration: 'Enumeration',
     package: 'Package', model: 'Model', subsystem: 'Subsystem',
     metaclass: 'MetaClass', stereotype: 'Stereotype',
@@ -123,6 +124,7 @@ function createElementFactoryModule() {
         id: uid(), kind, x, y, w: 0, h: 0,
         name: nextName(kind), fill: FILL_DEFAULT,
       };
+      if (kind === 'c4container') Object.assign(base, { c4ContainerType: 'application' });
       if (kind === 'class') Object.assign(base, {
         attributes: [], operations: [], stereotype: '', isAbstract: false,
         ...(dg().type === 'composite' ? { w: 520, h: 360, fill: '#f5f6ff' } : {}),
