@@ -25,6 +25,8 @@ Pass the path to your own SQL file to convert that schema.
 node node_modules/uml-studio-ddl-to-mermaid/examples/convert.mjs ./schema.sql > schema.mmd
 ```
 
+Paste the contents of `schema.mmd` into the **Code** panel to see the diagram in [Mermaid Live Editor](https://mermaid.live/edit).
+
 See the [package README](packages/ddl-to-mermaid/README.md) for API usage.
 
 ### Run the browser editor locally
