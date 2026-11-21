@@ -13,7 +13,7 @@ declare var UMLRelationEnd: RelationEndApi;
 function createRelationEnd() {
   const RELATION_END_QUICK_EDIT_KINDS = new Set([
     'association', 'directed', 'aggregation', 'composition',
-    'link', 'directedlink', 'erd-11', 'erd-1n', 'erd-nm',
+    'link', 'directedlink', 'commpath', 'erd-11', 'erd-1n', 'erd-nm',
   ]);
   const ER_RELATION_KINDS = new Set(['erd-11', 'erd-1n', 'erd-nm']);
   const ASSOCIATION_QUALIFIER_KINDS = new Set([
