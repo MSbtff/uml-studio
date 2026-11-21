@@ -100,6 +100,43 @@ const relation = (id, kind, from, to, extra) => ({
 
 {
   const diagram = {
+    id: 'deployment', type: 'deployment', name: 'Deployment Diagram',
+    elements: [element('client', 'node', 'Client'), element('server', 'node', 'Server', { x: 280 })],
+    relations: [],
+  };
+  const cases = [
+    [{}, 'n_client ---|HTTPS| n_server', []],
+    [{ sourceNavigability: 'navigable' }, 'n_server -->|HTTPS| n_client', []],
+    [{ targetNavigability: 'navigable' }, 'n_client -->|HTTPS| n_server', []],
+    [{ sourceNavigability: 'navigable', targetNavigability: 'navigable' }, 'n_client <-->|HTTPS| n_server', []],
+    [{ sourceNavigability: 'notNavigable' }, 'n_server --x|HTTPS| n_client', []],
+    [{ targetNavigability: 'notNavigable' }, 'n_client --x|HTTPS| n_server', []],
+    [{ sourceNavigability: 'notNavigable', targetNavigability: 'notNavigable' }, 'n_client x--x|HTTPS| n_server', []],
+    [{ sourceNavigability: 'notNavigable', targetNavigability: 'navigable' }, 'n_client -->|HTTPS| n_server', ['source cross']],
+    [{ sourceNavigability: 'navigable', targetNavigability: 'notNavigable' }, 'n_server -->|HTTPS| n_client', ['target cross']],
+    [{ sourceAggregation: 'shared', sourceNavigability: 'navigable', targetNavigability: 'notNavigable' },
+      'n_client --x|HTTPS| n_server', ['source open diamond']],
+    [{ sourceAggregation: 'shared', targetAggregation: 'composite' }, 'n_client ---|HTTPS| n_server',
+      ['source open diamond', 'target filled diamond']],
+  ];
+  for (const [settings, edge, omitted] of cases) {
+    diagram.relations = [relation('path', 'commpath', 'client', 'server', { name: 'HTTPS', ...settings })];
+    const warnings = [];
+    const output = exportMermaid(diagram, {}, count => warnings.push(count));
+    const lines = output.split('\n');
+    const edgeIndex = lines.indexOf(`  ${edge}`);
+    assert.ok(edgeIndex >= 0, output);
+    assert.deepEqual(warnings, omitted.length ? [omitted.length] : []);
+    if (omitted.length) {
+      assert.equal(lines[edgeIndex - 1], `  %% UML Studio omitted ${omitted.join(' and ')} on the communication path from n_client to n_server.`);
+    } else {
+      assert.doesNotMatch(output, /UML Studio omitted/);
+    }
+  }
+}
+
+{
+  const diagram = {
     id: 'interaction-overview', type: 'interactionoverview', name: 'Checkout Overview',
     elements: [
       element('start', 'initial', 'Start'),
