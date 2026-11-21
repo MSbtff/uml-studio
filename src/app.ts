@@ -364,6 +364,17 @@ function syncRelationModel(r: DiagramRelation, diagram = activeDiagram()) {
   model.fromModelId = from ? from.modelId : null;
   model.toModelId = to ? to.modelId : null;
 }
+function syncReconnectedRelationModel(relation: DiagramRelation) {
+  const model = relation.modelId ? state.models[relation.modelId] : undefined;
+  if (model?.kind === 'c4relationship' && state.diagrams.some(diagram =>
+    diagram.relations.some(view => view !== relation && view.modelId === model.id))) {
+    // A semantic C4 relationship describes the same pair of endpoints in each of its views.
+    const id = modelUid();
+    state.models[id] = { ...model, id };
+    relation.modelId = id;
+  }
+  syncRelationModel(relation);
+}
 function syncAllRelationModels() {
   state.diagrams.forEach(d => {
     d.relations.filter(r => r.kind === 'commconnector').forEach(r => syncCommunicationMessages(r, d));
@@ -408,6 +419,7 @@ register({
   relEndpoints, relLabel, relationEndAt, renderAll, renderProps,
   setErdMode, setSelection, stateSelfTransitionGeom, svgPoint,
   syncRelationModel, syncAllRelationModels,
+  syncReconnectedRelationModel,
   clearValidationResults: () => validationPanelController.clear(),
   getIdSeq: () => idSeq,
   setIdSeq: (value: number) => { idSeq = value; },

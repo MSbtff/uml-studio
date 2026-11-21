@@ -456,6 +456,12 @@ function createSelectionEditingModule() {
           return !remove;
         });
       });
+      // A removed relationship view can share its model with a surviving view.
+      if (relationModelIds.size) {
+        state.diagrams.forEach(diagram => diagram.relations.forEach(view => {
+          if (view.modelId) relationModelIds.delete(view.modelId);
+        }));
+      }
       [...modelIds, ...relationModelIds].forEach(id => delete state.models[id]);
       setSelection([]);
       renderAll();

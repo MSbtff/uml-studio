@@ -129,3 +129,100 @@ test('C4 diagrams share one system through editing, SQLite recovery, and SVG exp
   await expect(page.getByRole('tab', { name: /Containers/ })).toHaveCount(1);
   await expect(canvas).toContainText('Billing DB');
 });
+
+async function dragSelectedRelationshipTarget(page, target, position) {
+  const endpoint = await page.locator('#canvas [data-endpoint="dst"]').last().boundingBox();
+  const box = await target.boundingBox();
+  if (!endpoint || !box) throw new Error('The relationship handle or drop target is missing.');
+  await page.mouse.move(endpoint.x + endpoint.width / 2, endpoint.y + endpoint.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + (position?.x ?? box.width / 2), box.y + (position?.y ?? box.height / 2), { steps: 12 });
+  await page.mouse.up();
+}
+
+async function reopenBackup(page, backup, activeTabName) {
+  await createEmptyProject(page);
+  const chooser = page.waitForEvent('filechooser');
+  await page.locator('#toolbar [data-cmd="open"]').click();
+  await (
+    await chooser
+  ).setFiles({
+    name: backup.filename,
+    mimeType: 'application/json',
+    buffer: Buffer.from(backup.text),
+  });
+  await expect(page.locator('#tabs .tab.active .tab-name')).toHaveText(activeTabName);
+}
+
+test('C4 rejects invalid relationship drops and can reopen the JSON backup', async ({ studioPage: page }) => {
+  await page.setViewportSize({ width: 1440, height: 920 });
+  await createEmptyProject(page);
+  await addDiagram(page, 'C4 System Context');
+  await createCanvasElement(page, 'Software System', { x: 320, y: 170 });
+  await renameSelectedElement(page, 'ERP');
+  await page.getByRole('button', { name: 'Open Container Diagram' }).click();
+  const canvas = page.locator('#canvas');
+  const api = await createCanvasElement(page, 'Container', { x: 240, y: 180 });
+  await renameSelectedElement(page, 'Billing API');
+  const db = await createCanvasElement(page, 'Container', { x: 510, y: 180 });
+  await renameSelectedElement(page, 'Billing DB');
+  const note = await createCanvasElement(page, 'Note', { x: 400, y: 320 });
+
+  await clickTool(page, 'Relationship');
+  await clickCanvasElement(page, api);
+  await clickCanvasElement(page, db);
+  await page.getByLabel('Name', { exact: true }).fill('Stores invoices');
+
+  await dragSelectedRelationshipTarget(page, note);
+  await dragSelectedRelationshipTarget(page, canvas, { x: 260, y: 96 });
+  const backup = await downloadFromToolbar(page, 'save');
+  await reopenBackup(page, backup, 'ERP · Containers');
+  const [diagram] = JSON.parse(backup.text).diagrams.filter((entry) => entry.type === 'c4container');
+  expect(diagram.relations[0].to).toBe(await db.getAttribute('data-id'));
+  await expect(canvas.locator('g[data-rel]')).toContainText('Stores invoices');
+});
+
+test('C4 preserves the original relationship after a pasted view is reconnected and its target deleted', async ({
+  studioPage: page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 920 });
+  await createEmptyProject(page);
+  await addDiagram(page, 'C4 System Context');
+  const canvas = page.locator('#canvas');
+  const person = await createCanvasElement(page, 'Person', { x: 24, y: 162 });
+  await renameSelectedElement(page, 'Employee');
+  const system = await createCanvasElement(page, 'Software System', { x: 320, y: 170 });
+  await renameSelectedElement(page, 'ERP');
+  await clickTool(page, 'Relationship');
+  await clickCanvasElement(page, person);
+  await clickCanvasElement(page, system);
+  await page.getByLabel('Name', { exact: true }).fill('Submits invoices');
+
+  await clickCanvasElement(page, person);
+  await page.keyboard.down('Shift');
+  await clickCanvasElement(page, system);
+  await page.keyboard.up('Shift');
+  await page.locator('#toolbar [data-cmd="copy"]').click();
+  await page.locator('#tabs .tab-add').click();
+  await page.locator('#tab-menu').getByText('C4 System Context', { exact: true }).click();
+  await page.locator('#toolbar [data-cmd="paste"]').click();
+  await expect(canvas.locator('g[data-rel]')).toHaveCount(1);
+
+  const alternate = await createCanvasElement(page, 'Software System', { x: 610, y: 170 });
+  await renameSelectedElement(page, 'Replacement');
+  const line = await canvas.locator('g[data-rel] line').first().boundingBox();
+  if (!line) throw new Error('The pasted relationship is missing.');
+  await page.mouse.click(line.x + line.width / 2, line.y + line.height / 2);
+  await dragSelectedRelationshipTarget(page, alternate);
+  await expect(page.locator('#props .prop-kind')).toContainText('Employee → Replacement');
+  await page.getByLabel('Name', { exact: true }).fill('Submits to replacement');
+
+  await clickCanvasElement(page, alternate);
+  await page.locator('#toolbar [data-cmd="deletemodel"]').click();
+  await expect(canvas.locator('g[data-rel]')).toHaveCount(0);
+  const backup = await downloadFromToolbar(page, 'save');
+  await reopenBackup(page, backup, 'C4 System Context 2');
+  await page.getByRole('tab', { name: 'C4 System Context', exact: true }).click();
+  await expect(canvas.locator('g[data-rel]')).toHaveCount(1);
+  await expect(canvas.locator('g[data-rel]')).toContainText('Submits invoices');
+});
