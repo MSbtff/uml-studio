@@ -815,7 +815,7 @@ function cancelActiveInteraction() {
 /* ── Project model repository ─────────────────────────────── */
 const modelRepository = UMLModelRepository.create(provide(UMLModelRepository));
 const { open: openModelRepository } = modelRepository;
-register({ openModelRepository });
+register({ openModelRepository, addC4ContextViews: modelRepository.addC4ContextViews });
 
 /* ── Explorer ──────────────────────────────────────────────── */
 const modelExplorer = UMLModelExplorer.create(provide(UMLModelExplorer));

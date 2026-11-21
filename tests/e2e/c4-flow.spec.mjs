@@ -226,3 +226,72 @@ test('C4 preserves the original relationship after a pasted view is reconnected 
   await expect(canvas.locator('g[data-rel]')).toHaveCount(1);
   await expect(canvas.locator('g[data-rel]')).toContainText('Submits invoices');
 });
+
+test('C4 adds shared context views in one undoable batch and reopens them from JSON', async ({ studioPage: page }) => {
+  await page.setViewportSize({ width: 1440, height: 920 });
+  await createEmptyProject(page);
+  await addDiagram(page, 'C4 System Context');
+  const person = await createCanvasElement(page, 'Person', { x: 24, y: 162 });
+  await renameSelectedElement(page, 'Employee');
+  const personId = await person.getAttribute('data-id');
+  const system = await createCanvasElement(page, 'Software System', { x: 320, y: 170 });
+  await renameSelectedElement(page, 'ERP');
+  const external = await createCanvasElement(page, 'Software System', { x: 604, y: 170 });
+  await renameSelectedElement(page, 'Identity Provider');
+  const externalId = await external.getAttribute('data-id');
+  await createCanvasElement(page, 'Note', { x: 24, y: 360 });
+  await clickTool(page, 'Relationship');
+  await clickCanvasElement(page, person);
+  await clickCanvasElement(page, system);
+
+  await clickCanvasElement(page, system);
+  await page.getByRole('button', { name: 'Open Container Diagram' }).click();
+  await createCanvasElement(page, 'Container', { x: 240, y: 180 });
+  await renameSelectedElement(page, 'Billing API');
+
+  const canvas = page.locator('#canvas');
+  const views = canvas.locator('g[data-element-family="c4"]');
+  const addContextViews = page.getByRole('button', { name: 'Add Context Views' });
+  await canvas.click({ position: { x: 260, y: 96 } });
+  await addContextViews.click();
+  await expect(views).toHaveCount(4);
+  await expect(canvas).toContainText('Employee');
+  await expect(canvas).toContainText('Identity Provider');
+  await expect(canvas.locator('g[data-rel]')).toHaveCount(0);
+  await addContextViews.click();
+  await expect(views).toHaveCount(4);
+
+  await page.locator('#toolbar [data-cmd="undo"]').click();
+  await expect(views).toHaveCount(2);
+  await expect(canvas).toContainText('Billing API');
+  await page.locator('#toolbar [data-cmd="redo"]').click();
+  await expect(views).toHaveCount(4);
+
+  await clickCanvasElement(page, views.filter({ hasText: 'Employee' }));
+  await renameSelectedElement(page, 'Finance Staff');
+  const backup = await downloadFromToolbar(page, 'save');
+  const saved = JSON.parse(backup.text);
+  const context = saved.diagrams.find((diagram) => diagram.type === 'c4context');
+  const containers = saved.diagrams.find((diagram) => diagram.type === 'c4container');
+  const boundary = containers.elements.find((view) => view.c4Boundary);
+  const contextViews = [personId, externalId].map((id) => context.elements.find((view) => view.id === id));
+  for (const original of contextViews) {
+    const added = containers.elements.find((view) => view.modelId === original.modelId);
+    expect(added.id).not.toBe(original.id);
+    expect(added.parentId).toBeUndefined();
+    expect(added.y).toBeGreaterThan(boundary.y + boundary.h);
+  }
+  expect(context.relations).toHaveLength(1);
+  expect(containers.relations).toHaveLength(0);
+  expect(containers.elements).toHaveLength(4);
+
+  await reopenBackup(page, backup, 'ERP · Containers');
+  await expect(views).toHaveCount(4);
+  await expect(canvas).toContainText('Finance Staff');
+  await expect(canvas).toContainText('Identity Provider');
+  await canvas.click({ position: { x: 260, y: 96 } });
+  await page.getByRole('button', { name: 'Open System Context' }).click();
+  await expect(canvas).toContainText('Finance Staff');
+  await page.getByRole('button', { name: 'Open Container Diagram' }).click();
+  await expect(addContextViews).toBeVisible();
+});

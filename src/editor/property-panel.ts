@@ -25,6 +25,7 @@ type PropertyPanelDependencies = Omit<NonNullable<Parameters<ErdPropertySections
   switchDiagram(id: string, selection?: string[]): void;
   openC4Container(system: DiagramElement): void;
   c4ContextFor(system: DiagramElement): { diagram: EditorDiagram; view: DiagramElement } | undefined;
+  addC4ContextViews(context: EditorDiagram): void;
   parseIconScript: IconScriptApi['parseIconScript'];
   descendantViews(id: string): DiagramElement[];
   constraintPropertyEquations(element: DiagramElement): string[];
@@ -118,6 +119,7 @@ function createPropertyPanelModule() {
   "switchDiagram",
   "openC4Container",
   "c4ContextFor",
+  "addC4ContextViews",
   "parseIconScript",
   "descendantViews",
   "constraintPropertyEquations",
@@ -203,6 +205,7 @@ function createPropertyPanelModule() {
       switchDiagram,
       openC4Container,
       c4ContextFor,
+      addC4ContextViews,
       parseIconScript,
       descendantViews,
       constraintPropertyEquations,
@@ -656,10 +659,13 @@ function createPropertyPanelModule() {
         }
       } else if (element.c4Boundary) {
         const context = c4ContextFor(element);
-        if (context) c4Action(box, uiLabel('Open System Context', '시스템 컨텍스트 열기'), () => {
-          switchDiagram(context.diagram.id, [context.view.id]);
-          document.getElementById('canvas-wrap')?.focus();
-        });
+        if (context) {
+          c4Action(box, uiLabel('Open System Context', '시스템 컨텍스트 열기'), () => {
+            switchDiagram(context.diagram.id, [context.view.id]);
+            document.getElementById('canvas-wrap')?.focus();
+          });
+          c4Action(box, uiLabel('Add Context Views', '컨텍스트 뷰 추가'), () => addC4ContextViews(context.diagram));
+        }
       }
     }
 
