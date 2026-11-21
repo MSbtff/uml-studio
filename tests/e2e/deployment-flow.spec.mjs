@@ -71,7 +71,7 @@ test('deployment database and boundary styles survive a JSON round trip', async 
   }
 });
 
-test('communication path arrowheads can be set independently and survive export and reopen', async ({
+test('communication path direction stays in sync with end settings, exports, and JSON', async ({
   studioPage: page,
   appServer,
 }) => {
@@ -90,10 +90,15 @@ test('communication path arrowheads can be set independently and survive export 
 
   const edge = (targetPage) => targetPage.locator('#canvas [data-rel]');
   const arrowheads = (targetPage) => edge(targetPage).locator('path[fill="none"]');
-  const navigability = (end) =>
-    page.getByRole('group', { name: `${end} End`, exact: true }).getByLabel('Navigability', { exact: true });
+  const selectPath = (targetPage) =>
+    targetPage.getByRole('treeitem', { name: 'Communication Path (Client → Server)', exact: true }).click();
+  const direction = (targetPage) => targetPage.getByLabel('Arrowhead Direction', { exact: true });
+  const endProperty = (end, label) =>
+    page.getByRole('group', { name: `${end} End`, exact: true }).getByLabel(label, { exact: true });
+  const navigability = (end) => endProperty(end, 'Navigability');
 
   await expect(arrowheads(page)).toHaveCount(0);
+  await expect(direction(page)).toHaveValue('none');
   await expect(navigability('Source')).toHaveValue('unspecified');
   await expect(navigability('Target')).toHaveValue('unspecified');
   const [sourceTip, targetTip] = await edge(page)
@@ -107,19 +112,52 @@ test('communication path arrowheads can be set independently and survive export 
       .toEqual(tips);
   };
 
-  await navigability('Source').selectOption('navigable');
+  await direction(page).focus();
+  await direction(page).selectOption('both');
+  await expect(direction(page)).toBeFocused();
+  await expect(navigability('Source')).toHaveValue('navigable');
+  await expect(navigability('Target')).toHaveValue('navigable');
+  await expectTips(page, [sourceTip, targetTip]);
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await expectTips(page, []);
+  await selectPath(page);
+  await expect(direction(page)).toHaveValue('none');
+
+  await direction(page).selectOption('source');
+  await expect(navigability('Source')).toHaveValue('navigable');
   await expectTips(page, [sourceTip]);
   const reverseMermaid = await downloadFromToolbar(page, 'exportmermaid');
   expect(reverseMermaid.text).toContain(`n_${serverId} -->|HTTPS| n_${clientId}`);
 
   await navigability('Target').selectOption('navigable');
+  await expect(direction(page)).toHaveValue('both');
   await expectTips(page, [sourceTip, targetTip]);
   const bothMermaid = await downloadFromToolbar(page, 'exportmermaid');
   expect(bothMermaid.text).toContain(`n_${clientId} <-->|HTTPS| n_${serverId}`);
   const drawio = await downloadFromToolbar(page, 'exportdrawio');
   expect(drawio.text).toMatch(/startArrow=open;startFill=0;endArrow=open;endFill=0;/);
 
+  await direction(page).selectOption('target');
+  await expect(navigability('Source')).toHaveValue('unspecified');
+  await expectTips(page, [targetTip]);
+
+  await navigability('Source').selectOption('notNavigable');
+  await expect(direction(page).locator('option[value="source"]')).toBeDisabled();
+  await expect(direction(page).locator('option[value="both"]')).toBeDisabled();
+  await direction(page).selectOption('none');
+  await expect(navigability('Source')).toHaveValue('notNavigable');
+  await expect(navigability('Target')).toHaveValue('unspecified');
+
+  await navigability('Source').selectOption('navigable');
+  const aggregation = endProperty('Source', 'Aggregation');
+  await aggregation.selectOption('shared');
+  await expect(direction(page)).toHaveValue('none');
+  await expect(direction(page).locator('option[value="source"]')).toBeDisabled();
+  await direction(page).selectOption('target');
+  await expect(aggregation).toHaveValue('shared');
+  await expect(navigability('Source')).toHaveValue('navigable');
   await navigability('Source').selectOption('unspecified');
+  await aggregation.selectOption('none');
   await expectTips(page, [targetTip]);
   const saved = await downloadFromToolbar(page, 'save');
   const before = await downloadFromToolbar(page, 'exportsvg');
@@ -134,6 +172,8 @@ test('communication path arrowheads can be set independently and survive export 
       await chooser
     ).setFiles({ name: saved.filename, mimeType: 'application/json', buffer: Buffer.from(saved.text) });
     await expectTips(reopened, [targetTip]);
+    await selectPath(reopened);
+    await expect(direction(reopened)).toHaveValue('target');
     const after = await downloadFromToolbar(reopened, 'exportsvg');
     expect(after.text).toBe(before.text);
   } finally {
