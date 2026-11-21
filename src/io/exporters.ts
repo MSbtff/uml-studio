@@ -209,7 +209,7 @@ function createExporters(erdCardinalityApi: ExportCardinalityApi, erdColumnApi: 
 
   const RELATION_END_KINDS = new Set([
     'association', 'directed', 'aggregation', 'composition',
-    'link', 'directedlink', 'erd-11', 'erd-1n', 'erd-nm',
+    'link', 'directedlink', 'commpath', 'erd-11', 'erd-1n', 'erd-nm',
   ]);
   const ER_RELATION_KINDS = new Set(['erd-11', 'erd-1n', 'erd-nm']);
 
@@ -662,13 +662,22 @@ function createExporters(erdCardinalityApi: ExportCardinalityApi, erdColumnApi: 
     elements.forEach(element => emitElement(element, 1));
     diagram.relations.forEach(relation => {
       if (diagram.type === 'package' && relation.kind === 'containment') return;
-      const from = ids.get(relation.from), to = ids.get(relation.to);
+      let from = ids.get(relation.from), to = ids.get(relation.to);
       if (!from || !to) return;
+      let arrow = flowArrow(relation.kind);
+      if (relation.kind === 'commpath') {
+        const sourceArrow = exportEndAggregation(relation, 'source') === 'none'
+          && exportEndNavigability(relation, 'source') === 'navigable';
+        const targetArrow = exportEndAggregation(relation, 'target') === 'none'
+          && exportEndNavigability(relation, 'target') === 'navigable';
+        if (sourceArrow && !targetArrow) [from, to] = [to, from];
+        if (sourceArrow || targetArrow) arrow = sourceArrow && targetArrow ? '<-->' : '-->';
+      }
       const label = relation.kind === 'extension'
         ? ['«extension»', relationLabel(relation, models)].filter(Boolean).join(' ')
         : relationLabel(relation, models)
         || (['include', 'extend', 'extension', 'exceptionhandler', 'activityinterrupt'].includes(relation.kind) ? `«${relation.kind}»` : '');
-      lines.push(`  ${from} ${flowArrow(relation.kind)}${label ? `|${mermaidLineText(label)}|` : ''} ${to}`);
+      lines.push(`  ${from} ${arrow}${label ? `|${mermaidLineText(label)}|` : ''} ${to}`);
     });
     elements.filter(element =>
       !activityContainers.has(element.kind)
