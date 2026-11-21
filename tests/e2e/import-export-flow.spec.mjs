@@ -7,7 +7,10 @@ import { deflateRawSync } from 'node:zlib';
 import { installPackedDdlLibrary } from '../support/install-packed-ddl-library.js';
 import { test, expect } from './fixtures.mjs';
 import {
+  addDiagram,
   canvasElements,
+  clickCanvasElement,
+  clickTool,
   createCanvasElement,
   createEmptyProject,
   downloadErdDdl,
@@ -103,6 +106,60 @@ test('압축된 draw.io 파일을 열고 요소를 가져온다', async ({ studi
   await expect(preview).toBeHidden();
   await expect(page.locator('#canvas')).toContainText('ImportedService');
   await expect(canvasElements(page)).toHaveCount(3);
+});
+
+test('draw.io import applies edited communication path arrowheads to the imported diagram', async ({
+  studioPage: page,
+}) => {
+  await createEmptyProject(page);
+  await addDiagram(page, 'Deployment Diagram');
+  const client = await createCanvasElement(page, 'Node', { x: 128, y: 144 });
+  const server = await createCanvasElement(page, 'Node', { x: 472, y: 144 });
+  await clickTool(page, 'Communication Path');
+  await clickCanvasElement(page, client);
+  await clickCanvasElement(page, server);
+  await renameSelectedElement(page, 'HTTPS');
+  await page
+    .getByRole('group', { name: 'Target End', exact: true })
+    .getByLabel('Navigability')
+    .selectOption('navigable');
+
+  const original = await downloadFromToolbar(page, 'exportdrawio');
+  const edited = original.text.replace('startArrow=none;endArrow=open;', 'startArrow=classic;endArrow=none;');
+  expect(edited).not.toBe(original.text);
+  const compressed = edited.replace(/<mxGraphModel[\s\S]*?<\/mxGraphModel>/, (graph) =>
+    deflateRawSync(Buffer.from(encodeURIComponent(graph))).toString('base64'),
+  );
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Import draw.io', exact: true }).click();
+  await (
+    await chooser
+  ).setFiles({ name: original.filename, mimeType: 'application/xml', buffer: Buffer.from(compressed) });
+
+  const preview = page.locator('#drawio-import-preview-modal');
+  await expect(preview).toBeVisible();
+  await preview
+    .locator('.project-dialog-footer')
+    .getByRole('button', { name: /Import/ })
+    .click();
+  await expect(preview).toBeHidden();
+  await expect(page.getByRole('tab', { name: 'Deployment Diagram (Imported)', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  const edge = page.locator('#canvas [data-rel]');
+  const arrowhead = edge.locator('path[fill="none"]');
+  await expect(arrowhead).toHaveCount(1);
+  const source = await edge
+    .locator('line[pointer-events="none"]')
+    .evaluate((line) => ['x1', 'y1'].map((attr) => line.getAttribute(attr)).join(' '));
+  expect((await arrowhead.getAttribute('d')).split(' L ')[1]).toBe(source);
+  const saved = JSON.parse((await downloadFromToolbar(page, 'save')).text);
+  const imported = saved.diagrams.find((diagram) => diagram.name === 'Deployment Diagram (Imported)');
+  expect(saved.models[imported.relations[0].modelId]).toMatchObject({
+    sourceNavigability: 'navigable',
+    targetNavigability: 'unspecified',
+  });
 });
 
 test('CREATE TABLE DDL을 미리 보고 의미적 FK가 있는 ERD로 가져온다', async ({ studioPage: page }) => {

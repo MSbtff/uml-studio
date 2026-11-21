@@ -61,6 +61,9 @@ function createDrawioImporter() {
   const ID_PATTERN = /^[A-Za-z0-9._:-]{1,256}$/;
   const END_NAVIGABILITY = new Set(['unspecified', 'navigable', 'notNavigable']);
   const END_AGGREGATION = new Set(['none', 'shared', 'composite']);
+  const DRAWIO_DIRECTIONAL_MARKERS = new Set([
+    'open', 'openThin', 'classic', 'classicThin', 'block', 'blockThin', 'async', 'openAsync', 'doubleBlock',
+  ]);
   const VISIBILITY = new Set(['public', 'protected', 'private', 'package']);
   const REFERENTIAL_ACTIONS = new Set(['NO ACTION', 'RESTRICT', 'CASCADE', 'SET NULL', 'SET DEFAULT']);
   const CONFLICT_REFERENCE_FIELDS = new Set([
@@ -421,6 +424,35 @@ function createDrawioImporter() {
     return model;
   }
 
+  function applyCommunicationPathMarkers(style: string, model: Omit<DiagramModel, 'id'>) {
+    const properties = new Map<string, string>();
+    // Legacy exports can repeat endArrow. Draw.io resolves the last value.
+    for (const entry of style.split(';')) {
+      const separator = entry.indexOf('=');
+      if (separator < 0) continue;
+      const key = entry.slice(0, separator).trim();
+      if (key === 'startArrow' || key === 'endArrow' || key === 'startFill' || key === 'endFill') {
+        properties.set(key, entry.slice(separator + 1).trim());
+      }
+    }
+    for (const [end, marker] of [['source', 'start'], ['target', 'end']] as const) {
+      const arrow = properties.get(`${marker}Arrow`);
+      const aggregation = `${end}Aggregation` as const;
+      const navigability = `${end}Navigability` as const;
+      const currentAggregation = model[aggregation] ?? 'none';
+      if (arrow === 'diamond' || arrow === 'diamondThin') {
+        const value = properties.get(`${marker}Fill`) === '0' ? 'shared' : 'composite';
+        if (value !== currentAggregation) model[aggregation] = value;
+        continue;
+      }
+      const value = arrow === 'none' ? 'unspecified' : arrow === 'cross' ? 'notNavigable'
+        : arrow && DRAWIO_DIRECTIONAL_MARKERS.has(arrow) ? 'navigable' : undefined;
+      if (value === undefined) continue;
+      if (currentAggregation !== 'none') model[aggregation] = 'none';
+      if (value !== (model[navigability] ?? 'unspecified')) model[navigability] = value;
+    }
+  }
+
   function relationModel(cell: XmlNode, kind: string) {
     const model: Omit<DiagramModel, 'id'> = {
       kind,
@@ -477,6 +509,7 @@ function createDrawioImporter() {
       const qualifierText = stringAttribute(cell, `uml${end[0].toUpperCase()}${end.slice(1)}Qualifiers`, '');
       if (qualifierText) model[`${end}Qualifiers`] = qualifierText.split(/\r?\n/).map(value => value.trim()).filter(Boolean).slice(0, 50);
     });
+    if (kind === 'commpath' && cell.attrs.style) applyCommunicationPathMarkers(cell.attrs.style, model);
     if (own(cell.attrs, 'umlRequired')) model.isRequired = booleanAttribute(cell, 'umlRequired');
     if (cell.attrs.umlConveyedModelIds) model.conveyedModelIds = cell.attrs.umlConveyedModelIds.split(',').filter(Boolean);
     if (cell.attrs.umlItemFlowModelIds) model.itemFlowModelIds = cell.attrs.umlItemFlowModelIds.split(',').filter(Boolean);
@@ -574,11 +607,15 @@ function createDrawioImporter() {
     };
     const modelFor = (cell: XmlNode, kind: string, relation = false) => {
       const original = ID_PATTERN.test(cell.attrs.umlModelId || '') ? cell.attrs.umlModelId : '';
-      const key = original ? `${kind}|${original}` : `${kind}|cell:${cell.attrs.id}`;
+      const pathModel = relation && kind === 'commpath' ? relationModel(cell, kind) : undefined;
+      // A separately edited connector needs its own model when shared views now disagree.
+      const pathEnds = pathModel ? `|${pathModel.sourceNavigability ?? 'unspecified'}|${pathModel.targetNavigability ?? 'unspecified'}`
+        + `|${pathModel.sourceAggregation ?? 'none'}|${pathModel.targetAggregation ?? 'none'}` : '';
+      const key = original ? `${kind}|${original}${pathEnds}` : `${kind}|cell:${cell.attrs.id}`;
       const existingId = context.modelByKey.get(key);
       if (existingId) return existingId;
       const id = safeIdentifier(original || cell.attrs.id, 'model', context.usedModelIds);
-      const model = relation ? relationModel(cell, kind) : commonElementModel(cell, kind);
+      const model = pathModel ?? (relation ? relationModel(cell, kind) : commonElementModel(cell, kind));
       context.models[id] = { ...model, id }; context.modelByKey.set(key, id);
       context.modelOrigins[id] = original;
       context.modelRoles[id] = relation ? 'relation' : 'element';
