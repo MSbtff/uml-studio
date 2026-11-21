@@ -619,6 +619,42 @@ assert.throws(() => create({}), /adoptView/);
   assert.match(h.log.status.at(-1), /모델 1개와 모든 다이어그램의 연결된 뷰를 삭제했습니다/);
 }
 
+{
+  /* A saved project can contain a shared C4 relationship whose views were reconnected before this fix. */
+  const retained = { id: 'r1', kind: 'c4relationship', modelId: 'model-rel', from: 'person', to: 'erp' };
+  const other = {
+    id: 'd2', type: 'c4context', name: 'Other context',
+    elements: [view('person-copy', 'c4person', { modelId: 'model-person' }), view('replacement', 'c4system')],
+    relations: [{ ...retained, id: 'r2', from: 'person-copy', to: 'replacement' }],
+  };
+  const h = harness({
+    diagram: {
+      id: 'd1', type: 'c4context', name: 'ERP context',
+      elements: [view('person', 'c4person'), view('erp', 'c4system')],
+      relations: [retained],
+    },
+    extraDiagrams: [other],
+    models: {
+      'model-person': { id: 'model-person', kind: 'c4person', name: 'Employee' },
+      'model-erp': { id: 'model-erp', kind: 'c4system', name: 'ERP' },
+      'model-replacement': { id: 'model-replacement', kind: 'c4system', name: 'Replacement' },
+      'model-rel': { id: 'model-rel', kind: 'c4relationship', name: 'Submits invoices' },
+    },
+  });
+  h.state.activeId = other.id;
+  h.state.selection = ['replacement'];
+  h.editing.deleteFromModel();
+  assert.deepEqual(other.relations, []);
+  assert.deepEqual(h.diagram.relations, [retained]);
+  assert.equal(h.state.models[retained.modelId].name, 'Submits invoices');
+
+  h.state.activeId = h.diagram.id;
+  h.state.selection = [retained.id];
+  h.editing.deleteFromModel();
+  assert.deepEqual(h.diagram.relations, []);
+  assert.equal(h.state.models[retained.modelId], undefined);
+}
+
 /* ── 자동 크기 ──────────────────────────────────────────────── */
 {
   const h = harness({

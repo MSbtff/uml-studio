@@ -44,14 +44,12 @@ interface CanvasInteractionDependencies {
   KIND_META: Partial<Record<string, unknown>>;
   REL_STYLE: Partial<Record<string, unknown>>;
   elementPlacement: { placeElementForTool(point: DiagramPoint, tool: string, hit?: DiagramElement | null): unknown };
-  activityRelationError: CanvasRelationRule;
   attachPartToCompositeContainer(view: DiagramElement): void;
   attachToActivityContainer(view: DiagramElement): void;
   attachToContainingRegion(view: DiagramElement): void;
   attachToInternalBlockContainer(view: DiagramElement): void;
   attachToPackageContainer(view: DiagramElement): void;
   attachToParametricContainer(view: DiagramElement): void;
-  bddRelationError: CanvasRelationRule;
   bindingWaypoints(relation: DiagramRelation): DiagramPoint[];
   borderAnchorFrac(view: DiagramElement, point: DiagramPoint): DiagramAnchor;
   branchGeom(relation: DiagramRelation): DiagramEndpoints | null;
@@ -59,7 +57,6 @@ interface CanvasInteractionDependencies {
   closeInlineEditor(): void;
   communicationConnectorAt(point: DiagramPoint): DiagramRelation | null | undefined;
   completeLink(target: DiagramElement, point: DiagramPoint): DiagramRelation | undefined;
-  compositeRelationError: CanvasRelationRule;
   createCommunicationMessage(connector: DiagramRelation, kind: string): void;
   descendantViews(id: string): DiagramElement[];
   dg(): EditorDiagram;
@@ -69,8 +66,6 @@ interface CanvasInteractionDependencies {
   flashStatus(message: string): void;
   fragmentOperandLayout(view: DiagramElement): { boundaries: number[]; minHeight: number };
   handleCanvasQuickEdit(event: MouseEvent, point: DiagramPoint): boolean;
-  ibdRelationError: CanvasRelationRule;
-  informationFlowRelationError: CanvasRelationRule;
   isCommMsg(kind: string): boolean;
   isInteractionMsg(kind: string): boolean;
   isMsg(kind?: string): boolean;
@@ -85,16 +80,13 @@ interface CanvasInteractionDependencies {
   msgPoints(relation: DiagramRelation): MessagePoints | null;
   nearestSequenceMessage(point: DiagramPoint, tolerance: number): DiagramRelation | null;
   openRelationQuickEdit(relation: DiagramRelation): boolean;
-  packageRelationError: CanvasRelationRule;
-  parametricRelationError: CanvasRelationRule;
-  profileRelationError: CanvasRelationRule;
   relById(id: string | null): DiagramRelation | null | undefined;
   relEndpoints(relation: DiagramRelation): DiagramEndpoints | null;
   relationAt(point: DiagramPoint): DiagramRelation | null | undefined;
+  relationError: CanvasRelationRule;
   relationLabelAt(point: DiagramPoint): QuickEditLabelHit | null;
   render(): void;
   renderProps(): void;
-  requirementRelationError: CanvasRelationRule;
   rootViews(views: DiagramElement[]): DiagramElement[];
   sequenceMessageMinY(diagram: EditorDiagram): number;
   setSelection(ids: string[]): void;
@@ -104,7 +96,7 @@ interface CanvasInteractionDependencies {
   stateSelfTransitionGeom(relation: DiagramRelation): LabeledCubicCurve | null;
   svg: SVGSVGElement;
   syncCommunicationMessages(relation: DiagramRelation): void;
-  syncRelationModel(relation: DiagramRelation): void;
+  syncReconnectedRelationModel(relation: DiagramRelation): void;
   transitionDirectionError(from: DiagramElement | null | undefined, to: DiagramElement | null | undefined): string;
 }
 
@@ -177,14 +169,12 @@ function createCanvasInteractionModule() {
   const REQUIRED_FUNCTIONS = Object.freeze([
     'cancelAnimationFrame',
     'requestAnimationFrame',
-    'activityRelationError',
     'attachPartToCompositeContainer',
     'attachToActivityContainer',
     'attachToContainingRegion',
     'attachToInternalBlockContainer',
     'attachToPackageContainer',
     'attachToParametricContainer',
-    'bddRelationError',
     'bindingWaypoints',
     'borderAnchorFrac',
     'branchGeom',
@@ -192,7 +182,6 @@ function createCanvasInteractionModule() {
     'closeInlineEditor',
     'communicationConnectorAt',
     'completeLink',
-    'compositeRelationError',
     'createCommunicationMessage',
     'descendantViews',
     'dg',
@@ -201,8 +190,6 @@ function createCanvasInteractionModule() {
     'flashStatus',
     'fragmentOperandLayout',
     'handleCanvasQuickEdit',
-    'ibdRelationError',
-    'informationFlowRelationError',
     'isCommMsg',
     'isInteractionMsg',
     'isMsg',
@@ -217,16 +204,13 @@ function createCanvasInteractionModule() {
     'msgPoints',
     'nearestSequenceMessage',
     'openRelationQuickEdit',
-    'packageRelationError',
-    'parametricRelationError',
-    'profileRelationError',
     'relById',
     'relEndpoints',
     'relationAt',
+    'relationError',
     'relationLabelAt',
     'render',
     'renderProps',
-    'requirementRelationError',
     'rootViews',
     'sequenceMessageMinY',
     'setSelection',
@@ -234,7 +218,7 @@ function createCanvasInteractionModule() {
     'snapshot',
     'stateSelfTransitionGeom',
     'syncCommunicationMessages',
-    'syncRelationModel',
+    'syncReconnectedRelationModel',
     'transitionDirectionError',
   ] as const);
   const REQUIRED_VALUES = Object.freeze([
@@ -260,14 +244,12 @@ function createCanvasInteractionModule() {
       KIND_META,
       REL_STYLE,
       STATE_VERTEX_KINDS,
-      activityRelationError,
       attachPartToCompositeContainer,
       attachToActivityContainer,
       attachToContainingRegion,
       attachToInternalBlockContainer,
       attachToPackageContainer,
       attachToParametricContainer,
-      bddRelationError,
       bindingWaypoints,
       borderAnchorFrac,
       branchGeom,
@@ -275,7 +257,6 @@ function createCanvasInteractionModule() {
       closeInlineEditor,
       communicationConnectorAt,
       completeLink,
-      compositeRelationError,
       createCommunicationMessage,
       descendantViews,
       dg,
@@ -285,8 +266,6 @@ function createCanvasInteractionModule() {
       flashStatus,
       fragmentOperandLayout,
       handleCanvasQuickEdit,
-      ibdRelationError,
-      informationFlowRelationError,
       isCommMsg,
       isInteractionMsg,
       isMsg,
@@ -301,16 +280,13 @@ function createCanvasInteractionModule() {
       msgPoints,
       nearestSequenceMessage,
       openRelationQuickEdit,
-      packageRelationError,
-      parametricRelationError,
-      profileRelationError,
       relById,
       relEndpoints,
       relationAt,
+      relationError,
       relationLabelAt,
       render,
       renderProps,
-      requirementRelationError,
       rootViews,
       sequenceMessageMinY,
       setSelection,
@@ -320,7 +296,7 @@ function createCanvasInteractionModule() {
       stateSelfTransitionGeom,
       svg,
       syncCommunicationMessages,
-      syncRelationModel,
+      syncReconnectedRelationModel,
       transitionDirectionError,
     } = deps;
 
@@ -977,17 +953,9 @@ function createCanvasInteractionModule() {
           const nextFrom = drag.end === 'src' ? target : byId(r.from);
           const nextTo = drag.end === 'dst' ? target : byId(r.to);
           const directionError = r.kind === 'transition' ? transitionDirectionError(nextFrom, nextTo) : '';
-          const compositeError = compositeRelationError(r.kind, nextFrom, nextTo);
-          const activityError = activityRelationError(r.kind, nextFrom, nextTo);
-          const packageError = packageRelationError(r.kind, nextFrom, nextTo);
-          const profileError = profileRelationError(r.kind, nextFrom, nextTo, r.id);
-          const informationFlowError = informationFlowRelationError(r.kind, nextFrom, nextTo);
-          const requirementError = requirementRelationError(r.kind, nextFrom, nextTo);
-          const bddError = bddRelationError(r.kind, nextFrom, nextTo, r.id);
-          const ibdError = ibdRelationError(r.kind, nextFrom, nextTo, r.id);
-          const parametricError = parametricRelationError(r.kind, nextFrom, nextTo, r.id);
-          if (directionError || compositeError || activityError || packageError || profileError || informationFlowError || requirementError || bddError || ibdError || parametricError) {
-            flashStatus(directionError || compositeError || activityError || packageError || profileError || informationFlowError || requirementError || bddError || ibdError || parametricError);
+          const error = directionError || relationError(r.kind, nextFrom, nextTo, r.id);
+          if (error) {
+            flashStatus(error);
           } else {
             const previousFrom = byId(r.from), previousTo = byId(r.to);
             if (drag.end === 'src') r.from = target.id; else r.to = target.id;
@@ -996,7 +964,7 @@ function createCanvasInteractionModule() {
               if (previousFrom && previousFrom.parentId === previousTo?.id) delete previousFrom.parentId;
               nextFrom.parentId = nextTo.id;
             }
-            syncRelationModel(r);
+            syncReconnectedRelationModel(r);
             syncCommunicationMessages(r);
           }
         }
