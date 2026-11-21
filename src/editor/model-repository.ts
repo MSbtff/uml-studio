@@ -24,17 +24,22 @@ function createModelRepositoryModule() {
     'createElement',
     'diagramAllowsElementKind',
     'dg',
+    'flashStatus',
+    'measure',
     'render',
     'renderAll',
     'renderProps',
     'sequenceLifelineTop',
     'setSelection',
     'snap',
+    'snapUp',
     'snapshot',
     'uid',
   ] as const);
   const REQUIRED_VALUES = Object.freeze([
     'BDD_CLASSIFIER_KINDS',
+    'CANVAS_W',
+    'CANVAS_H',
     'FILL_DEFAULT',
     'KIND_META',
     'REL_STYLE',
@@ -72,6 +77,7 @@ function createModelRepositoryModule() {
   const TIMING_LIFELINE_PRESET = Object.freeze({ w: 1000, h: 132, fill: '#f8eadf' });
   const MODAL_ID = 'model-repository-modal';
   const DEFAULT_VIEW_SIZE = Object.freeze({ halfWidth: 60, halfHeight: 30, margin: 8 });
+  const C4_VIEW_GAP = 32;
 
   interface RepositoryModal {
     close: (options?: { restoreFocus?: boolean }) => boolean;
@@ -86,15 +92,20 @@ function createModelRepositoryModule() {
     createElement: (kind: string, x: number, y: number) => DiagramElement;
     diagramAllowsElementKind: (type: string, kind: string) => boolean;
     dg: () => EditorDiagram;
+    flashStatus: (message: string) => void;
+    measure: (view: DiagramElement) => Pick<ElementMeasurement, 'minW' | 'minH'>;
     render: () => void;
     renderAll: () => void;
     renderProps: () => void;
     sequenceLifelineTop: (diagram: EditorDiagram) => number;
     setSelection: (ids: string[]) => void;
     snap: (value: number) => number;
+    snapUp: (value: number) => number;
     snapshot: () => void;
     uid: () => string;
     BDD_CLASSIFIER_KINDS: ReadonlySet<string>;
+    CANVAS_W: number;
+    CANVAS_H: number;
     FILL_DEFAULT: string;
     KIND_META: Record<string, { label: string; icon: string; color: string }>;
     REL_STYLE: Partial<Record<string, object>>;
@@ -134,15 +145,20 @@ function createModelRepositoryModule() {
       createElement,
       diagramAllowsElementKind,
       dg,
+      flashStatus,
+      measure,
       render,
       renderAll,
       renderProps,
       sequenceLifelineTop,
       setSelection,
       snap,
+      snapUp,
       snapshot,
       uid,
       BDD_CLASSIFIER_KINDS,
+      CANVAS_W,
+      CANVAS_H,
       FILL_DEFAULT,
       KIND_META,
       REL_STYLE,
@@ -178,11 +194,11 @@ function createModelRepositoryModule() {
       };
     }
 
-    function createViewForModel(modelId: string) {
+    function createViewForModel(modelId: string, bounds?: DiagramBounds) {
       const model = state.models[modelId];
       if (!model) return null;
       if (model.kind === 'execution' || !canPlaceModel(model)) return null;
-      const centre = viewportCentre();
+      const centre = bounds ?? viewportCentre();
       const y = dg().type === 'sequence' && model.kind === 'lifeline'
         ? sequenceLifelineTop(dg())
         : centre.y;
@@ -190,7 +206,7 @@ function createModelRepositoryModule() {
         id: uid(), modelId,
         x: Math.max(DEFAULT_VIEW_SIZE.margin, centre.x),
         y: Math.max(DEFAULT_VIEW_SIZE.margin, y),
-        w: 0, h: 0, fill: FILL_DEFAULT,
+        w: bounds?.w ?? 0, h: bounds?.h ?? 0, fill: FILL_DEFAULT,
       };
       if (model.kind === 'c4container') {
         const boundary = c4Model.systemBoundary(dg());
@@ -204,6 +220,64 @@ function createModelRepositoryModule() {
       if (BDD_CLASSIFIER_KINDS.has(model.kind)) Object.assign(view, BDD_CLASSIFIER_PRESET);
       if (model.kind === 'lifeline' && dg().type === 'timing') Object.assign(view, TIMING_LIFELINE_PRESET);
       return adoptView(view);
+    }
+
+    function findContextViewBounds(w: number, h: number, boundary: DiagramBounds, occupied: DiagramBounds[]) {
+      const gap = C4_VIEW_GAP;
+      const preferredY = snapUp(boundary.y + boundary.h + gap);
+      const rows = [...new Set([gap, preferredY, ...occupied.map(view => snapUp(view.y + view.h + gap))])]
+        .sort((a, b) => a - b);
+      // Try below the boundary first, then check the rest of the canvas for a free slot.
+      const rowOrder = rows.filter(y => y >= preferredY).concat(rows.filter(y => y < preferredY));
+      const obstacles = occupied.slice().sort((a, b) => a.x - b.x);
+      for (const y of rowOrder) {
+        if (y < gap || y + h + gap > CANVAS_H) continue;
+        let x = gap;
+        for (const obstacle of obstacles) {
+          if (obstacle.y + obstacle.h + gap <= y || y + h + gap <= obstacle.y) continue;
+          if (x + w + gap <= obstacle.x) break;
+          x = Math.max(x, snapUp(obstacle.x + obstacle.w + gap));
+        }
+        if (x + w + gap <= CANVAS_W) return { x, y, w, h };
+      }
+      return undefined;
+    }
+
+    function addC4ContextViews(context: EditorDiagram) {
+      const diagram = dg();
+      const boundary = c4Model.systemBoundary(diagram);
+      if (!boundary?.modelId || context.type !== 'c4context'
+        || !context.elements.some(view => view.modelId === boundary.modelId)) return;
+
+      const placed = new Set(diagram.elements.map(view => view.modelId));
+      const occupied: DiagramBounds[] = [...diagram.elements];
+      const additions = new Map<string, DiagramBounds>();
+      for (const { modelId } of context.elements) {
+        if (!modelId || placed.has(modelId)) continue;
+        const model = state.models[modelId];
+        if (model?.kind !== 'c4person' && model?.kind !== 'c4system') continue;
+        const { minW, minH } = measure({ ...model, x: 0, y: 0, w: 0, h: 0 });
+        const bounds = findContextViewBounds(minW, minH, boundary, occupied);
+        if (!bounds) {
+          flashStatus(uiText('There is not enough space to add all context views.', '컨텍스트 뷰를 모두 배치할 공간이 부족합니다.'));
+          return;
+        }
+        additions.set(modelId, bounds);
+        occupied.push(bounds);
+        placed.add(modelId);
+      }
+
+      if (!additions.size) {
+        flashStatus(uiText('There are no new context views to add.', '추가할 새 컨텍스트 뷰가 없습니다.'));
+        return;
+      }
+      snapshot();
+      additions.forEach((bounds, modelId) => {
+        const view = createViewForModel(modelId, bounds);
+        if (view) diagram.elements.push(view);
+      });
+      render();
+      flashStatus(uiText('Added {0} shared views from {1}.', '{1}에서 공유 뷰 {0}개를 추가했습니다.', additions.size, context.name));
     }
 
     /* ── Repository dialog ───────────────────────────────────── */
@@ -356,6 +430,7 @@ function createModelRepositoryModule() {
 
     return Object.freeze({
       canPlaceKind,
+      addC4ContextViews,
       close,
       createViewForModel,
       open,
