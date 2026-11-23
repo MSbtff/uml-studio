@@ -1415,7 +1415,7 @@ function createExporters(erdCardinalityApi: ExportCardinalityApi, erdColumnApi: 
       const jumpStyle = relation.jumpStyle || 'arc';
       if (jumpStyle !== 'none') style.push(`jumpStyle=${jumpStyle}`, 'jumpSize=6');
     }
-    if (['association', 'connector', 'bindingconnector', 'link', 'commconnector', 'csconnector', 'commpath', 'mindbranch'].includes(kind)) {
+    if (['association', 'connector', 'bindingconnector', 'link', 'commconnector', 'csconnector', 'mindbranch'].includes(kind)) {
       style.push('endArrow=none');
     } else if (kind === 'containment' || kind === 'reqcontainment') {
       style.push('endArrow=circlePlus', 'endFill=0');
@@ -1443,7 +1443,7 @@ function createExporters(erdCardinalityApi: ExportCardinalityApi, erdColumnApi: 
       style.push('dashed=1', 'endArrow=open', 'endFill=0');
     } else if (kind === 'msg-destroy') {
       style.push('endArrow=cross');
-    } else {
+    } else if (kind !== 'commpath') {
       style.push('endArrow=block', 'endFill=1');
     }
     if (RELATION_END_KINDS.has(kind) && !ER_RELATION_KINDS.has(kind)) {

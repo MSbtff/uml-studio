@@ -17,7 +17,59 @@ const relation = (id, kind, from, to, extra) => ({
   id, modelId: `m_${id}`, kind, from, to, name: '', ...(extra || {}),
 });
 
+async function verifyCommunicationPathMarkers() {
+  const path = relation('https', 'commpath', 'client', 'server', { name: 'HTTPS', targetNavigability: 'navigable' });
+  const diagram = {
+    id: 'deployment', type: 'deployment', name: 'Deployment',
+    elements: [element('client', 'node', 'Client'), element('server', 'node', 'Server', { x: 320 })],
+    relations: [path],
+  };
+  const xml = exportDrawio(diagram, {});
+  const edgeTag = /<mxCell\b[^>]*\bumlKind="commpath"[^>]*>/g;
+  const [openingTag] = xml.match(edgeTag);
+  assert.equal((openingTag.match(/\bendArrow=/g) || []).length, 1, 'draw.io edits the first occurrence of a style key');
+
+  const withMarkerStyle = (source, style) => source.replace(edgeTag,
+    tag => tag.replace(/style="[^"]*"/, `style="${style}"`));
+  const readModels = async source => {
+    const data = await importDrawio(source);
+    assert.equal(data.diagrams[0].type, 'deployment');
+    return data.diagrams[0].relations.map(view => data.models[view.modelId]);
+  };
+  const markerFields = model => [
+    model.sourceNavigability, model.targetNavigability, model.sourceAggregation, model.targetAggregation,
+  ];
+  const verifyMarkers = async (style, expected) => {
+    const [model] = await readModels(withMarkerStyle(xml, style));
+    assert.deepEqual(markerFields(model), expected, style);
+    assert.equal(model.name, 'HTTPS');
+  };
+  await verifyMarkers('endArrow=none;startArrow=none;endArrow=open;endFill=0;',
+    [undefined, 'navigable', undefined, undefined]);
+  await verifyMarkers('orthogonalEdgeStyle;startArrow=classic;endArrow=none;',
+    ['navigable', 'unspecified', undefined, undefined]);
+  await verifyMarkers('startArrow=openThin;endArrow=blockThin;', ['navigable', 'navigable', undefined, undefined]);
+  await verifyMarkers('startArrow=none;endArrow=none;', [undefined, 'unspecified', undefined, undefined]);
+  await verifyMarkers('startArrow=cross;endArrow=diamond;endFill=0;', ['notNavigable', 'navigable', undefined, 'shared']);
+  await verifyMarkers('startArrow=diamondThin;endArrow=oval;', [undefined, 'navigable', 'composite', undefined]);
+  await verifyMarkers('edgeStyle=orthogonalEdgeStyle;', [undefined, 'navigable', undefined, undefined]);
+
+  const diamondXml = exportDrawio({ ...diagram, relations: [{ ...path, targetAggregation: 'shared' }] }, {});
+  const [editedDiamond] = await readModels(withMarkerStyle(diamondXml, 'endArrow=cross;'));
+  assert.deepEqual(markerFields(editedDiamond), [undefined, 'notNavigable', undefined, 'none']);
+
+  const sharedXml = exportDrawio({ ...diagram, relations: [path, { ...path, id: 'copy' }, { ...path, id: 'mirror' }] }, {});
+  const editedCopy = sharedXml.replace(edgeTag, tag => tag.includes('id="cell_copy"')
+    ? tag.replace('startArrow=none;endArrow=open', 'startArrow=open;endArrow=none') : tag);
+  const [original, edited, mirror] = await readModels(editedCopy);
+  assert.equal(original.id, mirror.id);
+  assert.notEqual(edited.id, original.id);
+  assert.deepEqual(markerFields(original), [undefined, 'navigable', undefined, undefined]);
+  assert.deepEqual(markerFields(edited), ['navigable', 'unspecified', undefined, undefined]);
+}
+
 async function run() {
+  await verifyCommunicationPathMarkers();
   const diagram = {
     id: 'class-roundtrip', type: 'class', name: 'Class Round Trip',
     elements: [
