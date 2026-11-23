@@ -1461,6 +1461,47 @@ function createPropertyPanelModule() {
         }
     }
     
+    function communicationPathArrowheadProperty(r: DiagramRelation) {
+      const readEnd = (end: RelationEnd) => {
+        const navigability = relationEndNavigability(r, end);
+        const available = navigability !== 'notNavigable' && relationEndAggregation(r, end) === 'none';
+        return { available, arrow: available && navigability === 'navigable' };
+      };
+      const source = readEnd('source');
+      const target = readEnd('target');
+      const choices = [
+        { value: 'none', label: uiLabel('None', '없음'), source: false, target: false },
+        { value: 'source', label: uiLabel('Source End', '출발점'), source: true, target: false },
+        { value: 'target', label: uiLabel('Target End', '도착점'), source: false, target: true },
+        { value: 'both', label: uiLabel('Both Ends', '양쪽'), source: true, target: true },
+      ];
+      const select = document.createElement('select');
+      select.disabled = !source.available && !target.available;
+      choices.forEach(choice => {
+        const option = document.createElement('option');
+        option.value = choice.value;
+        option.textContent = choice.label;
+        option.disabled = (choice.source && !source.available) || (choice.target && !target.available);
+        option.selected = choice.source === source.arrow && choice.target === target.arrow;
+        select.appendChild(option);
+      });
+      select.addEventListener('change', () => {
+        const choice = choices.find(item => item.value === select.value);
+        if (!choice || select.selectedOptions[0]?.disabled
+          || (choice.source === source.arrow && choice.target === target.arrow)) return;
+        snapshot();
+        if (choice.source !== source.arrow) r.sourceNavigability = choice.source ? 'navigable' : 'unspecified';
+        if (choice.target !== target.arrow) r.targetNavigability = choice.target ? 'navigable' : 'unspecified';
+        render(); renderProps();
+      });
+      const hint = source.available && target.available ? undefined : uiText(
+        'An end with a cross or diamond keeps that marker. To use an arrowhead there, change the end settings below.',
+        '금지 표기나 마름모가 있는 끝점은 해당 표시를 유지합니다. 그 끝점에 화살촉을 넣으려면 아래 끝점 설정을 변경하세요.',
+      );
+      if (hint) select.setAttribute('aria-description', hint);
+      return propRow(uiLabel('Arrowhead Direction', '화살촉 방향'), select, hint);
+    }
+
     function renderRelationProperties(box: HTMLElement, r: DiagramRelation) {
         const kind = document.createElement('span');
         kind.className = 'prop-kind';
@@ -1493,6 +1534,7 @@ function createPropertyPanelModule() {
           box.appendChild(propRow(uiLabel('Name', '이름'), textInput(r.name, v => r.name = v),
             AUTO_LABEL[r.kind] ? uiText('The {0} label is shown automatically.', '{0} 라벨은 자동 표시됩니다', AUTO_LABEL[r.kind]) : undefined));
         }
+        if (r.kind === 'commpath') box.appendChild(communicationPathArrowheadProperty(r));
         if (r.kind === 'c4relationship' && dg().type === 'c4container') {
           box.appendChild(propRow(uiLabel('Technology / Protocol', '기술 / 프로토콜'),
             textInput(r.c4Technology, value => { r.c4Technology = value; })));
