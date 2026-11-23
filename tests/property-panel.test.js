@@ -5,6 +5,8 @@ const { create, selectionMode } = require('../dist/browser/editor/property-panel
 const erdPropertySections = require('../dist/browser/editor/erd-property-sections.js');
 const { parseColumn } = require('../dist/browser/model/erd-column.js');
 const { normalizeErdChecks, normalizeErdIndexes, safeSqlFragment } = require('../dist/browser/model/erd-schema.js');
+const { relationEndNavigability, relationEndAggregation, relationSupportsEndQuickEdit } =
+  require('../dist/browser/model/relation-end.js');
 
 let focused = null;
 const CONTROL_TAGS = ['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON'];
@@ -20,6 +22,9 @@ function fakeNode(tagName = 'div') {
     attributes: {},
     textContent: '',
     value: '',
+    get selectedOptions() {
+      return this.children.filter(child => child.tagName === 'OPTION' && child.value === this.value);
+    },
     id: '',
     classList: {
       values: new Set(),
@@ -100,8 +105,8 @@ const dependencies = {
   relationEndExpression: () => '',
   parseQuickEditExpression: () => ({ valid: true, name: '' }),
   erdRelationCardinality: () => '1',
-  relationEndNavigability: () => 'unspecified',
-  relationEndAggregation: () => 'none',
+  relationEndNavigability,
+  relationEndAggregation,
   openRelationEndQuickEdit: noop,
   switchDiagram: noop,
   openC4Container: noop,
@@ -120,7 +125,7 @@ const dependencies = {
   reorderBindingConnector: noop,
   addBindingWaypoint: noop,
   isCommMsg: () => false,
-  relationSupportsEndQuickEdit: relation => ['erd-11', 'erd-1n', 'erd-nm'].includes(relation?.kind),
+  relationSupportsEndQuickEdit,
   getErdColumnClipboard: () => null,
   erdPropertySections,
   KIND_META: {
@@ -331,5 +336,36 @@ const databaseType = descendants(databaseProperties).find(child => child.value =
 databaseType.value = 'PostgreSQL';
 databaseType.emit('input');
 assert.equal(database.stereotype, 'PostgreSQL');
+
+currentRelation = { id: 'path', kind: 'commpath', name: 'HTTPS' };
+state.diagrams[0].relations = [currentRelation];
+state.selection = ['path'];
+state.selectedId = 'path';
+panel.render();
+const direction = () => props.children.find(row => row.children[0]?.textContent === 'Arrowhead Direction').children[1];
+const setDirection = value => {
+  const select = direction();
+  select.value = value;
+  select.emit('change');
+};
+const beforeDirectionEdit = snapshotCalls;
+assert.equal(direction().children.find(option => option.selected).value, 'none');
+setDirection('none');
+assert.equal(snapshotCalls, beforeDirectionEdit);
+setDirection('both');
+assert.equal(currentRelation.sourceNavigability, 'navigable');
+assert.equal(currentRelation.targetNavigability, 'navigable');
+assert.equal(snapshotCalls, beforeDirectionEdit + 1);
+
+currentRelation.sourceNavigability = 'notNavigable';
+currentRelation.targetAggregation = 'shared';
+panel.render();
+assert.equal(direction().disabled, true);
+assert.equal(direction().children.find(option => option.selected).value, 'none');
+assert.deepEqual(direction().children.filter(option => !option.disabled).map(option => option.value), ['none']);
+setDirection('both');
+assert.equal(currentRelation.sourceNavigability, 'notNavigable');
+assert.equal(currentRelation.targetAggregation, 'shared');
+assert.equal(snapshotCalls, beforeDirectionEdit + 1);
 
 console.log('property panel tests: ok');

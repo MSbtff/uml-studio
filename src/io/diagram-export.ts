@@ -65,7 +65,7 @@ function createDiagramExportModule() {
     document: Document;
     exporters: {
       ERD_DDL_DIALECTS: Partial<Record<string, { id: string; label: string; fileTag: string }>>;
-      exportMermaid(diagram: ExportDiagram, models: ExportModels): string;
+      exportMermaid(diagram: ExportDiagram, models: ExportModels, onOmittedMarkers?: (count: number) => void): string;
       exportDrawio(diagram: ExportDiagram, models: ExportModels): string;
       exportErdDdl(diagram: ExportDiagram, models: ExportModels, dialectId: string): string;
     };
@@ -187,13 +187,23 @@ function createDiagramExportModule() {
     }
 
     function exportMermaidFile() {
-      if (!dg().elements.length) { alert(uiText('There are no elements to export.', '내보낼 요소가 없습니다.')); return false; }
-      const source = exporters.exportMermaid(dg(), state.models);
-      download(exportName(dg()) + '.mmd', new Blob([source], { type: 'text/plain;charset=utf-8' }));
-      const nativeTypes = new Set(['class', 'sequence', 'state', 'requirement', 'bdd']);
-      flashStatus(nativeTypes.has(dg().type)
-        ? uiText('Exported using Mermaid diagram syntax.', 'Mermaid 전용 다이어그램 문법으로 내보냈습니다')
-        : uiText('Exported using Mermaid flowchart syntax.', 'Mermaid flowchart 문법으로 내보냈습니다'));
+      const diagram = dg();
+      if (!diagram.elements.length) { alert(uiText('There are no elements to export.', '내보낼 요소가 없습니다.')); return false; }
+      let omittedMarkers = 0;
+      const source = exporters.exportMermaid(diagram, state.models, count => { omittedMarkers += count; });
+      download(exportName(diagram) + '.mmd', new Blob([source], { type: 'text/plain;charset=utf-8' }));
+      if (omittedMarkers > 0) {
+        flashStatus(uiText(
+          'Mermaid export omitted {0} communication path marker{1}. See the file comments.',
+          'Mermaid 내보내기에서 통신 경로 끝점 기호 {0}개가 생략됐습니다. 파일 주석을 확인하세요.',
+          omittedMarkers, omittedMarkers === 1 ? '' : 's',
+        ));
+      } else {
+        const nativeTypes = new Set(['class', 'sequence', 'state', 'requirement', 'bdd']);
+        flashStatus(nativeTypes.has(diagram.type)
+          ? uiText('Exported using Mermaid diagram syntax.', 'Mermaid 전용 다이어그램 문법으로 내보냈습니다')
+          : uiText('Exported using Mermaid flowchart syntax.', 'Mermaid flowchart 문법으로 내보냈습니다'));
+      }
       return true;
     }
 

@@ -2,6 +2,7 @@
 
 const assert = require('node:assert/strict');
 const { REQUIRED_FUNCTIONS, REQUIRED_VALUES, create } = require('../dist/browser/io/diagram-export.js');
+const { exportMermaid } = require('../dist/browser/io/exporters.js');
 
 /* ── Minimal DOM / browser doubles ─────────────────────────── */
 function fakeNode(tag = 'div') {
@@ -252,6 +253,30 @@ assert.throws(() => create({}), /contentBBox/);
   assert.equal(downloads.at(-1).filename, 'class-diagram.drawio');
   assert.equal(statuses.at(-1), 'draw.io에서 편집 가능한 XML로 내보냈습니다');
   assert.deepEqual(alerts, []);
+}
+
+{
+  const { deps, state, downloads, statuses } = harness();
+  const controller = create({ ...deps, exporters: { ...deps.exporters, exportMermaid } });
+  const diagram = state.diagrams[0];
+  diagram.type = 'deployment';
+  diagram.name = 'Deployment Diagram';
+  diagram.elements = [{ id: 'a', kind: 'node', name: 'Client' }, { id: 'b', kind: 'node', name: 'Server' }];
+  diagram.relations = [
+    { id: 'r1', kind: 'commpath', from: 'a', to: 'b', sourceAggregation: 'shared', targetAggregation: 'composite' },
+    { id: 'r2', kind: 'commpath', from: 'b', to: 'a', sourceNavigability: 'navigable', targetNavigability: 'notNavigable' },
+  ];
+  assert.equal(controller.exportMermaidFile(), true);
+  assert.equal(downloads.at(-1).filename, 'deployment-diagram.mmd');
+  assert.equal(statuses.at(-1), 'Mermaid 내보내기에서 통신 경로 끝점 기호 3개가 생략됐습니다. 파일 주석을 확인하세요.');
+
+  diagram.relations = diagram.relations.slice(1);
+  assert.equal(controller.exportMermaidFile(), true);
+  assert.match(statuses.at(-1), /끝점 기호 1개가 생략됐습니다/);
+
+  diagram.relations = [];
+  assert.equal(controller.exportMermaidFile(), true);
+  assert.equal(statuses.at(-1), 'Mermaid flowchart 문법으로 내보냈습니다');
 }
 
 /* ── ERD DDL 방언 선택과 다운로드 ──────────────────────────── */
