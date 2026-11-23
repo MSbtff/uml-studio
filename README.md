@@ -79,7 +79,7 @@ For a static preview, run `npm run preview` and open [http://127.0.0.1:8765](htt
 
 Create a **C4 System Context** diagram and add people, software systems, and their relationships. Select a software system and choose **Open Container Diagram** in Properties. UML Studio creates the L2 diagram on the first visit and reopens it on later visits. Its system boundary shares the L1 system model, so changes to the system name appear in both views.
 
-Place applications and databases inside the boundary and set their technologies and relationship protocols in Properties. Select the boundary to return to a **System Context** view. Both C4 diagrams support project JSON, autosave, and SVG export.
+Place applications and databases inside the boundary and set their technologies and relationship protocols in Properties. Select the boundary and choose **Add Context Views** to place the linked L1 diagram’s people and other software systems outside the boundary. Each view shares its L1 model, and each model is added at most once. Use **Open System Context** to return to L1. Both C4 diagrams support project JSON, autosave, and SVG export.
 
 ## Import and export SQL DDL
 

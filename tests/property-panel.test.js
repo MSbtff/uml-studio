@@ -111,6 +111,7 @@ const dependencies = {
   switchDiagram: noop,
   openC4Container: noop,
   c4ContextFor: noop,
+  addC4ContextViews: noop,
   parseIconScript: () => ({ valid: true, commands: [], width: 100, height: 100 }),
   descendantViews: () => [],
   constraintPropertyEquations: () => [],
