@@ -7,7 +7,10 @@ import { deflateRawSync } from 'node:zlib';
 import { installPackedDdlLibrary } from '../support/install-packed-ddl-library.js';
 import { test, expect } from './fixtures.mjs';
 import {
+  addDiagram,
   canvasElements,
+  clickCanvasElement,
+  clickTool,
   createCanvasElement,
   createEmptyProject,
   downloadErdDdl,
@@ -43,6 +46,35 @@ test('JSON·Mermaid·draw.io 파일을 실제 다운로드한다', async ({ stud
   expect(svg.filename).toBe('class-diagram.svg');
   expect(svg.text).toContain('<svg');
   expect(svg.text).toContain('ExportTarget');
+});
+
+test('Mermaid export preserves supported communication path markers and reports omissions', async ({
+  studioPage: page,
+}) => {
+  await createEmptyProject(page);
+  await addDiagram(page, 'Deployment Diagram');
+  const client = await createCanvasElement(page, 'Node', { x: 128, y: 144 });
+  const server = await createCanvasElement(page, 'Node', { x: 472, y: 144 });
+  await clickTool(page, 'Communication Path');
+  await clickCanvasElement(page, client);
+  await clickCanvasElement(page, server);
+  await renameSelectedElement(page, 'HTTPS');
+
+  const navigability = (end) =>
+    page.getByRole('group', { name: `${end} End`, exact: true }).getByLabel('Navigability', { exact: true });
+  const status = page.locator('#status-left');
+  await navigability('Source').selectOption('notNavigable');
+  await navigability('Target').selectOption('notNavigable');
+  const crosses = await downloadFromToolbar(page, 'exportmermaid');
+  expect(crosses.text).toContain('x--x|HTTPS|');
+  expect(crosses.text).not.toContain('UML Studio omitted');
+  await expect(status).toHaveText('Exported using Mermaid flowchart syntax.');
+
+  await navigability('Target').selectOption('navigable');
+  const mixed = await downloadFromToolbar(page, 'exportmermaid');
+  expect(mixed.text).toContain('-->|HTTPS|');
+  expect(mixed.text).toContain('%% UML Studio omitted source cross');
+  await expect(status).toHaveText('Mermaid export omitted 1 communication path marker. See the file comments.');
 });
 
 test('draw.io 가져오기 충돌을 미리 보고 기존 모델 재사용 정책으로 병합한다', async ({ studioPage: page }) => {

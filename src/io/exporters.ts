@@ -606,14 +606,38 @@ function createExporters(erdCardinalityApi: ExportCardinalityApi, erdColumnApi: 
   }
 
   function flowArrow(kind: string) {
-    if (['association', 'aggregation', 'composition', 'link', 'commconnector', 'csconnector', 'commpath'].includes(kind)) return '---';
+    if (['association', 'aggregation', 'composition', 'link', 'commconnector', 'csconnector'].includes(kind)) return '---';
     if (['dependency', 'realization', 'include', 'extend', 'notelink', 'rolebinding', 'deploy', 'msg-reply', 'exceptionhandler', 'informationflow'].includes(kind)) return '-.->';
     if (kind === 'extension') return '-->';
     if (kind === 'activityinterrupt') return '==>';
     return '-->';
   }
 
-  function exportFlowchartMermaid(diagram: EditorDiagram, models: DiagramModels) {
+  function communicationPathFlowArrow(relation: DiagramRelation) {
+    const omitted: string[] = [];
+    const marker = (end: RelationEnd) => {
+      const aggregation = exportEndAggregation(relation, end);
+      if (aggregation !== 'none') {
+        omitted.push(`${end} ${aggregation === 'composite' ? 'filled' : 'open'} diamond`);
+        return null;
+      }
+      const navigability = exportEndNavigability(relation, end);
+      if (navigability === 'navigable') return 'arrow';
+      if (navigability === 'notNavigable') return 'cross';
+      return null;
+    };
+    const source = marker('source'), target = marker('target');
+    if (source && target) {
+      if (source === target) return { arrow: source === 'cross' ? 'x--x' : '<-->', reverse: false, omitted };
+      // Keep the arrow direction when Mermaid cannot draw two different end markers on one edge.
+      omitted.push(source === 'cross' ? 'source cross' : 'target cross');
+      return { arrow: '-->', reverse: source === 'arrow', omitted };
+    }
+    const single = source ?? target;
+    return { arrow: single === 'cross' ? '--x' : single === 'arrow' ? '-->' : '---', reverse: source !== null, omitted };
+  }
+
+  function exportFlowchartMermaid(diagram: EditorDiagram, models: DiagramModels, onOmittedMarkers?: (count: number) => void) {
     const elements = diagram.elements.slice();
     const ids = makeIdMap(elements, 'n');
     const lines = [`%% ${String(diagram.name || 'Diagram').replace(/\r?\n/g, ' ')}`, 'flowchart LR'];
@@ -664,15 +688,13 @@ function createExporters(erdCardinalityApi: ExportCardinalityApi, erdColumnApi: 
       if (diagram.type === 'package' && relation.kind === 'containment') return;
       let from = ids.get(relation.from), to = ids.get(relation.to);
       if (!from || !to) return;
-      let arrow = flowArrow(relation.kind);
-      if (relation.kind === 'commpath') {
-        const sourceArrow = exportEndAggregation(relation, 'source') === 'none'
-          && exportEndNavigability(relation, 'source') === 'navigable';
-        const targetArrow = exportEndAggregation(relation, 'target') === 'none'
-          && exportEndNavigability(relation, 'target') === 'navigable';
-        if (sourceArrow && !targetArrow) [from, to] = [to, from];
-        if (sourceArrow || targetArrow) arrow = sourceArrow && targetArrow ? '<-->' : '-->';
+      const path = relation.kind === 'commpath' ? communicationPathFlowArrow(relation) : undefined;
+      if (path?.omitted.length) {
+        lines.push(`  %% UML Studio omitted ${path.omitted.join(' and ')} on the communication path from ${from} to ${to}.`);
+        onOmittedMarkers?.(path.omitted.length);
       }
+      if (path?.reverse) [from, to] = [to, from];
+      const arrow = path?.arrow ?? flowArrow(relation.kind);
       const label = relation.kind === 'extension'
         ? ['«extension»', relationLabel(relation, models)].filter(Boolean).join(' ')
         : relationLabel(relation, models)
@@ -1198,7 +1220,7 @@ function createExporters(erdCardinalityApi: ExportCardinalityApi, erdColumnApi: 
     return lines.join('\n') + '\n';
   }
 
-  function exportMermaid(diagram: EditorDiagram, models: DiagramModels) {
+  function exportMermaid(diagram: EditorDiagram, models: DiagramModels, onOmittedMarkers?: (count: number) => void) {
     if (!diagram || !Array.isArray(diagram.elements) || !Array.isArray(diagram.relations)) {
       throw new Error(uiText('Invalid diagram data for export.', '내보낼 다이어그램 데이터가 올바르지 않습니다.'));
     }
@@ -1210,7 +1232,7 @@ function createExporters(erdCardinalityApi: ExportCardinalityApi, erdColumnApi: 
     if (diagram.type === 'ibd') return exportInternalBlockMermaid(diagram, models);
     if (diagram.type === 'parametric') return exportParametricMermaid(diagram, models);
     if (diagram.type === 'erd') return exportErdMermaid(diagram, models);
-    return exportFlowchartMermaid(diagram, models);
+    return exportFlowchartMermaid(diagram, models, onOmittedMarkers);
   }
 
   function drawioElementHtml(element: DiagramElement, models: DiagramModels) {
