@@ -9,6 +9,7 @@
  * large-project autosave support.
  */
 interface PersistenceEnvironment {
+  document?: Document;
   indexedDB?: IDBFactory;
   navigator?: Pick<Navigator, 'storage'>;
   fetch?: typeof fetch;
@@ -68,7 +69,8 @@ function createPersistence(environment: PersistenceEnvironment) {
 
   let dbPromise: Promise<IDBDatabase> | null = null;
   let saveChain: Promise<unknown> = Promise.resolve();
-  let serverAvailable: boolean | null = null;
+  const browserOnly = environment.document?.documentElement.dataset.projectStorage === 'browser';
+  let serverAvailable: boolean | null = browserOnly ? false : null;
 
   function indexedDBApi() {
     return environment.indexedDB || null;
@@ -312,7 +314,7 @@ function createPersistence(environment: PersistenceEnvironment) {
   }
 
   async function loadServerAutosave() {
-    if (typeof environment.fetch !== 'function') return null;
+    if (browserOnly || typeof environment.fetch !== 'function') return null;
     try {
       const response = await environment.fetch('/api/recovery/autosave', {
         headers: { Accept: 'application/json' },

@@ -2,6 +2,8 @@
 
 UML Studio is a browser-based editor for UML, SysML, and entity–relationship diagrams. Build models across multiple diagrams, validate them as you work, and export the results for documentation or further editing. The local server saves projects to SQLite and keeps a recovery history.
 
+**[Try UML Studio in your browser](https://msbtff.github.io/uml-studio/)**. The demo saves projects in your browser. Use **Save** to download a project backup.
+
 ![UML Studio editing the built-in Render Sequence example, with the toolbox, Model Explorer, and fragment properties visible](docs/images/sequence-editor.png)
 
 _The built-in Render Sequence example shows lifelines, messages, and an `alt` combined fragment._
