@@ -1,9 +1,5 @@
 'use strict';
 
-/* Import preview dialogs — the draw.io and DDL confirmation sheets that show
-   what a file will add before anything is written. They only read the parsed
-   import and return the user's decision, so they touch no project state; the
-   import module owns everything that happens after the decision. */
 type ImportPreviewApi = ReturnType<typeof createImportPreviewModule>;
 declare var UMLImportPreview: ImportPreviewApi;
 
@@ -204,7 +200,6 @@ function createImportPreviewModule() {
           const headRow = document.createElement('tr');
           [uiText('Incoming Model', '가져올 모델'), uiText('Existing Model', '기존 모델'), uiText('Match', '판정'), uiText('Changed Fields', '변경 필드'), uiText('Action', '처리')].forEach(label => {
             const cell = document.createElement('th'); cell.textContent = label;
-            /* without a scope a screen reader cannot pair a cell with its header */
             cell.setAttribute('scope', 'col');
             headRow.appendChild(cell);
           });

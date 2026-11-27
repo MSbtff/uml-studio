@@ -177,8 +177,6 @@ function createPropertyPanelModule() {
       throw new TypeError(`속성 패널 의존성이 없습니다: ${missing.join(', ')}`);
     }
 
-    /* names this panel only forwards to erdPropertySections stay in the REQUIRED
-       lists above — app.js provides by declared name — but are not destructured */
     const deps = provided as PropertyPanelDependencies;
     const {
       snapshot,
@@ -244,9 +242,6 @@ function createPropertyPanelModule() {
       return [...box.querySelectorAll<PropertyControl>(PROPERTY_CONTROL_SELECTOR)];
     }
 
-    /* the panel is rebuilt whole whenever a control changes the model, so the
-       control the user was on has to be found again by its place in the rebuilt
-       panel — the same selection always produces the same order */
     function selectionFingerprint() {
       return `${state.selectedId || ''}|${(state.selection || []).join(',')}`;
     }
@@ -270,9 +265,7 @@ function createPropertyPanelModule() {
       if (captured.start === null || typeof target.setSelectionRange !== 'function') return true;
       try {
         target.setSelectionRange(captured.start, captured.end ?? captured.start);
-      } catch {
-        /* 캐럿을 지원하지 않는 입력 형식 */
-      }
+      } catch {}
       return true;
     }
 
@@ -318,9 +311,6 @@ function createPropertyPanelModule() {
       return t;
     }
     
-    /* ER-only property blocks live in their own module. It needs this panel's
-       own row/heading primitives, so it is created here and not wired from
-       app.js; everything else it declares arrives through the forwarded deps. */
     const {
       erdColumnsProperty,
       erdDisplayModeProperty,
@@ -328,8 +318,6 @@ function createPropertyPanelModule() {
       erdSchemaProperty,
     } = erdPropertySections.create({ ...deps, propRow, sectionHeading, renderProps });
 
-    /* source and target repeat the same field labels, so each end needs its own
-       named group for the labels to mean anything out of context */
     function relationEndPropertySection(outerBox: HTMLElement, r: DiagramRelation, end: RelationEnd) {
       const prefix = end === 'source' ? 'source' : 'target';
       const erd = ER_RELATION_KINDS.has(r.kind);
@@ -994,7 +982,7 @@ function createPropertyPanelModule() {
             c.addEventListener('change', () => {
               snapshot();
               e.isActor = c.checked;
-              e.w = 0; e.h = 0;           // re-fit to the new representation
+              e.w = 0; e.h = 0;
               render(); renderProps();
             });
             chk.appendChild(c); chk.appendChild(document.createTextNode(uiText('Show as an actor icon', '액터로 표기 (사람 모양)')));

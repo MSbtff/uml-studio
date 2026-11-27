@@ -1,8 +1,5 @@
 'use strict';
 
-/* Import / Export — SVG · PNG · Mermaid · draw.io writers, the draw.io import
-   preview dialog with its per-model conflict policies, and the shared file
-   input that routes .json / .drawio / .xml files into the project. */
 type ProjectImportApi = ReturnType<typeof createImportExportModule>;
 declare var UMLProjectImport: ProjectImportApi;
 
@@ -16,11 +13,9 @@ function createImportExportModule() {
   const { displayLabel, text: uiText } = globalThis.UMLLanguage
     ?? require('../editor/language.js') as typeof UMLLanguage;
 
-  /* names below marked "forwarded" are not used here — they are handed to
-     importPreview.create, and `provide` only fills declared names */
   const REQUIRED_FUNCTIONS = Object.freeze([
-    'projectActionButton', // forwarded
-    'projectModal', // forwarded
+    'projectActionButton',
+    'projectModal',
     'alert',
     'clearValidationResults',
     'diagramAllowsElementKind',
@@ -44,7 +39,7 @@ function createImportExportModule() {
     'validateProjectData',
   ] as const);
   const REQUIRED_VALUES = Object.freeze([
-    'document', // forwarded
+    'document',
     'ddlImporter',
     'drawioImporter',
     'importPreview',
@@ -164,8 +159,6 @@ function createImportExportModule() {
       throw new TypeError(`프로젝트 가져오기 의존성이 없습니다: ${[...new Set(missing)].join(', ')}`);
     }
 
-    /* names this module only forwards to importPreview stay in the REQUIRED lists
-       above — app.js provides by declared name — but are not destructured */
     const {
       alert,
       clearValidationResults,
@@ -202,7 +195,6 @@ function createImportExportModule() {
     let fileInputMode: FileInputMode = 'open';
     let attached = false;
 
-    /* ── File input ──────────────────────────────────────────── */
     function openProjectFileDialog() {
       fileInputMode = 'open';
       fileInput.accept = PROJECT_FILE_ACCEPT;
@@ -256,7 +248,6 @@ function createImportExportModule() {
       fileInput.removeEventListener('change', handleFileInputChange);
     }
 
-    /* ── Project / draw.io import ────────────────────────────── */
     async function importProjectFile(json: string, filename: string) {
       let parsed: unknown;
       try { parsed = JSON.parse(json); }
@@ -324,8 +315,6 @@ function createImportExportModule() {
       return candidate;
     }
 
-    /* the two import preview sheets are their own module — they only read the
-       parsed import and return a decision, so nothing here changes */
     const {
       openDdlImportPreview,
       openDrawioImportPreview,

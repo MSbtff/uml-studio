@@ -1,8 +1,5 @@
 'use strict';
 
-/* Safe, non-executing CREATE TABLE importer for PostgreSQL, MySQL and SQLite.
-   It preserves the shared ERD subset: columns, PK/FK/NOT NULL/UNIQUE,
-   DEFAULT, CHECK, and simple column indexes. */
 interface DdlColumnApi {
   formatColumn(column: { flags: string[]; phys: string; logical: string; type: string }): string;
   validateColumn(column: { flags: string[]; phys: string; logical: string; type: string }): { valid: boolean; error?: string };

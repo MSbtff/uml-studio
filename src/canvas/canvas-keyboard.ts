@@ -52,8 +52,6 @@ function createCanvasKeyboardModule() {
     } = deps as KeyboardDependencies;
     let attached = false;
 
-    /* everything the user can select, in drawing order: elements first, then the
-       relations between them */
     function navigableItems(): NavigationItem[] {
       const diagram = dg();
       if (!diagram) return [];
@@ -75,7 +73,6 @@ function createCanvasKeyboardModule() {
         : null;
     }
 
-    /* a relation has no box of its own — use the span of the two views it joins */
     function bounds(item: NavigationItem) {
       if (item.kind === 'element') return boxOf(item.view);
       const from = boxOf(byId(item.view.from));
@@ -91,7 +88,6 @@ function createCanvasKeyboardModule() {
       };
     }
 
-    /* scroll the least amount that brings the view inside the visible area */
     function reveal(item: NavigationItem) {
       const box = bounds(item);
       if (!box || !Number.isFinite(wrap.clientWidth) || !Number.isFinite(wrap.clientHeight)) return false;
@@ -131,7 +127,6 @@ function createCanvasKeyboardModule() {
       render();
       renderProps();
       reveal(item);
-      /* after render(), which repaints the status bar with the diagram summary */
       flashStatus(announce(item, index, items.length));
       return true;
     }
@@ -142,8 +137,6 @@ function createCanvasKeyboardModule() {
       renderProps();
     }
 
-    /* Tab walks the diagram and, past either end, drops the selection and lets the
-       browser move on — so the canvas is never a keyboard trap */
     function step(forward: boolean) {
       const items = navigableItems();
       if (!items.length) return false;

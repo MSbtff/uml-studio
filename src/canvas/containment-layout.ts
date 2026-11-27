@@ -1,9 +1,5 @@
 'use strict';
 
-/* Containment & layout — the parent/child tree of views, the hit tests that
-   decide which container a dropped view belongs to, and the layout passes that
-   pin ports, pins, regions, constraint parameters and timing rows to their
-   owner's geometry before every render. */
 type ContainmentLayoutApi = ReturnType<typeof createContainmentLayoutModule>;
 declare var UMLContainmentLayout: ContainmentLayoutApi;
 
@@ -445,9 +441,6 @@ function createContainmentLayoutModule() {
       else delete e.parentId;
     }
 
-    /* `grid` lets a caller move finer than the drawing grid — keyboard nudging
-       asks for 1px steps, which snapping to GRID would round away entirely.
-       Omitted, snap() applies the usual GRID, so drag behaviour is unchanged. */
     function moveViewTree(e: DiagramElement, dx: number, dy: number, origins?: ReadonlyMap<string, DiagramPoint>, grid?: number, axis?: DiagramMoveAxis) {
       const all = [e, ...descendantViews(e.id)];
       all.forEach(view => {

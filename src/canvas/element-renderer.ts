@@ -710,7 +710,6 @@ function createElementRendererModule() {
       text(g, `submachine: ${m.ref}`, cx, e.y + 36, { italic: true, size: 11, color: '#555b6b', anchor: 'middle' });
       el('line', { x1: e.x, y1: e.y + m.headH, x2: e.x + e.w, y2: e.y + m.headH, stroke: STROKE, 'stroke-width': 1 }, g);
       m.behaviors.forEach((line, i) => text(g, line, e.x + 9, e.y + m.headH + 16 + i * LINE_H));
-      /* UML submachine-state glyph: two connection ticks joined by a bar. */
       const gx = e.x + e.w - 28, gy = e.y + e.h - 14;
       el('path', {
         d: `M ${gx} ${gy - 5} L ${gx} ${gy + 5} M ${gx} ${gy} L ${gx + 16} ${gy} M ${gx + 16} ${gy - 5} L ${gx + 16} ${gy + 5}`,
@@ -881,7 +880,6 @@ function createElementRendererModule() {
         }, g);
       }
       if (e.isActor) {
-        /* «stereotype» on top, stick-figure head, name below */
         let topY = e.y;
         if (m.stereo) { text(g, m.stereo, cx, e.y + 11, { anchor: 'middle', size: 11 }); topY = e.y + 14; }
         const hy = topY + 8;
@@ -896,7 +894,6 @@ function createElementRendererModule() {
         let ny = e.y + e.h / 2 + 4;
         if (m.stereo) { text(g, m.stereo, cx, e.y + 13, { anchor: 'middle', size: 11 }); ny = e.y + e.h / 2 + 10; }
         text(g, m.title, cx, ny, { bold: true, size: 13, anchor: 'middle' });
-        /* underline — UML instance notation */
         const nw = tw(m.title, FONT13B);
         el('line', { x1: cx - nw / 2, y1: ny + 3, x2: cx + nw / 2, y2: ny + 3, stroke: TEXT_COLOR, 'stroke-width': 0.8 }, g);
       }
@@ -904,8 +901,6 @@ function createElementRendererModule() {
     }
     case 'fragment': {
       el('rect', { x: e.x, y: e.y, width: e.w, height: e.h, fill: 'none', stroke: STROKE, 'stroke-width': 1 }, g);
-      /* interaction operands: dashed dividers split the body into regions,
-         each with its own guard ([success] / [else] …) */
       const operands = e.operands && e.operands.length ? e.operands : [];
       if (operands.length) {
         const { boundaries } = fragmentOperandLayout(e);
@@ -924,7 +919,6 @@ function createElementRendererModule() {
         fill: '#f3f3ea', stroke: STROKE, 'stroke-width': 1,
       }, g);
       text(g, e.operator || 'alt', e.x + 8, e.y + 15, { bold: true });
-      /* first-region guard sits next to the operator label (unless operands drive it) */
       if (e.condition && !operands.length) text(g, e.condition, e.x + LW + 8, e.y + 15, { italic: true });
       return;
     }
@@ -976,7 +970,6 @@ function createElementRendererModule() {
       text(g, e.name, cx, cy + 4, { bold: true, size: 13, anchor: 'middle' });
       return;
     case 'execution': {
-      /* execution specification bar; colour follows its lifeline */
       const life = currentDiagram().elements.find(l => l.id === e.lifeId);
       const barFill = (life && life.fill) || FILL_DEFAULT;
       el('rect', { x: e.x, y: e.y, width: e.w, height: e.h, fill: barFill, stroke: STROKE, 'stroke-width': 1 }, g);
@@ -1030,7 +1023,6 @@ function createElementRendererModule() {
     }
     case 'component': {
       el('rect', { x: e.x, y: e.y, width: e.w, height: e.h, fill, stroke: STROKE, 'stroke-width': 1, ...SHADOW }, g);
-      /* classic component icon, top-right */
       const ix = e.x + e.w - 24, iy = e.y + 7;
       el('rect', { x: ix, y: iy, width: 14, height: 17, fill: '#ffffff', stroke: STROKE, 'stroke-width': 1 }, g);
       el('rect', { x: ix - 5, y: iy + 3, width: 10, height: 4, fill: '#ffffff', stroke: STROKE, 'stroke-width': 1 }, g);
@@ -1044,7 +1036,6 @@ function createElementRendererModule() {
       return;
     case 'artifact': {
       el('rect', { x: e.x, y: e.y, width: e.w, height: e.h, fill, stroke: STROKE, 'stroke-width': 1, ...SHADOW }, g);
-      /* document icon, top-right */
       const ix = e.x + e.w - 22, iy = e.y + 6, IW = 12, IH = 15, FD = 4;
       el('path', {
         d: `M ${ix} ${iy} L ${ix + IW - FD} ${iy} L ${ix + IW} ${iy + FD} L ${ix + IW} ${iy + IH} L ${ix} ${iy + IH} Z`,
@@ -1082,7 +1073,6 @@ function createElementRendererModule() {
     }
     case 'entity': {
       if (!m.cols) return;
-      /* Entity layout with a table header, PK/FK badges, and aligned columns. */
       el('rect', { x: e.x, y: e.y, width: e.w, height: e.h, fill: '#ffffff', stroke: ERD_HEADER, 'stroke-width': 1.2, ...SHADOW }, g);
       el('rect', { x: e.x, y: e.y, width: e.w, height: m.headH, fill: ERD_HEADER, stroke: ERD_HEADER, 'stroke-width': 1.2 }, g);
       text(g, m.primaryTitle, e.x + 8, e.y + 16, { bold: true, size: 12.5, color: '#ffffff' });
@@ -1139,7 +1129,6 @@ function createElementRendererModule() {
     function drawClassifierElement(e: DiagramElement, context: ElementDrawingContext) {
       const { g, fill, m, cx } = context;
     if (m.headH === undefined) return;
-    /* classifier-like elements */
     el('rect', { x: e.x, y: e.y, width: e.w, height: e.h, fill, stroke: STROKE, 'stroke-width': 1, ...SHADOW }, g);
     let ty = e.y + PAD + 4;
     let titleCx = cx;

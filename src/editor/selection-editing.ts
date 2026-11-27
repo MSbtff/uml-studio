@@ -1,9 +1,5 @@
 'use strict';
 
-/* Selection editing — the clipboard and the commands that act on whatever the
-   user has selected: copy/cut/paste/duplicate (carrying the semantic models the
-   copied views depend on), delete from view or from the model repository,
-   auto-size, keyboard nudge, and z-order. */
 type SelectionEditingApi = ReturnType<typeof createSelectionEditingModule>;
 declare var UMLSelectionEditing: SelectionEditingApi;
 
@@ -45,7 +41,6 @@ function createSelectionEditingModule() {
     'state',
     'GRID',
   ] as const);
-  /* 붙여넣을 때 복사본이 원본과 배열을 공유하지 않도록 떼어낼 모델 필드 */
   const CLONED_MODEL_LIST_FIELDS = Object.freeze([
     'attributes', 'operations', 'literals', 'columns', 'operands', 'internalTransitions', 'slots',
     'parts', 'references', 'values', 'flowProperties', 'constraintProperties',
@@ -57,12 +52,6 @@ function createSelectionEditingModule() {
   const MODEL_REFERENCE_FIELDS = Object.freeze([
     'classifierModelId', 'collaborationModelId', 'providedInterfaceModelId', 'requiredInterfaceModelId',
   ] as const);
-  /* Views whose copy is a new thing rather than a second view of the same thing:
-     a pasted table is a new table and a pasted lifeline is a new participant.
-     Abstract classifiers — Class, Interface, Enumeration — keep the shared-model
-     behaviour on purpose: a Class shown in two diagrams is one Class, and
-     `Delete Model` is expected to remove every view of it. The label names the
-     kind in the paste message; kinds sharing a label are counted together. */
   const INDEPENDENT_COPY_KINDS: Readonly<Partial<Record<string, string>>> = Object.freeze({
     entity: uiText('table', '테이블'),
     c4container: uiText('C4 Container', 'C4 컨테이너'),
@@ -72,8 +61,6 @@ function createSelectionEditingModule() {
     artifactinstance: uiText('instance', '인스턴스'),
     componentinstance: uiText('instance', '인스턴스'),
     nodeinstance: uiText('instance', '인스턴스'),
-    /* deployment and component diagrams draw physical things — a copied machine
-       or component is a second machine, not a second picture of the same one */
     node: uiText('node', '노드'),
     component: uiText('component', '컴포넌트'),
     artifact: uiText('artifact', '아티팩트'),
@@ -177,8 +164,6 @@ function createSelectionEditingModule() {
       const selected = state.selection.map(byId).filter(present);
       if (!selected.length) return false;
       snapshot();
-      /* Shift nudges by a whole grid cell, a bare arrow by one pixel — the fine
-         step has to carry its own grid or snapping rounds the move away */
       const step = coarse ? GRID : 1;
       const dx = key === 'ArrowLeft' ? -step : key === 'ArrowRight' ? step : 0;
       const dy = key === 'ArrowUp' ? -step : key === 'ArrowDown' ? step : 0;
@@ -207,7 +192,6 @@ function createSelectionEditingModule() {
         return false;
       }
       let ids = new Set(els.map(e => e.id));
-      /* relations whose both ends are inside the copied set travel with it */
       let rels = dg().relations.filter(r => ids.has(r.from) && ids.has(r.to));
       const attachedConstraints = dg().elements.filter(e => e.kind === 'timeconstraint'
         && (ids.has(e.constrainedViewId || '') || rels.some(relation => relation.id === e.constrainedViewId)));
@@ -228,8 +212,6 @@ function createSelectionEditingModule() {
       });
       const models: DiagramModels = {};
       modelIds.forEach(id => { if (state.models[id]) models[id] = state.models[id]; });
-      /* A copied table or lifeline must be safe to rename, edit, or delete from the
-         model without affecting its source — see INDEPENDENT_COPY_KINDS. */
       const cloneModels = options.cloneModels ?? els.some(view => view.kind in INDEPENDENT_COPY_KINDS);
       clipboard = {
         data: JSON.stringify({
@@ -280,9 +262,6 @@ function createSelectionEditingModule() {
       const off = PASTE_OFFSET * currentClipboard.count;
       const idMap: Record<string, string> = Object.create(null);
       const modelIdMap: Record<string, string> = Object.create(null);
-      /* `viaReference` marks a model the copied view only points at — a lifeline's
-         classifier, a component's interface. Cloning those too would duplicate the
-         classifier itself, so within the same project they stay shared. */
       const targetModelId = (sourceId: string | undefined, viaReference = false): string => {
         const oldId = sourceId || String(sourceId);
         const source: Omit<DiagramModel, 'id'> = sourceModels[oldId] || { kind: 'note', name: 'Imported Element' };
@@ -370,8 +349,6 @@ function createSelectionEditingModule() {
       setSelection(newEls.map(e => e.id));
       render(); renderProps();
       if (currentClipboard.cloneModels) {
-        /* several kinds share one label (four instance kinds are all 인스턴스), so
-           count by label rather than by kind */
         const copied = new Map<string, number>();
         newEls.forEach(view => {
           const label = INDEPENDENT_COPY_KINDS[view.kind];
@@ -383,14 +360,13 @@ function createSelectionEditingModule() {
     }
     function cutSelection() {
       if (!copySelection({ cloneModels: false })) return;
-      // The clipboard carries only relations between the copied elements.
       deleteSelection(state.selection.filter(id => byId(id)));
       flashStatus(uiText('Cut selection · Ctrl+V to paste', '잘라내기 완료 — Ctrl+V로 붙여넣기'));
     }
     function duplicateSelection() {
       const prev = clipboard;
       if (copySelection()) pasteClipboard();
-      clipboard = prev; // Ctrl+D는 클립보드를 건드리지 않음
+      clipboard = prev;
     }
 
     function deleteSelection(selectedIds = state.selection) {
@@ -456,7 +432,6 @@ function createSelectionEditingModule() {
           return !remove;
         });
       });
-      // A removed relationship view can share its model with a surviving view.
       if (relationModelIds.size) {
         state.diagrams.forEach(diagram => diagram.relations.forEach(view => {
           if (view.modelId) relationModelIds.delete(view.modelId);

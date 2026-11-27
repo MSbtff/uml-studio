@@ -66,7 +66,6 @@ test('ERD 컬럼·관계·카디널리티 편집 결과가 저장과 내보내�
   await clickCanvasElement(page, canvasElements(page).nth(0));
   await clickCanvasElement(page, canvasElements(page).nth(1));
 
-  // 출발·도착 끝점은 같은 라벨을 반복하므로 각 그룹 안에서 찾는다
   const sourceEnd = () => page.getByRole('group', { name: /^Source · / });
   const targetEnd = () => page.getByRole('group', { name: /^Target · / });
   const cardinality = (end) => end().getByLabel('Cardinality', { exact: true });

@@ -1,7 +1,5 @@
 'use strict';
 
-/* Status Bar — owns tool guidance, project/save summaries, and temporary
-   announcements without taking ownership of project or autosave state. */
 type StatusBarApi = ReturnType<typeof createStatusBarModule>;
 declare var UMLStatusBar: StatusBarApi;
 
@@ -219,8 +217,6 @@ function createStatusBarModule() {
       return uiText('Click the canvas to add {0}.', '캔버스를 클릭해 {0} 생성', diagramKindLabel(tool));
     }
 
-    /* stays until reload — a flash alone is gone in two seconds, and the point
-       is that the user learns something went wrong even if they looked away */
     function runtimeErrorText() {
       const count = state.runtimeErrors?.count;
       return count ? uiText('⚠ Errors: {0} · ', '⚠ 오류 {0}건 · ', count) : '';

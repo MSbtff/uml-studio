@@ -1,11 +1,5 @@
 'use strict';
 
-/*
- * Safe parser for stereotype icon scripts.
- *
- * The language is intentionally data-only: commands are normalized into a
- * bounded drawing list and are never evaluated as JavaScript.
- */
 type IconScriptApi = ReturnType<typeof createIconScript>;
 declare var UMLIconScript: IconScriptApi;
 

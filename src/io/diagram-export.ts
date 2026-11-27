@@ -1,9 +1,5 @@
 'use strict';
 
-/* Diagram export — everything that turns the current project into a file the
-   browser downloads (SVG, PNG, Mermaid, draw.io, ERD DDL) plus the DDL dialect
-   dialog. It only reads the project, so it shares nothing with the import side
-   beyond the `download` helper it owns. */
 type DiagramExportApi = ReturnType<typeof createDiagramExportModule>;
 declare var UMLDiagramExport: DiagramExportApi;
 
@@ -126,7 +122,6 @@ function createDiagramExportModule() {
       setTimeout(() => URL.revokeObjectURL(a.href), 5000);
     }
 
-    /* returns { data, w, h } — the SVG cropped to the diagram content */
     function exportSvg() {
       const bbox = contentBBox();
       if (!bbox) return null;
@@ -148,7 +143,6 @@ function createDiagramExportModule() {
 
     const exportName = (d: Pick<ExportDiagram, 'name'>) => d.name.replace(/\s+/g, '-').toLowerCase();
 
-    /* rasterize the active diagram at 2x and download; resolves when done */
     function exportPngActive() {
       return new Promise<boolean>((resolve, reject) => {
         const out = exportSvg();
@@ -172,7 +166,6 @@ function createDiagramExportModule() {
       });
     }
 
-    /* ── Toolbar / menu export commands ──────────────────────── */
     function exportSvgFile() {
       const out = exportSvg();
       if (!out) { alert(uiText('There are no elements to export.', '내보낼 요소가 없습니다.')); return false; }

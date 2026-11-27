@@ -1,4 +1,3 @@
-/** Semantic fields shared by model records and their hydrated views. */
 interface ModelFields {
   name?: string;
   stereotype?: string;

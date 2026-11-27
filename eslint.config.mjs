@@ -65,7 +65,6 @@ const umlGlobals = Object.fromEntries(
 );
 
 const commonRules = {
-  // ESLint 10에서 추가된 동작 추론 규칙은 레거시 모듈을 책임 단위로 옮길 때 별도 적용한다.
   'no-empty-pattern': 'off',
   'no-regex-spaces': 'off',
   'no-useless-assignment': 'off',
@@ -77,7 +76,6 @@ const commonRules = {
       argsIgnorePattern: '^_',
       caughtErrorsIgnorePattern: '^_',
       varsIgnorePattern: '^_',
-      // `const { json, ...metadata } = record` 처럼 키 하나를 빼는 관용구를 허용한다.
       ignoreRestSiblings: true,
     },
   ],
@@ -109,7 +107,10 @@ export default [
         ...umlGlobals,
       },
     },
-    rules: commonRules,
+    rules: {
+      ...commonRules,
+      'no-empty': ['error', { allowEmptyCatch: true }],
+    },
   },
   {
     name: 'project/node-unit-tests',

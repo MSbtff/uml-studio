@@ -104,18 +104,12 @@ def initialize_database(path: Path) -> str:
 
 class EditorAssetHandler(SimpleHTTPRequestHandler):
     server_version = "UMLStudio/7"
-    # The stdlib default is HTTP/1.0, which opens a new TCP connection for every
-    # one of the ~60 scripts the page loads. Keep-alive cuts that burst to the
-    # browser's six connections; every response below already sets
-    # Content-Length, which HTTP/1.1 requires.
     protocol_version = "HTTP/1.1"
 
     def __init__(self, *args, directory: str | None = None, **kwargs):
         super().__init__(*args, directory=str(Path(directory or ROOT).resolve()), **kwargs)
 
     def send_head(self):
-        # GET and HEAD both use this hook. Only resolve browser assets under the
-        # static root, including when a requested path is a symbolic link.
         root = Path(self.directory)
         requested = Path(self.translate_path(self.path))
         if requested == root:
@@ -137,9 +131,11 @@ class EditorAssetHandler(SimpleHTTPRequestHandler):
 
 
 class UMLStudioHandler(EditorAssetHandler):
+    server: UMLStudioServer
+
     @property
     def db_path(self) -> Path:
-        return self.server.db_path  # type: ignore[attr-defined]
+        return self.server.db_path
 
     @contextmanager
     def database(self) -> Iterator[sqlite3.Connection]:
@@ -159,9 +155,6 @@ class UMLStudioHandler(EditorAssetHandler):
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
         if status >= HTTPStatus.BAD_REQUEST:
-            # Some error paths answer before reading the request body (oversized
-            # or malformed PUTs). Leaving those bytes on a keep-alive socket would
-            # corrupt the next request, so an error always ends the connection.
             self.send_header("Connection", "close")
             self.close_connection = True
         self.end_headers()
@@ -435,7 +428,7 @@ class UMLStudioHandler(EditorAssetHandler):
             return
         self.send_json(HTTPStatus.OK, {"ok": True, "id": project_id})
 
-    def do_GET(self) -> None:  # noqa: N802 - stdlib handler API
+    def do_GET(self) -> None:
         path = urlparse(self.path).path
         if path == "/api/health":
             self.send_json(
@@ -443,7 +436,7 @@ class UMLStudioHandler(EditorAssetHandler):
                 {
                     "ok": True,
                     "database": self.db_path.name,
-                    "journalMode": self.server.journal_mode,  # type: ignore[attr-defined]
+                    "journalMode": self.server.journal_mode,
                     "sqliteVersion": sqlite3.sqlite_version,
                 },
             )
@@ -472,7 +465,7 @@ class UMLStudioHandler(EditorAssetHandler):
             return
         super().do_GET()
 
-    def do_PUT(self) -> None:  # noqa: N802 - stdlib handler API
+    def do_PUT(self) -> None:
         path = urlparse(self.path).path
         project_route = self.project_route(path)
         if project_route and project_route[1] is None:
@@ -550,14 +543,14 @@ class UMLStudioHandler(EditorAssetHandler):
             return
         self.send_json(HTTPStatus.OK, {"ok": True, "savedAt": saved_at, "backend": "sqlite"})
 
-    def do_PATCH(self) -> None:  # noqa: N802 - stdlib handler API
+    def do_PATCH(self) -> None:
         project_route = self.project_route(urlparse(self.path).path)
         if not project_route or project_route[1] is not None:
             self.send_json(HTTPStatus.NOT_FOUND, {"error": "not_found"})
             return
         self.patch_project(project_route[0])
 
-    def do_DELETE(self) -> None:  # noqa: N802 - stdlib handler API
+    def do_DELETE(self) -> None:
         project_route = self.project_route(urlparse(self.path).path)
         if not project_route or project_route[1] is not None:
             self.send_json(HTTPStatus.NOT_FOUND, {"error": "not_found"})
@@ -574,10 +567,6 @@ class UMLStudioServer(ThreadingHTTPServer):
     """Threaded server with an injected database and static-file root."""
 
     daemon_threads = True
-    # The stdlib listen backlog is 5. A browser opening the app fires dozens of
-    # connections at once, and on macOS an overflowed backlog resets them
-    # (ERR_CONNECTION_RESET) instead of queueing, so random scripts failed to
-    # load whenever the machine was busy.
     request_queue_size = 128
 
     def __init__(

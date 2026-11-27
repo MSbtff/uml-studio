@@ -1,12 +1,5 @@
 'use strict';
 
-/*
- * UML Studio model core
- *
- * Diagram entries are view objects (geometry/style) that reference semantic
- * model objects by modelId. Accessors keep the existing editor API compatible
- * while a single model can be rendered by multiple views.
- */
 interface ModelSchemaValidation {
   validateEntitySchema(entity: Record<string, unknown>, columns: string[]): unknown;
   validateReferentialActions(relation: Record<string, unknown>): unknown;
@@ -119,7 +112,6 @@ function createModelCore(erdSchema?: ModelSchemaValidation) {
       (diagram.elements || []).forEach(view => {
         const hydrated = hydrateView(view, models, idFactory);
         if (hydrated.kind !== 'fragment') return;
-        /* Older clipboard copies in the same diagram shared a fragment model. */
         if (fragmentModels.has(hydrated.modelId)) {
           const id = idFactory();
           models[id] = { ...structuredClone(models[hydrated.modelId]), id };

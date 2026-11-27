@@ -131,7 +131,6 @@ assert.ok(Object.isFrozen(sections));
 assert.deepEqual(Object.keys(sections).sort(),
   ['erdColumnsProperty', 'erdDisplayModeProperty', 'erdForeignKeyProperty', 'erdSchemaProperty']);
 
-/* ── 표시 방식 ─────────────────────────────────────────────── */
 const display = sections.erdDisplayModeProperty();
 assert.equal(display.className, 'erd-display-property');
 assert.equal(display.attributes.role, 'group');
@@ -142,7 +141,6 @@ assert.deepEqual(modeButtons.map(button => button.attributes['aria-pressed']),
 modeButtons[0].emit('click');
 assert.deepEqual(lastCall('setErdMode'), ['setErdMode', 'logical']);
 
-/* ── Columns ───────────────────────────────────────────────── */
 const entity = entities['post-model'];
 const emptyColumns = sections.erdColumnsProperty(entity);
 assert.equal(emptyColumns.className, 'erd-columns-property');
@@ -182,7 +180,6 @@ assert.deepEqual(lastCall('openErdColumnEditor'),
   ['openErdColumnEditor', entity, 2, { insert: true }],
   '헤더의 추가 버튼은 마지막 컬럼 뒤에 삽입해야 합니다');
 
-/* 드래그로 컬럼 순서 바꾸기 */
 const dataTransfer = { setData() {} };
 const prevented = [];
 const dragEvent = extra => ({ dataTransfer, preventDefault() { prevented.push(1); }, ...extra });
@@ -216,7 +213,6 @@ assert.ok(byClass(withClipboard, 'erd-column-property-row')[0].classList.values.
 assert.match(texts(withClipboard), /복사됨: id/);
 clipboard = null;
 
-/* ── DDL 제약조건과 인덱스 ─────────────────────────────────── */
 entity.erdChecks = [{ name: 'title_check', expression: "title <> ''", column: '' }];
 entity.erdIndexes = [{
   kind: 'index', name: 'posts_title_idx', unique: false,
@@ -256,7 +252,6 @@ indexColumns.emit('change');
 assert.deepEqual(entity.erdIndexes[0].columns,
   [{ name: 'title', order: '' }, { name: 'id', order: 'DESC' }]);
 
-/* 추가·삭제 버튼은 모델을 직접 고쳐 쓰고 패널을 다시 그린다 */
 const addCheck = controls(schema).find(control => control.textContent === '+ CHECK');
 addCheck.emit('click');
 assert.equal(entity.erdChecks.length, 2);
@@ -325,7 +320,6 @@ const emptySchema = sections.erdSchemaProperty({ ...entity, erdChecks: [], erdIn
 assert.match(texts(emptySchema), /CHECK 표현식이 없습니다/);
 assert.match(texts(emptySchema), /보조 인덱스가 없습니다/);
 
-/* ── FK 보유 엔티티 ────────────────────────────────────────── */
 const box = fakeNode('div');
 const relation = { id: 'writes', kind: 'erd-1n', from: 'post', to: 'user', foreignKeyEnd: '' };
 sections.erdForeignKeyProperty(box, relation);

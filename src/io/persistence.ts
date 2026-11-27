@@ -1,13 +1,5 @@
 'use strict';
 
-/*
- * IndexedDB-backed recovery storage.
- *
- * The editor keeps its downloadable JSON format as the source of truth and
- * stores that same JSON in IndexedDB.  This avoids coupling the database
- * schema to individual UML model fields while still providing transactional,
- * large-project autosave support.
- */
 interface PersistenceEnvironment {
   document?: Document;
   indexedDB?: IDBFactory;

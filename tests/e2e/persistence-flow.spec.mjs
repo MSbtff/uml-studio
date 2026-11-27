@@ -90,12 +90,10 @@ test('시퀀스 라이프라인 복사본은 원본과 분리된 모델이 된�
   await expect(canvasElements(page)).toHaveCount(2);
   await expect(page.locator('#status-left')).toContainText('Pasted as independent models: lifeline: 1');
 
-  // 붙여넣은 사본의 이름을 바꿔도 원본은 그대로여야 한다
   await page.getByLabel('Name', { exact: true }).fill('Copied');
   await expect(page.locator('#canvas')).toContainText('Copied');
   await expect(page.locator('#canvas')).toContainText('Original');
 
-  // 사본을 모델에서 지워도 원본 라이프라인은 남는다
   await page.getByRole('button', { name: 'Delete Model', exact: true }).click();
   await expect(canvasElements(page)).toHaveCount(1);
   await expect(page.locator('#canvas')).toContainText('Original');
@@ -173,8 +171,6 @@ test('복구 이력에서 이전 revision을 선택해 화면 상태를 복원�
 test('잡히지 않은 오류는 상태 표시줄에 표시되고 자동저장은 계속된다', async ({ studioPage: page }) => {
   await createEmptyProject(page);
 
-  // 실제 예외 대신 합성 ErrorEvent를 보낸다 — 픽스처의 pageerror 검사와 충돌하지 않으면서
-  // 브라우저의 error 이벤트 경로는 그대로 탄다
   await page.evaluate(() => {
     window.dispatchEvent(new ErrorEvent('error', { message: 'Uncaught TypeError: render broke' }));
   });
@@ -191,7 +187,6 @@ test('잡히지 않은 오류는 상태 표시줄에 표시되고 자동저장�
   });
   await expect(page.locator('#status-right')).toContainText('⚠ Errors: 2');
 
-  // 오류 뒤에도 편집과 자동저장은 정상이다
   await createCanvasElement(page, 'Class', { x: 260, y: 200 });
   await renameSelectedElement(page, 'AfterError');
   await waitForStoredProject(page, (data) => Object.values(data.models).some((model) => model.name === 'AfterError'));

@@ -34,10 +34,6 @@ interface ErdColumnEditorDependencies {
 type ErdColumnEditorApi = ReturnType<typeof createErdColumnEditorModule>;
 declare var UMLErdColumnEditor: ErdColumnEditorApi;
 
-/* ERD column editor — the clipboard, the reorder/delete/bulk-replace commands
-   and the floating column sheet that ER diagrams use. QuickEdit builds it and
-   hands over `selectQuickEditTarget` plus a callback that closes its own two
-   editors, so only one QuickEdit surface is ever open. */
 (function initErdColumnEditor(root: typeof globalThis, factory: () => ErdColumnEditorApi) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
@@ -339,7 +335,6 @@ function createErdColumnEditorModule() {
       title.className = 'erd-column-editor-title';
       title.id = `uml-quickedit-title-${nextFieldSequence()}`;
       title.textContent = `${entity.name || 'Entity'} · ${isNew ? uiText('New Column', '새 컬럼') : uiText('Edit Column {0}', '{0}번째 컬럼 편집', index + 1)}`;
-      /* name the dialog with the heading the user can actually see */
       editor.setAttribute('aria-labelledby', title.id);
       editor.appendChild(title);
 
@@ -368,8 +363,6 @@ function createErdColumnEditorModule() {
         const input = document.createElement('input');
         input.type = 'text'; input.name = name; input.value = fieldValue || '';
         input.placeholder = placeholder; input.autocomplete = 'off';
-        /* the row itself is the <label>, so name the control from the caption
-           alone and leave the hint as a description */
         input.setAttribute('aria-labelledby', label.id);
         row.append(label, input);
         if (hint) {

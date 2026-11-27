@@ -17,8 +17,6 @@ const FONT13B = `600 13px ${FONT_FAMILY}`;
 const LINE_H = 15;
 const TIMING_ROW_HEIGHT = 44;
 
-/* 폰트 폭은 브라우저 Canvas가 재는 값이므로, 테스트에서는 결정적인
-   근사치(글자당 고정 폭, 굵은 글꼴은 조금 더 넓게)를 쓴다. */
 function measureText(text, font) {
   const perChar = font === FONT13B ? 7.5 : 6.5;
   return String(text || '').length * perChar;
@@ -52,7 +50,6 @@ assert.ok(Object.isFrozen(REQUIRED_FUNCTIONS));
 assert.ok(Object.isFrozen(REQUIRED_VALUES));
 assert.ok(Object.isFrozen(VISIBILITY_SYMBOLS));
 
-/* ── 의존성 검증 ────────────────────────────────────────────── */
 assert.throws(() => create(), /Element Measure 의존성이 없습니다/);
 assert.throws(() => create({}), /tw/);
 {
@@ -79,7 +76,6 @@ assert.ok(Object.isFrozen(measurer));
   assert.ok(container.minH > measurer.measure({ kind: 'c4container' }).minH);
 }
 
-/* ── 가시성 · 이름 조합 ─────────────────────────────────────── */
 assert.equal(measurer.visibilitySymbol('public'), '+');
 assert.equal(measurer.visibilitySymbol('protected'), '#');
 assert.equal(measurer.visibilitySymbol('private'), '-');
@@ -91,7 +87,6 @@ assert.equal(measurer.packageElementTitle({ name: 'infra' }), 'infra', '가시�
 assert.equal(measurer.profileElementTitle({ name: 'Entity' }), '+ Entity', 'Profile 요소는 public이 기본입니다');
 assert.equal(measurer.profileElementTitle({ visibility: 'protected', name: 'Generated' }), '# Generated');
 
-/* ── 상태 머신 라벨 ─────────────────────────────────────────── */
 assert.deepEqual(
   measurer.stateBehaviorLines({
     entry: 'showProgress()', doActivity: 'validate()', exit: '',
@@ -101,7 +96,6 @@ assert.deepEqual(
 );
 assert.deepEqual(measurer.stateBehaviorLines({}), []);
 
-/* ── 모델 참조 라벨 ─────────────────────────────────────────── */
 {
   const h = harness({
     state: {
@@ -152,7 +146,6 @@ assert.deepEqual(measurer.stateBehaviorLines({}), []);
   assert.deepEqual(h.measurer.constraintPropertyEquations({}), []);
 }
 
-/* ── Constraint Parameter 선언 파싱 ─────────────────────────── */
 assert.deepEqual(measurer.parseConstraintParameterDefinition('renderTime: Milliseconds'),
   { name: 'renderTime', typeName: 'Milliseconds' });
 assert.deepEqual(measurer.parseConstraintParameterDefinition('+ frameBudget : Milliseconds [1] = 100'),
@@ -161,7 +154,6 @@ assert.deepEqual(measurer.parseConstraintParameterDefinition('bare'), { name: 'b
 assert.equal(measurer.parseConstraintParameterDefinition('   '), null);
 assert.equal(measurer.parseConstraintParameterDefinition('a b: C'), null, '이름에 공백이 있으면 거부합니다');
 
-/* ── BDD 컴파트먼트 ─────────────────────────────────────────── */
 {
   const block = measurer.bddCompartments({
     kind: 'block', constraints: ['{ c }'], parts: ['canvas: Canvas'], references: [], values: ['v: Real'],
@@ -187,7 +179,6 @@ assert.equal(measurer.parseConstraintParameterDefinition('a b: C'), null, '이�
   assert.deepEqual(measurer.bddCompartments({ kind: 'block' }), [], '빈 컴파트먼트는 생략합니다');
 }
 
-/* ── Requirement 본문 줄바꿈 ────────────────────────────────── */
 {
   assert.deepEqual(measurer.wrapRequirementText(''), ['']);
   assert.deepEqual(measurer.wrapRequirementText('short text'), ['short text']);
@@ -199,7 +190,6 @@ assert.equal(measurer.parseConstraintParameterDefinition('a b: C'), null, '이�
   assert.deepEqual(narrow, ['alpha', 'beta', 'gamma']);
 }
 
-/* ── measure(): 고정 크기 요소 ──────────────────────────────── */
 for (const [kind, minW, minH] of [
   ['initial', 24, 24], ['final', 28, 28], ['flowfinal', 26, 26],
   ['forkbar', 96, 8], ['joinbar', 96, 8], ['statefork', 96, 8],
@@ -218,7 +208,6 @@ for (const [kind, minW, minH] of [
   assert.equal(m.minH, minH, `${kind} minH`);
 }
 
-/* ── measure(): 이름 길이에 따라 넓어지는 요소 ──────────────── */
 {
   const short = measurer.measure({ kind: 'usecase', name: 'Go' });
   const long = measurer.measure({ kind: 'usecase', name: 'A very long use case name indeed' });
@@ -228,7 +217,6 @@ for (const [kind, minW, minH] of [
   assert.equal(long.minH, 48);
 }
 
-/* ── measure(): note ────────────────────────────────────────── */
 {
   const m = measurer.measure({ kind: 'note', text: 'first line\nsecond line' });
   assert.deepEqual(m.lines, ['first line', 'second line']);
@@ -236,7 +224,6 @@ for (const [kind, minW, minH] of [
   assert.equal(measurer.measure({ kind: 'note', text: '' }).minH, 40, '빈 노트도 최소 높이를 지킵니다');
 }
 
-/* ── measure(): 분류자(class/interface/…) ───────────────────── */
 {
   const m = measurer.measure({
     kind: 'class', name: 'Shape', stereotype: '',
@@ -285,7 +272,6 @@ for (const [kind, minW, minH] of [
   assert.ok(stereotypeNoIcon.headH < 64);
 }
 
-/* ── measure(): SysML 블록 ──────────────────────────────────── */
 {
   const m = measurer.measure({
     kind: 'block', name: 'Rendering Engine', visibility: 'public',
@@ -303,7 +289,6 @@ for (const [kind, minW, minH] of [
   assert.equal(measurer.measure({ kind: 'constraintblock', name: 'B' }).stereo, '«constraintBlock»');
 }
 
-/* ── measure(): Requirement ─────────────────────────────────── */
 {
   const m = measurer.measure({
     kind: 'requirement', name: 'Render Within Budget', visibility: 'public',
@@ -321,7 +306,6 @@ for (const [kind, minW, minH] of [
   assert.equal(measurer.measure({ kind: 'requirement', name: 'R' }).stereo, '«requirement»');
 }
 
-/* ── measure(): 다이어그램 타입에 따라 달라지는 요소 ────────── */
 {
   const h = harness({ diagram: { id: 'd1', type: 'package', name: 'P', elements: [], relations: [] } });
   const inPackage = h.measurer.measure({ kind: 'package', name: 'domain', visibility: 'public' });
@@ -339,7 +323,6 @@ for (const [kind, minW, minH] of [
   assert.equal(ibd.measurer.measure({ kind: 'value', name: 'frameBudget', defaultValue: '42 ms' }).title, 'frameBudget');
 }
 
-/* ── measure(): lifeline은 다이어그램 종류마다 다르다 ───────── */
 {
   const sequence = harness();
   const actor = sequence.measurer.measure({ kind: 'lifeline', isActor: true, name: 'User' });
@@ -367,7 +350,6 @@ for (const [kind, minW, minH] of [
   assert.equal(emptyLifeline.minH, Math.max(120, 44 + TIMING_ROW_HEIGHT), '상태가 없어도 한 행은 확보합니다');
 }
 
-/* ── measure(): ERD entity는 표시 모드에 따라 열이 바뀐다 ───── */
 {
   const columns = ['PK id <회원번호>: VARCHAR2(50)', 'NN name <이름>: VARCHAR2(50)'];
   const entity = { kind: 'entity', name: 'TB_USER', logicalName: '회원', columns };
@@ -405,7 +387,6 @@ for (const [kind, minW, minH] of [
   assert.equal(defaultMode.erdMode(), 'physical', 'erdMode 기본값은 physical입니다');
   assert.equal(defaultMode.measure(entity).primaryTitle, 'TB_USER');
 
-  /* PK와 FK를 함께 가진 열이 있으면 배지 칸이 넓어진다 */
   const wideFlags = harness({
     diagram: { id: 'd1', type: 'erd', name: 'E', elements: [], relations: [] },
   }).measurer.measure({
@@ -415,7 +396,6 @@ for (const [kind, minW, minH] of [
   assert.equal(physical.flagWidth, 26);
 }
 
-/* ── measure(): 상태 ────────────────────────────────────────── */
 {
   const simple = measurer.measure({ kind: 'state', name: 'Checking', entry: 'showProgress()' });
   assert.equal(simple.headH, 28);
@@ -441,7 +421,6 @@ for (const [kind, minW, minH] of [
   assert.equal(submachine.headH, 48);
 }
 
-/* ── measure(): 인스턴스 · 구조 요소 ────────────────────────── */
 {
   const h = harness({ state: { models: { m1: { id: 'm1', kind: 'class', name: 'Layer' } } } });
   const object = h.measurer.measure({
@@ -475,7 +454,6 @@ for (const [kind, minW, minH] of [
   assert.equal(constraint.minH, Math.max(88, 54 + LINE_H));
 }
 
-/* ── measure(): Interaction Use / Inline ────────────────────── */
 {
   const h = harness({
     state: {
@@ -491,7 +469,6 @@ for (const [kind, minW, minH] of [
   assert.equal(h.measurer.measure({ kind: 'interactioninline', interactionDiagramId: 'sq' }).minH, 224);
 }
 
-/* ── normalizeSize는 측정값을 캐시하고 크기를 넓히기만 한다 ── */
 {
   const view = { kind: 'usecase', name: 'Draw Diagram', w: 0, h: 0 };
   measurer.normalizeSize(view);
@@ -509,7 +486,6 @@ for (const [kind, minW, minH] of [
   assert.equal(missing.w, missing._m.minW);
 }
 
-/* ── 알 수 없는 kind도 분류자 기본값으로 측정된다 ───────────── */
 {
   const m = measurer.measure({ kind: 'unknown-kind', name: 'Mystery' });
   assert.ok(m.minW > 0 && m.minH > 0);

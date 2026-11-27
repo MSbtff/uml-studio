@@ -1,12 +1,5 @@
 'use strict';
 
-/* Parametric diagram support — Constraint Parameter ports and the Binding
-   Connector routes that attach to them. Both halves share the `borderAnchor`
-   convention: a parameter records which edge of its Constraint Property it
-   sits on, and the router turns that anchor back into the direction a route
-   must leave the port. Geometry, the orthogonal router and the element factory
-   are injected, so this module owns only the parametric rules and the route
-   cache for the diagram being rendered. */
 type ParametricBindingApi = ReturnType<typeof createParametricBindingModule>;
 declare var UMLParametricBinding: ParametricBindingApi;
 
@@ -46,15 +39,11 @@ function createParametricBindingModule() {
     'state',
   ] as const);
   const ROUTING = Object.freeze({
-    /* how far a route keeps away from the boxes it passes */
     clearance: 14,
-    /* a manual route stays editable — refuse to grow past this */
     maxWaypoints: 200,
-    /* half the side of a Constraint Parameter port, used to centre it on the border */
     parameterHalfSize: 9,
   });
   const CONSTRAINT_TYPE_KINDS = Object.freeze(['block', 'valuetype']);
-  /* the straight fallback used before a diagram has been routed */
   const STRAIGHT_ROUTE_METRICS = Object.freeze({
     obstacleHits: 0, crossings: 0, overlap: 0, bends: 0,
     jumpCrossings: [], jumpCount: 0,
@@ -118,13 +107,8 @@ function createParametricBindingModule() {
       state,
     } = deps as ParametricBindingDependencies;
 
-    /* routes for the diagram currently being rendered, keyed by relation id */
     let routeCache = new Map<string, BindingRoute>();
 
-    /* ── Constraint Parameters ───────────────────────────────── */
-
-    /* the parameters declared by the Constraint Block this property is typed
-       by, in declaration order and without duplicate names */
     function declaredParameters(classifier: DiagramModel) {
       const names = new Set();
       return (classifier.constraintParameters || [])
@@ -138,7 +122,6 @@ function createParametricBindingModule() {
         });
     }
 
-    /* parameters alternate left/right border, each side spread evenly */
     function borderAnchorFor(index: number, sideCounts: [number, number]) {
       const side = index % 2;
       const sideIndex = Math.floor(index / 2);
@@ -196,10 +179,6 @@ function createParametricBindingModule() {
       flashStatus(uiText('Added {0} constraint parameters.', 'Constraint Parameter {0}개를 추가했습니다', added.length));
     }
 
-    /* ── Route geometry ──────────────────────────────────────── */
-
-    /* which way a route leaves this view: an anchored parameter uses the
-       border it was pinned to, anything else uses its nearest edge */
     function portDirection(view: DiagramElement, point: DiagramPoint) {
       if (view.kind === 'constraintparameter') {
         const owner = byId(view.parentId);
@@ -220,8 +199,6 @@ function createParametricBindingModule() {
       return distances[0].direction;
     }
 
-    /* everything a route has to avoid: the frame is scenery, and the two
-       views being connected are where the route starts and ends */
     function obstaclesFor(diagram: EditorDiagram, from: DiagramElement, to: DiagramElement) {
       const excluded = new Set([from.id, to.id]);
       return diagram.elements
@@ -232,7 +209,6 @@ function createParametricBindingModule() {
         .map(element => ({ x: element.x, y: element.y, w: element.w, h: element.h }));
     }
 
-    /* routes are laid one at a time so each can see and jump the earlier ones */
     function computeRoutes(diagram: EditorDiagram | null | undefined) {
       routeCache = new Map();
       if (!diagram || diagram.type !== 'parametric') return;
@@ -269,15 +245,12 @@ function createParametricBindingModule() {
       return endpoints ? { points: [endpoints.p1, endpoints.p2], ...STRAIGHT_ROUTE_METRICS } : null;
     }
 
-    /* ── Manual waypoints ────────────────────────────────────── */
-
     function waypoints(r: DiagramRelation) {
       return (Array.isArray(r.manualPoints) ? r.manualPoints : [])
         .filter(point => Number.isFinite(point?.x) && Number.isFinite(point?.y))
         .map(point => ({ x: point.x, y: point.y }));
     }
 
-    /* freeze the route as it looks now so later edits stop moving it */
     function lock(r: DiagramRelation | null | undefined) {
       if (!r || r.kind !== 'bindingconnector') return;
       if (r.routeMode === 'manual' && Array.isArray(r.manualPoints)) return;
@@ -303,7 +276,6 @@ function createParametricBindingModule() {
       const existing = r.routeMode === 'manual'
         ? waypoints(r)
         : compactBindingWaypoints(routePoints.slice(1, -1));
-      /* clamp onto the segment first so the new point sorts into the right place */
       const a = routePoints[index], b = routePoints[index + 1];
       const insertionPosition = distanceAlongPolyline({
         x: Math.max(Math.min(point.x, Math.max(a.x, b.x)), Math.min(a.x, b.x)),

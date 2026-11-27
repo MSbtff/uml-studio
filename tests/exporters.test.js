@@ -639,7 +639,6 @@ const relation = (id, kind, from, to, extra) => ({
   assert.match(mermaid, /e_user \|\|\.\.o\{ e_post : "writes"/);
 }
 
-/* ERD CREATE TABLE DDL */
 {
   assert.ok(Object.isFrozen(ERD_DDL_DIALECTS));
   assert.ok(Object.values(ERD_DDL_DIALECTS).every(Object.isFrozen));

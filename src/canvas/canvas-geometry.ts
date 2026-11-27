@@ -52,8 +52,6 @@ function createCanvasGeometry() {
       && point.y <= rect.y + rect.h - inset;
   }
 
-  /* Point where the ray from the element center toward `toward` meets its
-     rendered outline. UML shapes use ellipse, circle, diamond, or rectangle. */
   function edgePoint(element: ElementOutline, toward: DiagramPoint) {
     const middle = center(element);
     const dx = toward.x - middle.x, dy = toward.y - middle.y;
@@ -78,8 +76,6 @@ function createCanvasGeometry() {
     return { x: element.x + anchor.fx * element.w, y: element.y + anchor.fy * element.h };
   }
 
-  /* Fractional anchor on the nearest outline. Curved shapes use angular
-     projection; rectangular shapes preserve the cursor's nearest-edge offset. */
   function borderAnchorFrac(host: ElementOutline, point: DiagramPoint) {
     if (ELLIPSE_KINDS.has(host.kind) || CIRCLE_KINDS.has(host.kind) || DIAMOND_KINDS.has(host.kind)) {
       const outline = edgePoint(host, point);

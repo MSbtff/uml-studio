@@ -155,7 +155,6 @@ function makeHarness(overrides = {}) {
   controller.render();
   assert.match(statusRight.textContent, /^비상 저장소 사용 · Status Project/);
 
-  /* 런타임 오류 건수는 저장 상태보다 앞에, 새로고침 전까지 남는다 */
   state.runtimeErrors = { count: 2, last: 'render broke', at: 1 };
   state.dirty = true;
   controller.render();

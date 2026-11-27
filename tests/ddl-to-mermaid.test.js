@@ -36,8 +36,7 @@ test('the packed library converts SQL from a standalone project', (t) => {
     const output: DdlConversion = ddlToMermaid('CREATE TABLE books (id BIGINT);');
     const erd: ImportedErd = output.erd;
     const name: string = erd.diagrams[0].name;
-    // @ts-expect-error The package accepts SQL strings.
-    ddlToMermaid(1);
+    const acceptsNumber: typeof ddlToMermaid extends (sql: number) => unknown ? true : false = false;
   `);
   const compiler = resolve(__dirname, '../node_modules/typescript/bin/tsc');
   execFileSync(process.execPath, [

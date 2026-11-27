@@ -1,9 +1,5 @@
 'use strict';
 
-/* Element measurement — the intrinsic minimum size of every view kind plus the
-   label, stereotype and compartment text that size depends on.  measure() also
-   returns the derived metrics (row offsets, compartment heights, wrapped text)
-   that the renderers draw from, so the two never disagree. */
 interface ElementMeasureDependencies {
   childViews(parentId: string): DiagramElement[];
   dg(): EditorDiagram;
@@ -467,11 +463,11 @@ function createElementMeasureModule() {
           const showPhys = mode !== 'logical';
           const maxKeyFlags = Math.max(1, ...cols.map(c => ['PK', 'FK'].filter(flag => c.flags.includes(flag)).length));
           const flagWidth = maxKeyFlags > 1 ? 45 : 26;
-          let x = flagWidth; // explicit PK/FK badge column
+          let x = flagWidth;
           const xLog = x; if (showLog) x += wLog + GAP;
           const xType = x; if (showType && wType) x += wType + GAP;
           const xPhys = x; if (showPhys) x += wPhys + GAP;
-          const wBody = x + 36; // null-constraint column
+          const wBody = x + 36;
           const primaryTitle = mode === 'physical' ? e.name : (e.logicalName || e.name);
           const secondaryTitle = mode === 'both' && e.logicalName ? e.name : '';
           const wHead = tw(primaryTitle, FONT13B) + (secondaryTitle ? tw(secondaryTitle, FONT12) + 24 : 0) + 24;
@@ -527,7 +523,6 @@ function createElementMeasureModule() {
         case 'connectionpointref': return { minW: 20, minH: 20 };
         case 'terminate': return { minW: 24, minH: 24 };
       }
-      /* classifier-like elements */
       const stereo = e.kind === 'interface' ? '«interface»'
         : e.kind === 'enumeration' ? '«enumeration»'
         : e.kind === 'metaclass' ? '«metaclass»'

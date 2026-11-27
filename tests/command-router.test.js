@@ -209,7 +209,6 @@ assert.equal(cancelCalls, 0, 'Escape는 열린 모달을 상호작용 취소보�
 eventRoot.emit('keydown', keyboardEvent('Escape'));
 assert.equal(cancelCalls, 1);
 
-/* ── menubar ARIA and keyboard navigation ─────────────────── */
 focused = fileTrigger;
 fileTrigger.emit('keydown', keyboardEvent('ArrowRight'));
 assert.equal(focused, editTrigger, '방향키는 메뉴바 항목 사이를 이동해야 합니다');
@@ -281,7 +280,6 @@ lastOpened.emit('keydown', keyboardEvent('Tab'));
 assert.equal(body.children.length, 0, 'Tab은 메뉴를 닫아야 합니다');
 assert.equal(focused, viewTrigger);
 
-/* ── toolbar: one tab stop, arrow keys inside ─────────────── */
 function toolbarEvent(key, button) {
   let prevented = 0;
   let stopped = 0;
@@ -328,7 +326,6 @@ toolbar.emit('focusin', { target: staticToolbarButtons[2] });
 assert.equal(staticToolbarButtons[2].tabIndex, 0);
 assert.equal(staticToolbarButtons[0].tabIndex, -1);
 
-/* the ERD/sequence holders are rebuilt on every canvas render */
 const erdModeButton = fakeNode('button');
 erdModeButton.textContent = '논리';
 erdModeButton.closest = selector => (selector === 'button' ? erdModeButton : null);

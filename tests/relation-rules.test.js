@@ -9,7 +9,6 @@ const {
 } = require('../dist/browser/model/relation-rules.js');
 const { KIND_META } = require('../dist/browser/model/presentation-registry.js');
 
-/* app.js가 쓰는 것과 같은 종류 집합 */
 const COMPOSITE_CONNECTABLE_KINDS = new Set(['part', 'port']);
 const BDD_CLASSIFIER_KINDS = new Set(['block', 'valuetype', 'interfaceblock', 'constraintblock']);
 const BDD_RELATION_KINDS = new Set([
@@ -92,7 +91,6 @@ assert.ok(Object.isFrozen(REQUIRED_FUNCTIONS));
 assert.ok(Object.isFrozen(REQUIRED_VALUES));
 assert.ok(Object.isFrozen(KIND_SETS));
 
-/* ── 의존성 검증 ────────────────────────────────────────────── */
 assert.throws(() => create(), /Relation Rules 의존성이 없습니다/);
 assert.throws(() => create({}), /dg/);
 {
@@ -107,7 +105,6 @@ assert.throws(() => create({}), /dg/);
   assert.ok(Object.isFrozen(rules));
 }
 
-/* ── Transition 방향 ────────────────────────────────────────── */
 {
   const { rules } = harness();
   const t = rules.transitionDirectionError;
@@ -126,7 +123,6 @@ assert.throws(() => create({}), /dg/);
   assert.equal(t(v('a', 'state'), v('b', 'connectionpointref')), '');
 }
 
-/* ── Composite Structure ────────────────────────────────────── */
 {
   const { rules } = harness();
   const c = rules.compositeRelationError;
@@ -139,7 +135,6 @@ assert.throws(() => create({}), /dg/);
   assert.equal(c('association', v('a', 'class'), v('b', 'class')), '', '다른 관계는 통과시킵니다');
 }
 
-/* ── Activity ───────────────────────────────────────────────── */
 {
   const h = harness({
     id: 'd1', type: 'activity', name: 'A', relations: [],
@@ -178,7 +173,6 @@ assert.throws(() => create({}), /dg/);
   assert.equal(a('activityinterrupt', el('inside'), el('outside')), '');
 }
 
-/* ── Package ────────────────────────────────────────────────── */
 {
   const h = harness({
     id: 'd1', type: 'package', name: 'P', relations: [],
@@ -197,12 +191,10 @@ assert.throws(() => create({}), /dg/);
   assert.match(p('dependency', v('a', 'class'), v('b', 'package')), /Package, Model 또는 Subsystem 사이에/);
 }
 {
-  /* Package Diagram이 아니면 Dependency 제약이 없다 */
   const h = harness();
   assert.equal(h.rules.packageRelationError('dependency', v('a', 'class'), v('b', 'class')), '');
 }
 
-/* ── Profile ────────────────────────────────────────────────── */
 {
   const h = harness({
     id: 'd1', type: 'profile', name: 'P',
@@ -234,7 +226,6 @@ assert.throws(() => create({}), /dg/);
     'Profile Diagram이 아니면 검사하지 않습니다');
 }
 
-/* ── Information Flow ───────────────────────────────────────── */
 {
   const { rules } = harness();
   const i = rules.informationFlowRelationError;
@@ -245,7 +236,6 @@ assert.throws(() => create({}), /dg/);
     'Information Flow는 같은 요소에 다시 연결할 수 없습니다');
 }
 
-/* ── Requirement ────────────────────────────────────────────── */
 {
   const { rules } = harness();
   const r = rules.requirementRelationError;
@@ -264,7 +254,6 @@ assert.throws(() => create({}), /dg/);
   }
 }
 
-/* ── BDD ────────────────────────────────────────────────────── */
 {
   const h = harness({
     id: 'd1', type: 'bdd', name: 'B',
@@ -297,7 +286,6 @@ assert.throws(() => create({}), /dg/);
     'BDD가 아니면 검사하지 않습니다');
 }
 
-/* ── IBD ────────────────────────────────────────────────────── */
 {
   const h = harness({
     id: 'd1', type: 'ibd', name: 'I',
@@ -319,7 +307,6 @@ assert.throws(() => create({}), /dg/);
   assert.equal(i('connector', v('p1', 'port'), v('p2', 'port'), 'c1'), '');
 }
 
-/* ── Parametric ─────────────────────────────────────────────── */
 {
   const h = harness({
     id: 'd1', type: 'parametric', name: 'P',
@@ -350,7 +337,6 @@ assert.throws(() => create({}), /dg/);
   assert.equal(p('bindingconnector', v('v1', 'value'), v('v2', 'constraintparameter'), 'b1'), '');
 }
 
-/* ── relationError는 아홉 규칙을 순서대로 적용한다 ──────────── */
 {
   const h = harness({
     id: 'd1', type: 'activity', name: 'A', relations: [], elements: [],
@@ -358,7 +344,6 @@ assert.throws(() => create({}), /dg/);
   assert.equal(h.rules.relationError('controlflow', v('a', 'action'), v('b', 'decision')), '');
   assert.match(h.rules.relationError('controlflow', v('a', 'class'), v('b', 'action')),
     /Activity Node 사이에만/);
-  /* Composite 규칙이 Activity 규칙보다 먼저 판정된다 */
   assert.match(h.rules.relationError('rolebinding', v('a', 'part'), v('b', 'collaborationuse')),
     /Collaboration Use에서 Part 방향으로/);
 }
@@ -370,7 +355,6 @@ assert.throws(() => create({}), /dg/);
   assert.equal(h.rules.relationError('connector', v('a', 'part'), v('b', 'port'), 'ignored'), '');
 }
 {
-  /* 규칙과 무관한 다이어그램에서는 아무 메시지도 나오지 않는다 */
   const h = harness();
   assert.equal(h.rules.relationError('association', v('a', 'class'), v('b', 'class')), '');
   assert.equal(h.rules.relationError('notelink', v('a', 'note'), v('b', 'class')), '');

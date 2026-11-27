@@ -1,6 +1,5 @@
 'use strict';
 
-/* Parser and normalizer for QuickEdit expressions. */
 type ExpressionParserApi = ReturnType<typeof createExpressionParser>;
 declare var UMLExpressionParser: ExpressionParserApi;
 

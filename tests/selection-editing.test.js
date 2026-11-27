@@ -13,7 +13,6 @@ const {
 const { GRID, snap } = require('../dist/browser/canvas/canvas-geometry.js');
 const { sequenceLifelineTop } = require('../dist/browser/canvas/sequence-layout.js');
 
-/* app.js의 뷰/모델 저장소를 축소한 하네스 */
 function harness(overrides = {}) {
   let idSeq = 1;
   const diagram = overrides.diagram || { id: 'd1', type: 'class', name: 'D', elements: [], relations: [] };
@@ -52,8 +51,6 @@ function harness(overrides = {}) {
     flashStatus: message => { log.status.push(message); },
     isMsg: kind => kind?.startsWith('msg-'),
     modelUid: () => 'm' + (idSeq++),
-    /* 실제 containment-layout처럼 격자에 맞춘다 — 스냅을 빼면 1px 이동이
-       실제로는 사라진다는 사실을 테스트가 놓친다 */
     moveViewTree: (view, dx, dy, origins, grid) => {
       [view, ...descendantViews(view.id)].forEach(node => {
         const origin = origins && origins.get(node.id);
@@ -108,7 +105,6 @@ assert.ok(CLONED_MODEL_LIST_FIELDS.includes('columns'));
 assert.ok(CLONED_MODEL_STRUCTURED_FIELDS.includes('erdIndexes'));
 assert.ok(MODEL_REFERENCE_FIELDS.includes('classifierModelId'));
 
-/* ── 의존성 검증 ────────────────────────────────────────────── */
 assert.throws(() => create(), /Selection Editing 의존성이 없습니다/);
 assert.throws(() => create({}), /adoptView/);
 {
@@ -124,7 +120,6 @@ assert.throws(() => create({}), /adoptView/);
   assert.equal(editing.hasClipboard(), false);
 }
 
-/* ── 전체 선택 / 키보드 이동 ────────────────────────────────── */
 {
   const h = harness({
     diagram: {
@@ -153,14 +148,12 @@ assert.throws(() => create({}), /adoptView/);
   assert.equal(h.byId('child').x, 121, '자손도 함께 움직입니다');
   h.editing.moveSelectionByKey('ArrowLeft', false);
   assert.equal(h.byId('parent').x, 100, '되돌리는 것도 1px입니다');
-  /* Shift 이동은 두 축을 모두 그리드에 맞춘다 */
   assert.equal(h.editing.moveSelectionByKey('ArrowDown', true), true);
   assert.equal(h.byId('parent').y, snap(100 + GRID), 'coarse 이동은 그리드에 맞춥니다');
   assert.equal(h.byId('parent').x, snap(100), '그리드 이동은 어긋난 축도 정렬합니다');
   assert.equal(h.log.snapshots, 3);
 }
 
-/* ── 복사 ───────────────────────────────────────────────────── */
 {
   const h = harness({
     diagram: {
@@ -194,7 +187,6 @@ assert.throws(() => create({}), /adoptView/);
   assert.match(h.log.status.at(-1), /"a" 복사됨/);
 }
 {
-  /* 관계만 선택하면 안내만 하고 복사하지 않는다 */
   const h = harness({
     diagram: {
       id: 'd1', type: 'class', name: 'D',
@@ -208,7 +200,6 @@ assert.throws(() => create({}), /adoptView/);
   assert.match(h.log.status.at(-1), /관계\(선\)는 단독으로 복사할 수 없습니다/);
 }
 {
-  /* Region을 고르면 소유 Composite State 전체가 복사 대상이 된다 */
   const h = harness({
     diagram: {
       id: 'd1', type: 'state', name: 'S', relations: [],
@@ -223,7 +214,6 @@ assert.throws(() => create({}), /adoptView/);
   assert.deepEqual(h.editing.expandedElementSelection().map(v => v.id).sort(), ['cs', 'inner', 'r1']);
 }
 {
-  /* Time Constraint는 붙어 있는 대상과 함께 따라간다 */
   const h = harness({
     diagram: {
       id: 'd1', type: 'timing', name: 'T', relations: [],
@@ -239,7 +229,6 @@ assert.throws(() => create({}), /adoptView/);
   assert.match(h.log.status.at(-1), /요소 2개/);
 }
 
-/* ── 붙여넣기 ───────────────────────────────────────────────── */
 {
   const h = harness({
     diagram: {
@@ -270,12 +259,10 @@ assert.throws(() => create({}), /adoptView/);
   assert.equal(newRelation.to, pasted[1].id);
   assert.notEqual(newRelation.id, 'r1');
 
-  /* 두 번째 붙여넣기는 오프셋이 두 배 */
   h.editing.pasteClipboard();
   assert.equal(h.diagram.elements.at(-2).x, snap(100 + PASTE_OFFSET * 2));
 }
 {
-  /* ERD 테이블은 독립 모델로 복제된다 */
   const h = harness({
     diagram: {
       id: 'd1', type: 'erd', name: 'E', relations: [],
@@ -304,7 +291,6 @@ assert.throws(() => create({}), /adoptView/);
   assert.match(h.log.status.at(-1), /테이블 1개를 독립 모델로 붙여넣었습니다/);
 }
 {
-  /* 시퀀스 라이프라인도 독립 모델로 복제되지만, 가리키는 분류자는 공유를 유지한다 */
   const h = harness({
     diagram: {
       id: 'd1', type: 'sequence', name: 'S', relations: [],
@@ -331,7 +317,6 @@ assert.throws(() => create({}), /adoptView/);
   assert.match(h.log.status.at(-1), /라이프라인 1개를 독립 모델로 붙여넣었습니다/);
 }
 {
-  /* Combined Fragment를 붙여넣거나 복제하면 매번 독립 모델을 받는다 */
   const fragment = { id: 'model-f', kind: 'fragment', name: 'Fragment', operator: 'alt',
     condition: '[fallback]', operands: ['[success]', '[else]'] };
   const h = harness({
@@ -362,7 +347,6 @@ assert.throws(() => create({}), /adoptView/);
   assert.equal(h.diagram.elements.at(-1).modelId, ids.at(-1));
 }
 {
-  /* 잘라내기는 이동이므로 라이프라인 모델이 그대로 따라간다 */
   const h = harness({
     diagram: {
       id: 'd1', type: 'sequence', name: 'S', relations: [],
@@ -376,7 +360,6 @@ assert.throws(() => create({}), /adoptView/);
   assert.equal(h.diagram.elements[0].modelId, 'model-l', '잘라내기 후 붙여넣기는 같은 모델을 유지합니다');
 }
 {
-  /* Object·Node·Component·Artifact 인스턴스도 복사하면 개별 객체가 된다 */
   const h = harness({
     diagram: {
       id: 'd1', type: 'object', name: 'O', relations: [],
@@ -407,7 +390,6 @@ assert.throws(() => create({}), /adoptView/);
     '라벨이 같은 종류는 하나로 합쳐 세야 합니다');
 }
 {
-  /* 배치·컴포넌트 다이어그램의 물리적 요소도 복사하면 별개의 것이 된다 */
   const h = harness({
     diagram: {
       id: 'd1', type: 'deployment', name: 'D', relations: [],
@@ -433,7 +415,6 @@ assert.throws(() => create({}), /adoptView/);
     '라벨이 다른 종류는 각각 세어 알려야 합니다');
 }
 {
-  /* Class 같은 추상 분류자는 여전히 같은 모델의 두 번째 뷰다 */
   const h = harness({
     diagram: {
       id: 'd1', type: 'class', name: 'C', relations: [],
@@ -449,7 +430,6 @@ assert.throws(() => create({}), /adoptView/);
   assert.doesNotMatch(h.log.status.at(-1) || '', /독립 모델/);
 }
 {
-  /* 부모-자식 관계는 붙여넣은 사본 안에서 다시 연결된다 */
   const h = harness({
     diagram: {
       id: 'd1', type: 'class', name: 'D', relations: [],
@@ -472,7 +452,6 @@ assert.throws(() => create({}), /adoptView/);
   assert.equal(h.diagram.elements.at(-1).parentId, undefined, '없는 부모 참조는 떨어뜨립니다');
 }
 {
-  /* 이 다이어그램에 맞지 않는 종류는 걸러진다 */
   const h = harness({
     diagram: {
       id: 'd1', type: 'class', name: 'D', relations: [],
@@ -502,7 +481,6 @@ assert.throws(() => create({}), /adoptView/);
   assert.equal(h.diagram.elements.length, 1);
 }
 
-/* ── 잘라내기 / 복제 ────────────────────────────────────────── */
 {
   const h = harness({
     diagram: {
@@ -519,7 +497,6 @@ assert.throws(() => create({}), /adoptView/);
   assert.equal(h.diagram.elements.length, 2, '잘라낸 요소를 다시 붙여넣을 수 있습니다');
 }
 {
-  /* Ctrl+D는 클립보드를 건드리지 않는다 */
   const h = harness({
     diagram: {
       id: 'd1', type: 'class', name: 'D', relations: [],
@@ -540,7 +517,6 @@ assert.throws(() => create({}), /adoptView/);
   assert.equal(restored.modelId, 'model-a', '클립보드에는 여전히 a가 들어 있어야 합니다');
 }
 
-/* ── 삭제 ───────────────────────────────────────────────────── */
 {
   const h = harness({
     diagram: {
@@ -560,7 +536,6 @@ assert.throws(() => create({}), /adoptView/);
   assert.deepEqual(h.state.selection, []);
 }
 {
-  /* Communication Connector를 지우면 그 위의 메시지도 사라진다 */
   const h = harness({
     diagram: {
       id: 'd1', type: 'communication', name: 'C',
@@ -576,7 +551,6 @@ assert.throws(() => create({}), /adoptView/);
   assert.deepEqual(h.diagram.relations, []);
 }
 {
-  /* Time Constraint는 대상이 사라지면 같이 사라진다 */
   const h = harness({
     diagram: {
       id: 'd1', type: 'timing', name: 'T', relations: [],
@@ -588,7 +562,6 @@ assert.throws(() => create({}), /adoptView/);
   assert.deepEqual(h.diagram.elements, []);
 }
 {
-  /* 모델 삭제는 모든 다이어그램의 뷰를 함께 지운다 */
   const other = {
     id: 'd2', type: 'class', name: 'Other',
     elements: [{ id: 'a2', kind: 'class', modelId: 'model-a', x: 0, y: 0, w: 80, h: 40, name: 'a' }],
@@ -620,7 +593,6 @@ assert.throws(() => create({}), /adoptView/);
 }
 
 {
-  /* A saved project can contain a shared C4 relationship whose views were reconnected before this fix. */
   const retained = { id: 'r1', kind: 'c4relationship', modelId: 'model-rel', from: 'person', to: 'erp' };
   const other = {
     id: 'd2', type: 'c4context', name: 'Other context',
@@ -655,7 +627,6 @@ assert.throws(() => create({}), /adoptView/);
   assert.equal(h.state.models[retained.modelId], undefined);
 }
 
-/* ── 자동 크기 ──────────────────────────────────────────────── */
 {
   const h = harness({
     diagram: { id: 'd1', type: 'class', name: 'D', relations: [], elements: [view('a', 'class', { w: 400, h: 300 })] },
@@ -668,7 +639,6 @@ assert.throws(() => create({}), /adoptView/);
   assert.equal(h.byId('a').h, 0);
 }
 
-/* ── z-순서 ─────────────────────────────────────────────────── */
 {
   const h = harness({
     diagram: {

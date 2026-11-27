@@ -55,8 +55,6 @@ function harness(overrides = {}) {
   };
 }
 
-/* ── module contract ───────────────────────────────────────── */
-
 assert.ok(Object.isFrozen(REQUIRED_FUNCTIONS));
 assert.ok(Object.isFrozen(REQUIRED_VALUES));
 assert.ok(Object.isFrozen(ROUTING));
@@ -76,7 +74,6 @@ assert.throws(() => create({}), err => {
   assert.throws(() => create(partial), /Parametric Binding 의존성이 없습니다: routeOrthogonal, GRID$/);
 }
 
-/* two independent controllers must not share a route cache */
 {
   const a = harness(), b = harness();
   a.diagram.elements.push(element('a', 'part'), element('b', 'part', { x: 300 }));
@@ -85,8 +82,6 @@ assert.throws(() => create({}), err => {
   assert.equal(a.pb.route(a.diagram.relations[0]).via, 'auto');
   assert.equal(b.pb.route(connector('r1', { endpoints: { p1: pt(0, 0), p2: pt(9, 9) } })).via, undefined);
 }
-
-/* ── port direction ────────────────────────────────────────── */
 
 {
   const h = harness();
@@ -99,7 +94,6 @@ assert.throws(() => create({}), err => {
   assert.deepEqual(h.pb.portDirection(anchored(0.5, 1), pt(0, 0)), { x: 0, y: 1 });
 }
 {
-  /* an orphaned or unanchored parameter falls back to its nearest edge */
   const h = harness();
   const loose = element('p', 'constraintparameter', { parentId: 'gone', borderAnchor: { fx: 0, fy: 0.5 }, x: 0, y: 0, w: 100, h: 60 });
   assert.deepEqual(h.pb.portDirection(loose, pt(99, 30)), { x: 1, y: 0 }, '주인이 없으면 앵커를 못 씁니다');
@@ -107,7 +101,6 @@ assert.throws(() => create({}), err => {
   assert.deepEqual(h.pb.portDirection(noAnchor, pt(50, 1)), { x: 0, y: -1 });
 }
 {
-  /* ordinary views always use the nearest edge */
   const h = harness();
   const view = element('v', 'part', { x: 0, y: 0, w: 100, h: 60 });
   assert.deepEqual(h.pb.portDirection(view, pt(2, 30)), { x: -1, y: 0 });
@@ -115,8 +108,6 @@ assert.throws(() => create({}), err => {
   assert.deepEqual(h.pb.portDirection(view, pt(50, 2)), { x: 0, y: -1 });
   assert.deepEqual(h.pb.portDirection(view, pt(50, 58)), { x: 0, y: 1 });
 }
-
-/* ── route computation ─────────────────────────────────────── */
 
 {
   const h = harness();
@@ -142,7 +133,6 @@ assert.throws(() => create({}), err => {
 }
 
 {
-  /* only parametric diagrams are routed, and a stale cache is dropped */
   const h = harness();
   h.diagram.elements.push(element('a', 'part'), element('b', 'part', { x: 400 }));
   const rel = connector('r1', { endpoints: { p1: pt(100, 30), p2: pt(400, 30) } });
@@ -158,7 +148,6 @@ assert.throws(() => create({}), err => {
 }
 
 {
-  /* relations whose endpoints cannot be resolved are skipped */
   const h = harness();
   h.diagram.elements.push(element('a', 'part'));
   const noEndpoints = connector('r1');
@@ -171,7 +160,6 @@ assert.throws(() => create({}), err => {
 }
 
 {
-  /* each route sees the ones laid before it, so jumps accumulate */
   const h = harness();
   h.diagram.elements.push(element('a', 'part', { x: 0, y: 0 }), element('b', 'part', { x: 400, y: 0 }));
   const first = connector('r1', { endpoints: { p1: pt(50, -100), p2: pt(50, 100) } });
@@ -183,7 +171,6 @@ assert.throws(() => create({}), err => {
   assert.ok(h.pb.route(second).jumpCount > 0, '나중 라우트는 앞선 라우트를 넘어야 합니다');
 }
 {
-  /* jumpStyle 'none' opts out of the crossings entirely */
   const h = harness();
   h.diagram.elements.push(element('a', 'part', { x: 0, y: 0 }), element('b', 'part', { x: 400, y: 0 }));
   const first = connector('r1', { endpoints: { p1: pt(50, -100), p2: pt(50, 100) } });
@@ -195,7 +182,6 @@ assert.throws(() => create({}), err => {
 }
 
 {
-  /* a manual route is handed its own waypoints */
   const h = harness();
   h.diagram.elements.push(element('a', 'part'), element('b', 'part', { x: 400 }));
   const rel = connector('r1', {
@@ -211,7 +197,6 @@ assert.throws(() => create({}), err => {
 }
 
 {
-  /* the fallback route is a straight line with zeroed metrics */
   const h = harness();
   const rel = connector('r1', { endpoints: { p1: pt(1, 2), p2: pt(3, 4) } });
   const route = h.pb.route(rel);
@@ -221,8 +206,6 @@ assert.throws(() => create({}), err => {
     [0, 0, 0, 0, 0, []]);
   assert.equal(h.pb.route(connector('r2')), null);
 }
-
-/* ── manual waypoints ──────────────────────────────────────── */
 
 {
   const h = harness();
@@ -238,7 +221,6 @@ assert.throws(() => create({}), err => {
 }
 
 {
-  /* lock freezes the current route as manual points, without the two ends */
   const h = harness();
   h.diagram.elements.push(element('a', 'part'), element('b', 'part', { x: 400 }));
   const rel = connector('r1', {
@@ -253,7 +235,6 @@ assert.throws(() => create({}), err => {
   assert.equal(rel.routeMode, 'manual');
   assert.deepEqual(rel.manualPoints, [pt(150, 30), pt(150, 90)]);
 
-  /* locking again must not overwrite what the user already adjusted */
   rel.manualPoints = [pt(1, 1)];
   h.pb.lock(rel);
   assert.deepEqual(rel.manualPoints, [pt(1, 1)]);
@@ -272,7 +253,6 @@ assert.throws(() => create({}), err => {
 }
 
 {
-  /* a new waypoint sorts into the right place along the route */
   const h = harness();
   const rel = connector('r1', { endpoints: { p1: pt(0, 0), p2: pt(200, 0) } });
   assert.equal(h.pb.addWaypoint(rel, pt(101, 3)), true);
@@ -286,7 +266,6 @@ assert.throws(() => create({}), err => {
   assert.deepEqual(rel.manualPoints, [pt(48, 0), pt(104, 0), pt(184, 0)], '뒤쪽 점은 끝에 붙여야 합니다');
 }
 {
-  /* an explicit segment index wins over the nearest-segment guess, and is clamped */
   const h = harness();
   const rel = connector('r1', { endpoints: { p1: pt(0, 0), p2: pt(200, 0) } });
   assert.equal(h.pb.addWaypoint(rel, pt(40, 0), 99), true);
@@ -296,7 +275,6 @@ assert.throws(() => create({}), err => {
   assert.deepEqual(other.manualPoints, [pt(40, 0)]);
 }
 {
-  /* guards: wrong kind, no route, and the waypoint ceiling */
   const h = harness();
   assert.equal(h.pb.addWaypoint(null, pt(0, 0)), false);
   assert.equal(h.pb.addWaypoint({ id: 'x', kind: 'connector' }, pt(0, 0)), false);
@@ -308,8 +286,6 @@ assert.throws(() => create({}), err => {
   });
   assert.equal(h.pb.addWaypoint(full, pt(10, 0)), false, '경유점 상한을 넘길 수 없습니다');
 }
-
-/* ── Constraint Parameter synchronisation ──────────────────── */
 
 const constraintHarness = (parameters, extra = {}) => {
   const container = element('c1', 'constraintproperty', { x: 100, y: 100, w: 200, h: 100, classifierModelId: 'cb' });
@@ -333,12 +309,10 @@ const constraintHarness = (parameters, extra = {}) => {
   assert.equal(added.length, 4);
   assert.deepEqual(added.map(p => p.name), ['x', 'y', 'z', 'w']);
   assert.deepEqual(added.map(p => p.parentId), ['c1', 'c1', 'c1', 'c1']);
-  /* alternate sides, spread evenly down each one */
   assert.deepEqual(added.map(p => p.borderAnchor), [
     { fx: 0, fy: 1 / 3 }, { fx: 1, fy: 1 / 3 },
     { fx: 0, fy: 2 / 3 }, { fx: 1, fy: 2 / 3 },
   ]);
-  /* left side sits on the container's left border, right side on its right */
   assert.deepEqual([added[0].x, added[1].x], [100 - 9, 300 - 9]);
   assert.equal(added[0].y, 100 + 50 - 9);
   assert.deepEqual(added.map(p => p.classifierModelId), ['t1', 't2', '', ''],
@@ -350,7 +324,6 @@ const constraintHarness = (parameters, extra = {}) => {
 }
 
 {
-  /* duplicate names collapse, case-insensitively */
   const { h, container } = constraintHarness(['x : Real', 'X : Real', 'y : Real']);
   h.pb.syncConstraintParameters(container);
   const added = h.diagram.elements.filter(e => e.kind === 'constraintparameter');
@@ -358,7 +331,6 @@ const constraintHarness = (parameters, extra = {}) => {
 }
 
 {
-  /* only the missing ones are added, and their side follows the full declaration order */
   const { h, container } = constraintHarness(['x : Real', 'y : Real', 'z : Real']);
   h.diagram.elements.push({ id: 'existing', kind: 'constraintparameter', parentId: 'c1', name: ' X ' });
   h.pb.syncConstraintParameters(container);
@@ -370,7 +342,6 @@ const constraintHarness = (parameters, extra = {}) => {
 }
 
 {
-  /* nothing to do */
   const { h, container } = constraintHarness(['x : Real']);
   h.diagram.elements.push({ id: 'existing', kind: 'constraintparameter', parentId: 'c1', name: 'x' });
   h.pb.syncConstraintParameters(container);
@@ -379,7 +350,6 @@ const constraintHarness = (parameters, extra = {}) => {
 }
 
 {
-  /* refusals */
   const bare = element('c1', 'constraintproperty');
   const h1 = harness({ diagram: { id: 'd1', type: 'parametric', elements: [bare], relations: [] } });
   h1.pb.syncConstraintParameters(bare);

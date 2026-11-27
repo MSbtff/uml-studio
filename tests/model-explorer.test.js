@@ -144,7 +144,6 @@ const inactiveRoot = explorer.children.find(node => node.className === 'ex-item 
 inactiveRoot.emit('click');
 assert.deepEqual(switched, ['diagram-2']);
 
-/* ── 트리 의미와 키보드 이동 ──────────────────────────────── */
 function treeKey(key) {
   let prevented = 0;
   let stopped = 0;

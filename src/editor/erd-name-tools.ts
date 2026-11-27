@@ -1,8 +1,5 @@
 'use strict';
 
-/* Project-wide ERD logical/physical name search and safe bulk replacement.
-   The pure preview step validates every candidate before the controller takes
-   one Undo snapshot and applies the prepared semantic-model changes. */
 interface ErdNameColumnApi extends ValidationColumnApi {
   formatColumn: (column: ValidationColumn) => string;
 }

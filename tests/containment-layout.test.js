@@ -11,7 +11,6 @@ const {
   snap, center, pointInside, anchorPoint, relationEndpoints,
 } = require('../dist/browser/canvas/canvas-geometry.js');
 
-/* app.js가 쓰는 것과 같은 종류 집합 */
 const COMPOSITE_CONTAINER_KINDS = new Set(['class', 'collaboration']);
 const IBD_CONTAINER_KINDS = new Set(['ibdframe', 'part', 'reference']);
 const IBD_TYPED_KINDS = new Set(['part', 'reference', 'value']);
@@ -63,7 +62,6 @@ assert.ok(Object.isFrozen(REQUIRED_VALUES));
 assert.ok(Object.isFrozen(KIND_SETS));
 assert.ok(KIND_SETS.includes('COMPOSITE_CONTAINER_KINDS'));
 
-/* ── 의존성 검증 ────────────────────────────────────────────── */
 assert.throws(() => create(), /Containment Layout 의존성이 없습니다/);
 assert.throws(() => create({}), /anchorPoint/);
 {
@@ -78,7 +76,6 @@ assert.throws(() => create({}), /anchorPoint/);
   assert.ok(Object.isFrozen(layout));
 }
 
-/* ── 포함 트리 ──────────────────────────────────────────────── */
 {
   const h = harness({
     id: 'd1', type: 'class', name: 'D', relations: [],
@@ -113,7 +110,6 @@ assert.throws(() => create({}), /anchorPoint/);
   assert.equal(l.isViewAncestor(h.byId('a1'), h.byId('root')), false);
 }
 {
-  /* parentId 순환이 생겨도 무한 루프에 빠지지 않는다 */
   const h = harness({
     id: 'd1', type: 'class', name: 'D', relations: [],
     elements: [
@@ -126,7 +122,6 @@ assert.throws(() => create({}), /anchorPoint/);
   assert.deepEqual(h.layout.containmentOrder(h.diagram).map(v => v.id).sort(), ['x', 'y']);
 }
 
-/* ── 컨테이너 히트 테스트는 가장 작은 후보를 고른다 ─────────── */
 {
   const h = harness({
     id: 'd1', type: 'package', name: 'P', relations: [],
@@ -161,7 +156,6 @@ assert.throws(() => create({}), /anchorPoint/);
   assert.equal(h.layout.activityAttachmentOwnerAtPoint('expansioninput', { x: 350, y: 350 }).id, 'exp');
 }
 
-/* ── Port 소유자 판정 ───────────────────────────────────────── */
 {
   const composite = harness({ id: 'd1', type: 'composite', name: 'C', relations: [], elements: [] });
   assert.equal(composite.layout.isPortOwner({ kind: 'class' }), true);
@@ -176,7 +170,6 @@ assert.throws(() => create({}), /anchorPoint/);
   assert.equal(parametric.layout.isPortOwner({ kind: 'constraintproperty' }), true);
 }
 
-/* ── 테두리에 고정되는 레이아웃 패스 ────────────────────────── */
 {
   const h = harness({
     id: 'd1', type: 'composite', name: 'C', relations: [],
@@ -234,7 +227,6 @@ assert.throws(() => create({}), /anchorPoint/);
   assert.deepEqual({ x: h.byId('loose').x, y: h.byId('loose').y }, { x: 3, y: 3 });
 }
 
-/* ── Composite State의 직교 Region 배치 ─────────────────────── */
 {
   const h = harness({
     id: 'd1', type: 'state', name: 'S', relations: [],
@@ -256,7 +248,6 @@ assert.throws(() => create({}), /anchorPoint/);
   assert.ok(Math.abs(r1.h - r2.h) <= 1);
   assert.equal(r1.y + r1.h + r2.h, 394);
 
-  /* 소유자를 키우면 Region 안 자식이 비율대로 따라 움직인다 */
   const beforeY = h.byId('inner').y;
   h.byId('cs').h = 600;
   h.layout.layoutCompositeRegions(h.diagram);
@@ -271,7 +262,6 @@ assert.throws(() => create({}), /anchorPoint/);
   assert.doesNotThrow(() => h.layout.layoutCompositeRegions(h.diagram), 'Region이 없으면 아무것도 하지 않습니다');
 }
 
-/* ── Region / Composite 히트 테스트 ─────────────────────────── */
 {
   const h = harness({
     id: 'd1', type: 'state', name: 'S', relations: [],
@@ -286,7 +276,6 @@ assert.throws(() => create({}), /anchorPoint/);
   assert.equal(h.layout.compositeAtPoint({ x: 900, y: 900 }), null);
 }
 
-/* ── 컨테이너 재부착 ────────────────────────────────────────── */
 {
   const h = harness({
     id: 'd1', type: 'package', name: 'P',
@@ -303,7 +292,6 @@ assert.throws(() => create({}), /anchorPoint/);
   assert.equal(containment.srcAnchor, undefined, '앵커는 초기화합니다');
   assert.deepEqual(h.synced, ['c1']);
 
-  /* 밖으로 끌어내면 부모와 Containment 관계가 사라진다 */
   h.byId('pkg').x = 2000; h.byId('pkg').y = 2000;
   h.layout.attachToPackageContainer(h.byId('pkg'));
   assert.equal(h.byId('pkg').parentId, undefined);
@@ -344,7 +332,6 @@ assert.throws(() => create({}), /anchorPoint/);
   });
   h.layout.attachToInternalBlockContainer(h.byId('part'));
   assert.equal(h.byId('part').parentId, 'frame');
-  /* 프레임 밖으로 나가려 하면 안쪽으로 물립니다 */
   h.byId('part').x = -50; h.byId('part').y = 0;
   h.layout.attachToInternalBlockContainer(h.byId('part'));
   assert.equal(h.byId('part').x, 16, '왼쪽 여백 12px 이상으로 스냅합니다');
@@ -374,7 +361,6 @@ assert.throws(() => create({}), /anchorPoint/);
   });
   h.layout.attachPartToCompositeContainer(h.byId('part'));
   assert.equal(h.byId('part').parentId, 'owner');
-  /* 소유자 밖으로 끌어내면 소유자 안쪽 여백으로 되돌립니다 */
   h.byId('part').x = 2000; h.byId('part').y = -100;
   h.layout.attachPartToCompositeContainer(h.byId('part'));
   assert.equal(h.byId('part').parentId, 'owner', '소유자는 유지합니다');
@@ -397,7 +383,6 @@ assert.throws(() => create({}), /anchorPoint/);
   assert.equal(h.byId('st').parentId, undefined);
 }
 
-/* ── Port 방향 ──────────────────────────────────────────────── */
 {
   const { layout } = harness();
   assert.deepEqual(layout.compositePortDirection({ borderAnchor: { fx: 0, fy: 0.5 } }), { x: -1, y: 0 });
@@ -407,7 +392,6 @@ assert.throws(() => create({}), /anchorPoint/);
   assert.deepEqual(layout.compositePortDirection({}), { x: 1, y: 0 }, '앵커가 없으면 오른쪽이 기본입니다');
 }
 
-/* ── Activity 조상 탐색 ─────────────────────────────────────── */
 {
   const h = harness({
     id: 'd1', type: 'activity', name: 'A', relations: [],
@@ -423,7 +407,6 @@ assert.throws(() => create({}), /anchorPoint/);
   assert.equal(h.layout.activityAncestor(h.byId('lane'), 'swimlanev'), null, '자기 자신은 조상이 아닙니다');
 }
 
-/* ── Timing 다이어그램 레이아웃 ─────────────────────────────── */
 {
   const h = harness({
     id: 'd1', type: 'timing', name: 'T',
@@ -460,7 +443,6 @@ assert.throws(() => create({}), /anchorPoint/);
   assert.equal(tc.y, seg.y + seg.h / 2 - 54);
 }
 {
-  /* 라이프라인이 없어도 시간 눈금은 기본 높이를 갖는다 */
   const h = harness({
     id: 'd1', type: 'timing', name: 'T', relations: [],
     elements: [box('tick', 'timetick', 300, 0, 8, 0)],
@@ -501,7 +483,6 @@ assert.throws(() => create({}), /anchorPoint/);
   assert.equal(h.layout.timingStateAtPoint({ x: 500, y: 500 }), null);
 }
 
-/* ── moveViewTree ───────────────────────────────────────────── */
 {
   const h = harness({
     id: 'd1', type: 'class', name: 'D', relations: [],
@@ -515,20 +496,17 @@ assert.throws(() => create({}), /anchorPoint/);
   assert.equal(h.byId('child').x, snap(160), '자손도 함께 움직입니다');
   assert.equal(h.byId('child').y, snap(144));
 
-  /* origins를 주면 누적 오차 없이 원점 기준으로 이동한다 */
   const tree = [h.byId('root'), h.byId('child')];
   const origins = new Map(tree.map(v => [v.id, { x: v.x, y: v.y }]));
   h.layout.moveViewTree(h.byId('root'), 8, 8, origins);
   h.layout.moveViewTree(h.byId('root'), 16, 16, origins);
   assert.equal(h.byId('root').x, snap(140 + 16), '마지막 델타만 반영됩니다');
 
-  /* 캔버스 밖으로는 나가지 않는다 */
   h.layout.moveViewTree(h.byId('root'), -100000, -100000);
   assert.equal(h.byId('root').x, 0);
   assert.equal(h.byId('root').y, 0);
 }
 {
-  /* Sequence의 lifeline은 세로로 움직이지 않는다 */
   const h = harness({
     id: 'd1', type: 'sequence', name: 'S', relations: [],
     elements: [box('l', 'lifeline', 100, 32, 80, 40)],

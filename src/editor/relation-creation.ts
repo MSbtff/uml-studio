@@ -1,7 +1,5 @@
 'use strict';
 
-/* Relation Creation — validates and commits new relation views while the host
-   keeps ownership of diagram state, legality rules and pointer interaction. */
 type RelationCreationApi = ReturnType<typeof createRelationCreationModule>;
 declare var UMLRelationCreation: RelationCreationApi;
 

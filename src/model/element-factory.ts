@@ -1,8 +1,5 @@
 'use strict';
 
-/* Element Factory — owns generated view names and the initial persisted shape
-   of every element placed on a diagram. Project-wide IDs, counters and the
-   active diagram remain host state and are injected. */
 type ElementFactoryApi = ReturnType<typeof createElementFactoryModule>;
 declare var UMLElementFactory: ElementFactoryApi;
 
@@ -113,7 +110,6 @@ function createElementFactoryModule() {
     }
 
     function createElement(kind: string, x: number, y: number) {
-      /* an actor in a sequence diagram is a lifeline drawn as a stick figure */
       if (kind === 'seqactor') {
         return {
           id: uid(), kind: 'lifeline', isActor: true, x, y: sequenceLifelineTop(dg()),

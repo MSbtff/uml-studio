@@ -11,9 +11,6 @@ type ErdColumnValidation =
   | { valid: true; column: ErdColumnValue; value: string }
   | { valid: false; field: 'phys' | 'logical' | 'type'; error: string };
 
-/* ERD column expression parser/formatter shared by the editor and tests.
-   Storage stays compatible with the existing compact text representation:
-   "PK FK UQ NN physical_name <논리명>: TYPE". */
 type ErdColumnApi = ReturnType<typeof createErdColumn>;
 declare var UMLErdColumn: ErdColumnApi;
 
@@ -79,7 +76,6 @@ function createErdColumn() {
     const value = normalizeColumn(column);
     const parts = [];
     if (value.flags.length) parts.push(value.flags.join(' '));
-    // Quote names that would otherwise be read as flags, or as quoted names.
     const phys = FLAG_PREFIX.test(value.phys) || value.phys.startsWith('"')
       ? `"${value.phys.replace(/"/g, '""')}"` : value.phys;
     parts.push(phys);

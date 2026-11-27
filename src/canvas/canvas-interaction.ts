@@ -115,7 +115,6 @@ function createCanvasInteractionModule() {
   const SPACING_SNAP_RADIUS = 6;
 
   function dragOffset(drag: AxisDrag, point: DiagramPoint, shift: boolean) {
-    // Accumulate the allowed movement so toggling Shift does not jump to the pointer.
     const previous = drag.previous ?? drag.start;
     const dx = point.x - previous.x;
     const dy = point.y - previous.y;
@@ -380,7 +379,6 @@ function createCanvasInteractionModule() {
       }
       if (beginSequenceMove(start)) return;
       if (state.selection.length > 1) {
-        /* group move: every selected element follows the drag */
         const roots = rootViews(state.selection.map(byId).filter((view): view is DiagramElement => view != null));
         const moving = [...new Map(roots.flatMap(root => [root, ...descendantViews(root.id)]).map(view => [view.id, view])).values()];
         drag = {
@@ -424,7 +422,6 @@ function createCanvasInteractionModule() {
     }
 
     function startDrag(id: string, start: DiagramPoint, shift: boolean, begin: () => void) {
-      // Decide between extending the selection and axis-constrained dragging once the pointer moves.
       if (shift) drag = { mode: 'shiftselect', id, start, begin };
       else begin();
     }
@@ -489,9 +486,6 @@ function createCanvasInteractionModule() {
       }
     }
 
-    /* render() replaces SVG nodes after selection, so native dblclick targets
-       are not stable. MouseEvent.detail survives that replacement and routes
-       every element, member row and relationship through one QuickEdit path. */
     if (state.tool === 'select' && ev.detail >= 2 && handleCanvasQuickEdit(ev, p)) {
       drag = null;
       ev.preventDefault();
@@ -512,7 +506,6 @@ function createCanvasInteractionModule() {
       }
     }
 
-    /* relation endpoint handle → drag to re-anchor or reconnect */
     const epDir = target?.getAttribute?.('data-endpoint');
     if ((epDir === 'src' || epDir === 'dst') && state.selectedId) {
       const r = relById(state.selectedId);
@@ -541,8 +534,6 @@ function createCanvasInteractionModule() {
 
     const tool = state.tool;
 
-    /* 이미 선택된 관계라면, 끝점 14px 이내를 최우선으로 잡는다
-       (요소/라벨/선 몸통보다 우선 — 끝점이 겹쳐 있어도 확실히 잡히도록) */
     if (state.tool === 'select') {
       const selRel = relById(state.selectedId);
       if (selRel && !isInteractionMsg(selRel.kind)) {
@@ -575,15 +566,11 @@ function createCanvasInteractionModule() {
       return;
     }
 
-    /* element creation */
     if (KIND_META[tool] && !REL_STYLE[tool] && tool !== 'select') {
-      /* placing a view touches no drag or linking state, so it lives in its own
-         module and this handler only decides that the tool asked for it */
       elementPlacement.placeElementForTool(p, tool, hitEl);
       return;
     }
 
-    /* relation creation */
     if (REL_STYLE[tool]) {
       const endpoint = isMsg(tool) ? lifelineAt(p) : hitEl;
       if (linking && linking.armed && endpoint) {
@@ -601,7 +588,6 @@ function createCanvasInteractionModule() {
       return;
     }
 
-    /* ERD 본문에서는 컬럼 행 드래그가 테이블 전체 이동보다 우선한다. */
     if (tool === 'select' && !ev.shiftKey && hitEl?.kind === 'entity') {
       const row = memberRowAt(hitEl, p);
       if (row?.kind === 'column' && row.index < row.arr.length) {
@@ -638,9 +624,8 @@ function createCanvasInteractionModule() {
       if (labelHit) {
         beginLabelMove(hitRel, labelHit.field, p);
       } else if (isCommMsg(hitRel.kind)) {
-        drag = null; // Communication Message 위치는 소유 Connector와 순서로 자동 배치된다.
+        drag = null;
       } else {
-        /* 끝에서 14px 이내를 잡으면 그 끝점만 이동, 그 외에는 선 전체 이동 */
         const ep = hitRel.kind === 'mindbranch' ? branchGeom(hitRel) : (stateSelfTransitionGeom(hitRel) || relEndpoints(hitRel));
         const dSrc = ep ? Math.hypot(p.x - ep.p1.x, p.y - ep.p1.y) : Infinity;
         const dDst = ep ? Math.hypot(p.x - ep.p2.x, p.y - ep.p2.y) : Infinity;
@@ -656,18 +641,12 @@ function createCanvasInteractionModule() {
       }
       return;
     }
-    /* empty canvas: start rubber-band (marquee) selection */
     if (state.selection.length) { setSelection([]); renderProps(); }
     marquee = { x0: p.x, y0: p.y, x1: p.x, y1: p.y };
     drag = { mode: 'marquee' };
     render();
     }
 
-    /* A high-polling mouse delivers several mousemove events per displayed
-       frame, and each one used to redraw the whole canvas — on a 600-element
-       diagram that is ~30ms of work per event, so the drag fell behind the
-       pointer. Model state still updates on every event (the pointer stays
-       exact); only the paint is coalesced to at most one per frame. */
     let renderFrame = 0;
     function scheduleRender() {
       if (renderFrame) return;
@@ -794,7 +773,7 @@ function createCanvasInteractionModule() {
       scheduleRender();
     } else if (drag.mode === 'marquee' && marquee) {
       marquee.x1 = p.x; marquee.y1 = p.y;
-      setSelection(marqueeHits(marquee));   // 드래그 중 실시간 선택
+      setSelection(marqueeHits(marquee));
       scheduleRender();
     } else if (drag.mode === 'msgmove') {
       const offset = p.y - drag.startY;
@@ -828,15 +807,10 @@ function createCanvasInteractionModule() {
       const r = drag.rel;
       const dx = p.x - drag.start.x, dy = p.y - drag.start.y;
       const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
-      /* each endpoint SLIDES ALONG the edge it already sits on:
-         a point on a top/bottom edge only moves left↔right, a point on a
-         left/right edge only moves up↔down. So a vertical relation slides
-         horizontally and a horizontal one slides vertically — no surprise
-         axis. (Use the square endpoint handles to switch edges.) */
       const apply = (id: string, anchorKey: 'srcAnchor' | 'dstAnchor', pt: DiagramPoint) => {
         const host = byId(id);
         if (!host) return;
-        const side = borderAnchorFrac(host, pt);           // which edge the end is on
+        const side = borderAnchorFrac(host, pt);
         const tx = pt.x + dx, ty = pt.y + dy;
         const onHorizontalEdge = side.fy === 0 || side.fy === 1;
         r[anchorKey] = onHorizontalEdge
@@ -856,9 +830,6 @@ function createCanvasInteractionModule() {
       const otherId = drag.end === 'src' ? r.to : r.from;
       const host = byId(curId);
       if (host) {
-        /* when hovering a *different* element, don't fight it with an anchor —
-           show it as a reconnect target instead. Otherwise snap to the nearest
-           border of the current host (stable, no centre-angle jitter). */
         const t = elementAt(p);
         drag.hoverId = (t && t.id !== curId && t.id !== otherId) ? t.id : null;
         if (!drag.hoverId) {
@@ -893,7 +864,7 @@ function createCanvasInteractionModule() {
       const p = svgPoint(ev);
       const target = isMsg(state.tool) ? lifelineAt(p) : elementAt(p);
       if (target && target.id !== linking.fromId) finishLinkAt(target, p, ev);
-      else if (target) { linking.armed = true; }       // click-click mode
+      else if (target) { linking.armed = true; }
       else { linking = null; render(); }
       return;
     }
@@ -939,7 +910,6 @@ function createCanvasInteractionModule() {
       const curId = drag.end === 'src' ? r.from : r.to;
       const otherId = drag.end === 'src' ? r.to : r.from;
       const target = elementAt(p);
-      /* dropped on another element → reconnect the relation to it */
       if (target && target.id !== curId && target.id !== otherId) {
         if (r.kind === 'transition' && !STATE_VERTEX_KINDS.has(target.kind)) {
           flashStatus(uiText('Reconnect transitions to a state or pseudostate.', '전이는 상태 또는 의사 상태에만 재연결할 수 있습니다'));
@@ -1010,7 +980,6 @@ function createCanvasInteractionModule() {
       svg.removeEventListener('mousedown', handleMouseDown);
       eventRoot.removeEventListener('mousemove', handleMouseMove);
       eventRoot.removeEventListener('mouseup', handleMouseUp);
-      /* a frame queued by the last drag must not paint into a detached canvas */
       if (renderFrame) { cancelAnimationFrame(renderFrame); renderFrame = 0; }
       attached = false;
     }

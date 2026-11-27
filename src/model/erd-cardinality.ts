@@ -1,7 +1,5 @@
 'use strict';
 
-/* ERD cardinality helpers shared by canvas rendering, editors and exporters.
-   Existing sourceLabel/targetLabel values remain valid for project compatibility. */
 type ErdCardinalityApi = ReturnType<typeof createErdCardinality>;
 declare var UMLErdCardinality: ErdCardinalityApi;
 

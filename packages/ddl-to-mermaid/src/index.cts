@@ -80,7 +80,6 @@ export function ddlToMermaid(sql: string, options?: DdlOptions): DdlConversion {
   if (typeof sql !== 'string') throw new TypeError('SQL input must be a string.');
 
   const erd = parseDdl(sql, options);
-  // The exporter reads semantic fields from hydrated views. Return the original serializable ERD.
   const diagrams = structuredClone(erd.diagrams);
   const models = hydrateProject(diagrams, erd.models);
 
