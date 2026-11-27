@@ -56,7 +56,6 @@ const dependencies = {
   state: { zoom: 1 },
   ...Object.fromEntries(REQUIRED_FUNCTIONS.map(name => [name, () => undefined])),
   ...Object.fromEntries(REQUIRED_VALUES.map(name => [name, {}])),
-  /* 요소 배치는 별도 모듈이 맡고, 이 모듈은 위임만 한다 */
   elementPlacement: { placeElementForTool: () => undefined },
 };
 const controller = create(dependencies);
@@ -83,10 +82,6 @@ assert.equal(svg.listenerCount('mousedown'), 0);
 assert.equal(root.listenerCount('mousemove'), 0);
 assert.equal(root.listenerCount('mouseup'), 0);
 
-/* ── 드래그 중 그리기는 프레임당 한 번으로 합쳐진다 ────────────
-   고성능 마우스는 한 프레임에 여러 mousemove를 보낸다. 이벤트마다 캔버스를
-   통째로 다시 그리면 600개짜리 다이어그램에서 이벤트 하나가 ~30ms를 먹어
-   드래그가 포인터를 따라오지 못한다. */
 {
   const frames = [];
   const renders = [];

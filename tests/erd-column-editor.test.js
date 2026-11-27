@@ -69,7 +69,6 @@ const document = {
   },
 };
 
-/* 브라우저가 열자마자 실행하는 지연 작업(위치 보정과 바깥 클릭 감시) */
 const flushDeferred = () => {
   timeouts.splice(0).forEach(callback => callback());
   frames.splice(0).forEach(callback => callback());
@@ -138,7 +137,6 @@ const editorApi = create(dependencies);
 assert.ok(Object.isFrozen(editorApi));
 assert.equal(editorApi.getErdColumnClipboard(), null);
 
-/* ── 클립보드와 순서·삭제·일괄 편집 명령 ───────────────────── */
 const entity = {
   kind: 'entity',
   modelId: 'model-1',
@@ -225,7 +223,6 @@ assert.equal(editorApi.replaceErdColumns(bulkEntity, ['id: BIGINT', 'ID: TEXT'])
 assert.match(statusMessages.at(-1), /컬럼 일괄 편집 오류.*이미 있습니다/);
 
 
-/* ── 컬럼 편집 시트 ────────────────────────────────────────── */
 const sheetEntity = {
   id: 'posts-view', kind: 'entity', modelId: 'posts-model', name: 'posts',
   x: 100, y: 80, w: 200, columns: ['PK id: BIGINT', 'title: TEXT'],
@@ -261,7 +258,6 @@ assert.ok(datalist.children.some(option => option.value === 'VARCHAR(255)'));
 assert.deepEqual(['PK', 'FK', 'UQ', 'NN'].map(flag => inputNamed(sheet, flag).checked),
   [false, false, false, false]);
 
-/* 잘못된 값은 인라인 오류로 막고 모델을 건드리지 않는다 */
 const errorBox = descendants(sheet).find(child => child.className === 'erd-column-editor-error');
 assert.equal(errorBox.attributes['aria-live'], 'polite');
 const beforeSnapshots = snapshotCalls;
@@ -271,7 +267,6 @@ assert.match(errorBox.textContent, /이미 있습니다/);
 assert.equal(snapshotCalls, beforeSnapshots, '거절된 저장은 Undo 스냅샷을 만들지 않습니다');
 assert.deepEqual(sheetEntity.columns, ['PK id: BIGINT', 'title: TEXT']);
 
-/* 저장하면 컬럼과 FK 참조가 함께 바뀐다 */
 state.models.titleRelation = {
   id: 'titleRelation', kind: 'erd-1n', name: 'title FK',
   fromModelId: 'posts-model', toModelId: 'tags-model', foreignKeyEnd: 'source',
@@ -285,7 +280,6 @@ assert.equal(state.models.titleRelation.sourceColumnName, 'headline');
 assert.equal(sheet.isConnected, false, '저장하면 시트를 닫습니다');
 assert.match(statusMessages.at(-1), /headline.*저장.*FK 연결 1개도 갱신/);
 
-/* Ctrl/Cmd+Enter는 저장 후 다음 컬럼을 새로 연다 */
 assert.equal(editorApi.openErdColumnEditor(sheetEntity, 2, { insert: true }), true);
 flushDeferred();
 const addSheet = wrap.children.at(-1);
@@ -303,7 +297,6 @@ flushDeferred();
 assert.equal(nextSheet.dataset.columnMode, 'add', '저장 후 다음 추가는 새 컬럼 시트를 엽니다');
 assert.match(statusMessages.at(-1), /다음 컬럼을 입력하세요/);
 
-/* Escape는 아무것도 저장하지 않고 닫는다 */
 inputNamed(nextSheet, 'phys').value = 'buried';
 nextSheet.emit('keydown', {
   key: 'Escape', target: inputNamed(nextSheet, 'phys'),
@@ -312,7 +305,6 @@ nextSheet.emit('keydown', {
 assert.equal(nextSheet.isConnected, false);
 assert.deepEqual(sheetEntity.columns, ['PK id: BIGINT', 'NN headline: TEXT', 'body']);
 
-/* 시트 안의 복사·붙여넣기 */
 assert.equal(editorApi.openErdColumnEditor(sheetEntity, 1), true);
 flushDeferred();
 const copySheet = wrap.children.at(-1);
@@ -327,7 +319,6 @@ assert.deepEqual(sheetEntity.columns,
 assert.match(statusMessages.at(-1), /중복을 피해 컬럼 'headline_copy'/);
 flushDeferred();
 
-/* DEFAULT 값은 SQL 조각으로 검사한다 */
 assert.equal(editorApi.openErdColumnEditor(sheetEntity, 0), true);
 flushDeferred();
 const defaultSheet = wrap.children.at(-1);
@@ -340,7 +331,6 @@ assert.equal(defaultSheet.isConnected, true, '거절된 저장은 시트를 닫�
 defaultSheet.emit('input', { target: inputNamed(defaultSheet, 'defaultValue') });
 assert.equal(defaultError.textContent, '', '다시 입력하면 오류 표시를 지웁니다');
 
-/* Ctrl/Cmd+ArrowUp은 저장하면서 컬럼을 한 칸 옮긴다 */
 const orderEntity = {
   id: 'order-view', kind: 'entity', modelId: 'order-model', name: 'orders',
   x: 0, y: 0, w: 200, columns: ['PK id: BIGINT', 'memo: TEXT', 'total: INTEGER'],
@@ -365,7 +355,6 @@ moveSheet.emit('keydown', {
 assert.deepEqual(orderEntity.columns, ['PK id: BIGINT', 'amount: INTEGER', 'memo: TEXT'],
   '이미 저장한 시트는 다시 옮기지 않습니다');
 
-/* Delete 키와 삭제 버튼은 같은 컬럼 삭제 경로를 쓴다 */
 assert.equal(editorApi.openErdColumnEditor(orderEntity, 2), true);
 flushDeferred();
 const deleteSheet = wrap.children.at(-1);
@@ -383,7 +372,6 @@ buttonLabelled(removeSheet, '삭제').emit('click');
 assert.deepEqual(orderEntity.columns, ['PK id: BIGINT']);
 assert.equal(removeSheet.isConnected, false);
 
-/* Ctrl/Cmd+C·V는 버튼과 같은 동작을 한다 */
 assert.equal(editorApi.openErdColumnEditor(orderEntity, 0), true);
 flushDeferred();
 const keySheet = wrap.children.at(-1);
@@ -397,7 +385,6 @@ flushDeferred();
 assert.deepEqual(orderEntity.columns, ['PK id: BIGINT', 'PK id_copy: BIGINT'],
   '복사한 컬럼은 제약조건까지 함께 붙습니다');
 
-/* 빈 새 컬럼에서 붙여넣으면 입력을 버리고 클립보드를 그대로 넣는다 */
 assert.equal(editorApi.openErdColumnEditor(orderEntity, 2, { insert: true }), true);
 flushDeferred();
 const blankSheet = wrap.children.at(-1);
@@ -407,7 +394,6 @@ assert.deepEqual(orderEntity.columns,
   ['PK id: BIGINT', 'PK id_copy: BIGINT', 'PK id_copy2: BIGINT']);
 editorApi.closeErdColumnEditor();
 
-/* Enter 하나로도 저장한다 */
 assert.equal(editorApi.openErdColumnEditor(orderEntity, 0), true);
 flushDeferred();
 const enterSheet = wrap.children.at(-1);
@@ -419,7 +405,6 @@ enterSheet.emit('keydown', {
 assert.equal(parseColumn(orderEntity.columns[0]).phys, 'order_id');
 assert.equal(enterSheet.isConnected, false);
 
-/* 클립보드가 비어 있는 컨트롤러에서는 붙여넣기가 알리고 끝난다 */
 const freshApi = create(dependencies);
 assert.equal(freshApi.getErdColumnClipboard(), null);
 assert.equal(freshApi.openErdColumnEditor(orderEntity, 0), true);
@@ -428,7 +413,6 @@ buttonLabelled(wrap.children.at(-1), '아래 붙여넣기').emit('click');
 assert.equal(statusMessages.at(-1), '복사한 컬럼이 없습니다');
 freshApi.closeErdColumnEditor();
 
-/* 바깥을 누르면 닫히고 document 리스너를 정리한다 */
 assert.equal(editorApi.openErdColumnEditor(sheetEntity, 0), true);
 const outsideSheet = wrap.children.at(-1);
 flushDeferred();

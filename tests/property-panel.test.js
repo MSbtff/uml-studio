@@ -40,7 +40,6 @@ function fakeNode(tagName = 'div') {
     contains(target) {
       return target === node || (node.children || []).some(child => child.contains?.(target) === true);
     },
-    /* 속성 패널이 쓰는 선택자는 포커스 가능한 컨트롤 하나뿐이다 */
     querySelectorAll(selector) {
       if (!String(selector).includes('input')) return [];
       const walk = current => (current.children || [])
@@ -222,7 +221,6 @@ state.diagrams[0].relations = [currentRelation];
 state.selection = ['writes'];
 state.selectedId = 'writes';
 panel.render();
-/* 속성 패널은 이제 관계 끝점을 자체 그룹으로 감싸므로 깊이로 찾지 않는다 */
 function descendants(node) {
   return (node.children || []).flatMap(child => [child, ...descendants(child)]);
 }
@@ -267,7 +265,6 @@ const schemaSection = props.children.find(child => child.className === 'erd-sche
 assert.ok(schemaSection, 'Entity 속성에는 DDL 제약조건과 인덱스 편집기가 있어야 합니다');
 assert.equal(schemaSection.children[0].textContent, 'DDL 제약조건과 인덱스');
 
-/* ── 구획 의미와 포커스 유지 ───────────────────────────────── */
 const schemaTitle = schemaSection.children[0];
 assert.equal(schemaTitle.attributes.role, 'heading', '구획 제목은 제목으로 노출해야 합니다');
 assert.equal(schemaTitle.attributes['aria-level'], '3');

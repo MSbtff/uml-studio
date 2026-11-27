@@ -4,7 +4,6 @@ const assert = require('node:assert/strict');
 const { REQUIRED_FUNCTIONS, REQUIRED_VALUES, create } = require('../dist/browser/io/diagram-export.js');
 const { exportMermaid } = require('../dist/browser/io/exporters.js');
 
-/* ── Minimal DOM / browser doubles ─────────────────────────── */
 function fakeNode(tag = 'div') {
   const listeners = new Map();
   return {
@@ -208,7 +207,6 @@ function harness(overrides = {}) {
 assert.ok(Object.isFrozen(REQUIRED_FUNCTIONS));
 assert.ok(Object.isFrozen(REQUIRED_VALUES));
 
-/* ── 의존성 검증 ────────────────────────────────────────────── */
 assert.throws(() => create(), /다이어그램 내보내기 의존성이 없습니다/);
 assert.throws(() => create({}), /contentBBox/);
 {
@@ -227,7 +225,6 @@ assert.throws(() => create({}), /contentBBox/);
   );
 }
 
-/* ── 공개 API ───────────────────────────────────────────────── */
 {
   const { controller } = harness();
   assert.ok(Object.isFrozen(controller));
@@ -238,7 +235,6 @@ assert.throws(() => create({}), /contentBBox/);
   ]);
 }
 
-/* ── SVG / Mermaid / draw.io 내보내기 ───────────────────────── */
 {
   const { controller, downloads, statuses, alerts, renders } = harness();
   assert.equal(controller.exportSvgFile(), true);
@@ -279,7 +275,6 @@ assert.throws(() => create({}), /contentBBox/);
   assert.equal(statuses.at(-1), 'Mermaid flowchart 문법으로 내보냈습니다');
 }
 
-/* ── ERD DDL 방언 선택과 다운로드 ──────────────────────────── */
 {
   const { controller, state, downloads, statuses, alerts, modals } = harness();
   state.diagrams.push({
@@ -349,7 +344,6 @@ assert.throws(() => create({}), /contentBBox/);
   assert.deepEqual(alerts, ['DDL을 내보낼 수 없습니다: 컬럼 형식 오류']);
 }
 
-/* ── 비어 있는 다이어그램은 안내 후 중단한다 ────────────────── */
 {
   const { controller, state, alerts, downloads } = harness();
   state.activeId = 'd2';
@@ -360,7 +354,6 @@ assert.throws(() => create({}), /contentBBox/);
   assert.deepEqual(downloads, []);
 }
 
-/* ── 그릴 내용이 없으면 SVG 내보내기는 null을 돌려준다 ──────── */
 {
   const { controller, alerts } = harness({ contentBBox: () => null });
   assert.equal(controller.exportSvg(), null);
@@ -368,7 +361,6 @@ assert.throws(() => create({}), /contentBBox/);
   assert.deepEqual(alerts, ['내보낼 요소가 없습니다.']);
 }
 
-/* ── PNG 한 장 내보내기 ────────────────────────────────────── */
 {
   const { controller, state, downloads } = harness();
   state.diagrams[0].elements = [{ id: 'e1', kind: 'class', modelId: 'm1', x: 0, y: 0, w: 10, h: 10 }];
@@ -376,7 +368,6 @@ assert.throws(() => create({}), /contentBBox/);
   assert.deepEqual(downloads.map(d => d.filename), ['class-diagram.png']);
 }
 
-/* ── All PNG는 비어 있는 다이어그램을 건너뛰고 활성 탭을 복구한다 ── */
 async function asyncFlows() {
   const { controller, state, downloads } = harness();
   await controller.exportAllPngFiles();

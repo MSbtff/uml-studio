@@ -2166,7 +2166,7 @@ function createValidation(iconScript?: ValidationIconApi, erdColumn?: Validation
         const key = Object.keys(details).find(name => name.toLocaleLowerCase()
           === foreignKeyColumn.phys.toLocaleLowerCase());
         hasDefault = !!(key && details[key].defaultValue);
-      } catch (_) { /* ERD009 reports malformed schema separately. */ }
+      } catch (_) {}
       if (foreignKeyColumn.flags.includes('NN') && !hasDefault) {
         issue('error', 'ERD010',
           uiText(

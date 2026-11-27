@@ -1,9 +1,5 @@
 'use strict';
 
-/* Relation end QuickEdit — the floating sheet that edits one end of an
-   association / ER relationship (이름·다중도·탐색 가능성·집합·한정자, and the ER
-   cardinality). QuickEdit builds it and hands over `selectQuickEditTarget` plus
-   a callback that closes its other editors, so only one sheet is ever open. */
 type RelationEndEditorApi = ReturnType<typeof createRelationEndEditorModule>;
 declare var UMLRelationEndEditor: RelationEndEditorApi;
 
@@ -172,7 +168,6 @@ function createRelationEndEditorModule() {
         : uiLabel('{0} End · {1}', '{0}점 · {1}',
           end === 'source' ? uiLabel('Source', '출발') : uiLabel('Target', '도착'),
           endpoint?.name || uiLabel('(unnamed)', '(이름 없음)'));
-      /* the visible heading already says which end this is */
       editor.setAttribute('aria-labelledby', title.id);
       editor.appendChild(title);
 
@@ -182,8 +177,6 @@ function createRelationEndEditorModule() {
         const caption = document.createElement('span');
         caption.id = `uml-quickedit-field-${nextFieldSequence()}`;
         caption.textContent = label;
-        /* the row itself is the <label>, so name the control from the caption
-           alone and leave the hint as a description */
         control.setAttribute('aria-labelledby', caption.id);
         row.append(caption, control);
         if (hint) {
@@ -334,22 +327,18 @@ function createRelationEndEditorModule() {
         element: editor,
         cleanup: () => document.removeEventListener('mousedown', outside, true),
       };
-      /* Keep the editor inside the currently visible canvas viewport, even when
-         the relationship end is close to the right or bottom panel. */
       const positionEditor = () => {
         if (!editor.isConnected) return;
         const minLeft = wrap.scrollLeft + 8;
         const maxLeft = Math.max(minLeft, wrap.scrollLeft + wrap.clientWidth - editor.offsetWidth - 8);
         const minTop = wrap.scrollTop + 8;
-        /* Some platform fonts settle after the first layout pass. Reserve one
-           text row of growth so a late reflow cannot push the actions off-screen. */
         const reservedHeight = Math.min(Math.max(0, wrap.clientHeight - 16), editor.offsetHeight + 64);
         const maxTop = Math.max(minTop, wrap.scrollTop + wrap.clientHeight - reservedHeight - 8);
         editor.style.left = `${Math.max(minLeft, Math.min(anchor.x * state.zoom + 12, maxLeft))}px`;
         editor.style.top = `${Math.max(minTop, Math.min(anchor.y * state.zoom + 12, maxTop))}px`;
       };
       positionEditor();
-      requestAnimationFrame(positionEditor); // webfont/layout 확정 후 한 번 더 보정
+      requestAnimationFrame(positionEditor);
       setTimeout(() => {
         positionEditor();
         document.addEventListener('mousedown', outside, true);

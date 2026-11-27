@@ -1,40 +1,16 @@
 'use strict';
 
-/* ═══════════════════════════════════════════════════════════════
-   UML Studio — web diagram editor
-   UML 2.5: Class · Use Case · Activity · Sequence · Component ·
-   Deployment · State Machine · Package · Profile · Interaction Overview ·
-   Information Flow · SysML Requirement · SysML Block Definition ·
-   SysML Internal Block · SysML Parametric
-   ═══════════════════════════════════════════════════════════════ */
-
 const SVGNS = 'http://www.w3.org/2000/svg';
 const CANVAS_W = 3000, CANVAS_H = 2000;
 
 const { text: uiText } = UMLLanguage;
 UMLLanguage.applyStaticLabels(document);
 
-/* ── Dependency wiring ─────────────────────────────────────── */
-/* One registry of everything the modules may ask for, filled in the order the
-   file already runs: primitives first, then each module's own exports once it
-   exists. `provide` hands a module exactly the names it declared in
-   REQUIRED_FUNCTIONS / REQUIRED_VALUES and nothing else, so a module cannot
-   reach a dependency it never declared, and a missing one still fails at init
-   with that module's own message. Deps that only exist later in the file are
-   registered as arrows so the lookup happens when they are called. */
 const wiring: Record<string, unknown> = Object.create(null);
-/* A module that is created before its provider exists is handed an arrow that
-   forwards to it; registering that provider later replaces the arrow with the
-   real export. Those names are the only ones allowed to be registered twice. */
 const REPLACEABLE_WIRING = new Set([
   'hasClipboard', 'renderMinimap', 'resetHistory', 'scheduleRecoverySave',
 ]);
-/* every controller exports these; app.js drives its own modules' lifecycles and
-   no module ever declares them, so they do not belong in the registry */
 const LIFECYCLE_EXPORTS = new Set(['attach', 'detach']);
-/* Object.assign would otherwise let a controller's generic export — `render`,
-   `clear`, `attach` — silently replace an unrelated binding, and every module
-   wired after that point would quietly receive the wrong function. */
 const register = (...sources: object[]) => {
   sources.forEach(source => Object.entries(source).forEach(([name, value]) => {
     if (LIFECYCLE_EXPORTS.has(name)) return;
@@ -55,7 +31,6 @@ function provide<Module extends WiredModule>(mod: Module): NonNullable<Parameter
   [...(mod.REQUIRED_FUNCTIONS || []), ...(mod.REQUIRED_VALUES || [])].forEach(name => {
     if (name in wiring) out[name] = wiring[name];
   });
-  // Each controller validates the dependencies it receives at creation.
   return out as NonNullable<Parameters<Module['create']>[0]>;
 }
 
@@ -106,7 +81,6 @@ const {
 const EXEC_WIDTH = 12;
 const EXEC_NEST_OFFSET = 8;
 
-/* Canvas drawing constants */
 const FILL_DEFAULT = '#fffbd8';
 const STROKE = '#3d3a2e';
 const TEXT_COLOR = '#1c1c1c';
@@ -116,7 +90,6 @@ const FONT13B = `600 13px ${FONT_FAMILY}`;
 const LINE_H = 15;
 const PAD = 7;
 
-/* every plain re-export of a loaded library, under the name modules ask for */
 register(UMLCanvasGeometry, UMLModelCore, UMLSequenceLayout, UMLOrthogonalRouter,
   UMLValidation, UMLIconScript, UMLErdColumn, UMLErdSchema, UMLErdCardinality,
   UMLDiagramRegistry, UMLPresentationRegistry, UMLRelationEnd);
@@ -125,7 +98,6 @@ register({
   DASH_REL, DASH_LIFE, DASH_NOTE, DASH_SELECT,
   SVGNS, CANVAS_W, CANVAS_H, EXEC_WIDTH, EXEC_NEST_OFFSET,
   FILL_DEFAULT, STROKE, TEXT_COLOR, FONT_FAMILY, FONT12, FONT13B, LINE_H, PAD,
-  /* host objects the modules take rather than reach for */
   document, localStorage, alert, btoa, Image, URL, XMLSerializer, MutationObserver,
   setTimeout, clearTimeout, setInterval, clearInterval,
   requestAnimationFrame, cancelAnimationFrame,
@@ -133,9 +105,6 @@ register({
   viewport: window,
 });
 
-/* UML AssociationEnd / LinkEnd and ER RelationshipEnd metadata.  Multiplicity
-   remains in sourceLabel/targetLabel so older projects and exporters continue
-   to round-trip without a migration. */
 function relationEndAt(p: DiagramPoint, radius = 26): ReturnType<QuickEditDependencies['relationEndAt']> {
   const rels = dg().relations;
   for (let index = rels.length - 1; index >= 0; index--) {
@@ -256,18 +225,17 @@ function diagramKindLabel(kind: string, diagramType = activeDiagram()?.type) {
   return UMLLanguage.displayLabel(meta, kind);
 }
 
-/* ── State ─────────────────────────────────────────────────── */
 const state: ProjectStoreState & CanvasSelectionState & {
   activeId: string | null;
   showMinimap: boolean;
   validationStale: boolean;
   runtimeErrors?: { count: number; last: string; at: number };
 } = {
-  models: {},      // semantic model repository: modelId -> model
-  diagrams: [],   // { id, type, name, elements:[], relations:[] }
+  models: {},
+  diagrams: [],
   activeId: null,
-  selectedId: null,  // single-selection id (null when 0 or 2+ selected)
-  selection: [],     // selected element and relation IDs
+  selectedId: null,
+  selection: [],
   tool: 'select',
   zoom: 1,
   dirty: false,
@@ -303,7 +271,6 @@ const closeValidationButton = document.querySelector('[data-action="close-valida
 const statusLeft = document.getElementById('status-left');
 const statusRight = document.getElementById('status-right');
 
-/* ── Utilities ─────────────────────────────────────────────── */
 const meas = document.createElement('canvas').getContext('2d');
 function tw(text: string | undefined, font: string) {
   if (!meas) return 0;
@@ -348,7 +315,6 @@ function el<Tag extends keyof SVGElementTagNameMap>(tag: Tag, attrs: SvgAttribut
   if (parent) parent.appendChild(n);
   return n;
 }
-/* ── Semantic model repository / diagram views ───────────── */
 function adoptView(view: DiagramElement | DiagramRelation) {
   return hydrateView(view, state.models, modelUid);
 }
@@ -368,7 +334,6 @@ function syncReconnectedRelationModel(relation: DiagramRelation) {
   const model = relation.modelId ? state.models[relation.modelId] : undefined;
   if (model?.kind === 'c4relationship' && state.diagrams.some(diagram =>
     diagram.relations.some(view => view !== relation && view.modelId === model.id))) {
-    // A semantic C4 relationship describes the same pair of endpoints in each of its views.
     const id = modelUid();
     state.models[id] = { ...model, id };
     relation.modelId = id;
@@ -382,7 +347,6 @@ function syncAllRelationModels() {
   });
 }
 
-/* ── Element creation / generated names ───────────────────── */
 register({
   ACTIVITY_PIN_KINDS, BDD_CLASSIFIER_KINDS, FILL_DEFAULT,
   TIMING_ROW_HEIGHT, counters, dg, uid,
@@ -390,13 +354,9 @@ register({
 const elementFactory = UMLElementFactory.create(provide(UMLElementFactory));
 register(elementFactory);
 
-/* ── Editable compartment member lists ────────────────────── */
 const memberListsController = UMLMemberLists.create();
 register(memberListsController);
 
-/* the kind vocabularies, the shared state and lookups, and every remaining
-   app-owned function — hoisting makes the last group safe to register here
-   no matter where it is defined below */
 register({
   INSTANCE_KINDS, COMPOSITE_CONTAINER_KINDS, COMPOSITE_CONNECTABLE_KINDS,
   BDD_CLASSIFIER_KINDS, BDD_RELATION_KINDS,
@@ -424,7 +384,6 @@ register({
   getIdSeq: () => idSeq,
   setIdSeq: (value: number) => { idSeq = value; },
 });
-/* names that describe an app-level action rather than one binding */
 register({
   renderCanvas: () => render(),
   renderExplorer: () => modelExplorer.render(),
@@ -435,7 +394,6 @@ register({
   clearLinking: () => canvasInteraction.setLinking(null),
   getLinking: () => canvasInteraction.getLinking(),
   confirmAction: (message: string) => confirm(message),
-  /* command availability, asked for while a menu is being built */
   canBringFront: () => canReorderSelection(true),
   canSendBack: () => canReorderSelection(false),
   hasSelection: () => state.selection.length > 0,
@@ -448,7 +406,6 @@ register({
   resetHistory: () => historyController.resetHistory(),
   scheduleRecoverySave: (delay?: number) => projectStore.scheduleRecoverySave(delay),
 });
-/* the panels and libraries the modules are handed rather than look up */
 register({
   appRoot: document.getElementById('app'),
   toolbar: document.getElementById('toolbar'),
@@ -470,24 +427,19 @@ register({
   drawioImporter: UMLDrawioImporter,
 });
 
-/* ── Modal focus and lifecycle ─────────────────────────────── */
 const modalFocus = UMLModalFocus.create(provide(UMLModalFocus));
 register({
   modalFocus,
   closeTopModal: () => modalFocus.closeTop(),
 });
 
-/* ── Status bar ────────────────────────────────────────────── */
 const statusBar = UMLStatusBar.create(provide(UMLStatusBar));
 const { flash: flashStatus, render: renderStatus } = statusBar;
 register({ flashStatus, renderStatus, now: () => Date.now() });
 
-/* uncaught errors reach the status bar from here on; the console entry and
-   the error event itself are untouched */
 const runtimeErrors = UMLRuntimeErrors.create(provide(UMLRuntimeErrors));
 runtimeErrors.attach();
 
-/* ── Sample project ────────────────────────────────────────── */
 const sampleDiagrams = UMLSampleDiagrams.create(provide(UMLSampleDiagrams));
 register(sampleDiagrams, { sampleDiagrams });
 function markDirty() {
@@ -504,12 +456,10 @@ function markSaved() {
   renderStatus();
 }
 
-/* ── Project document / migrations ─────────────────────────── */
 const projectDocument = UMLProjectDocument.create(provide(UMLProjectDocument));
 const { serialize } = projectDocument;
 register(projectDocument);
 
-/* ── Undo / Redo ───────────────────────────────────────────── */
 const historyController = UMLHistoryController.create(provide(UMLHistoryController));
 const {
   redo,
@@ -518,7 +468,6 @@ const {
 } = historyController;
 register(historyController);
 
-/* ── Containment / layout ──────────────────────────────────── */
 const containmentLayout = UMLContainmentLayout.create(provide(UMLContainmentLayout));
 const {
   childViews,
@@ -527,7 +476,6 @@ const {
 } = containmentLayout;
 register(containmentLayout);
 
-/* ── Element measurement / label composition ──────────────── */
 const elementMeasure = UMLElementMeasure.create(provide(UMLElementMeasure));
 const {
   erdMode,
@@ -537,15 +485,12 @@ const {
 } = elementMeasure;
 register(elementMeasure);
 
-/* ── Relation legality rules ───────────────────────────────── */
 const relationRules = UMLRelationRules.create(provide(UMLRelationRules));
 register(relationRules);
 
-/* ── Relation creation / commit ────────────────────────────── */
 const relationCreation = UMLRelationCreation.create(provide(UMLRelationCreation));
 register(relationCreation);
 
-/* ── ERD logical / physical model ────────────────────────── */
 const ERD_VIEW_MODES = [
   ['physical', uiText('Physical', '물리만')], ['logical', uiText('Logical', '논리만')], ['both', uiText('Both', '논리 + 물리')],
 ] as const;
@@ -581,20 +526,17 @@ register({
   lockBindingRoute, syncConstraintParameters, unlockBindingRoute,
 });
 
-/* ERD relationship cardinality */
 function erdRelationCardinality(r: DiagramRelation, end: RelationEnd) {
   const field = end === 'source' ? 'sourceLabel' : 'targetLabel';
   return normalizeErdCardinality(r[field], erdDefaultCardinality(r.kind, end));
 }
 
-/* curved mindmap branch */
 function branchGeom(r: DiagramRelation) {
   const ep = relEndpoints(r);
   if (!ep) return null;
   return curvedBranchGeometry(ep.p1, ep.p2);
 }
 
-/* ── Sequence / Communication layout ──────────────────────── */
 const interactionLayout = UMLInteractionLayout.create(provide(UMLInteractionLayout));
 const {
   communicationMessagePoints,
@@ -605,8 +547,6 @@ const {
   syncCommunicationMessages,
 } = interactionLayout;
 register(interactionLayout);
-
-/* ── Rendering ─────────────────────────────────────────────── */
 
 const canvasRenderer = UMLCanvasRenderer.create(provide(UMLCanvasRenderer));
 const { render } = canvasRenderer;
@@ -696,7 +636,6 @@ function stateSelfTransitionGeom(r: DiagramRelation) {
   return selfTransitionGeometry(r, byId(r.from));
 }
 
-/* user-dragged offset of a relation label (name / sourceLabel / targetLabel) */
 const lblOff = (r: DiagramRelation, field: string) => (r.lblOff && r.lblOff[field]) || { dx: 0, dy: 0 };
 register({ lblOff });
 
@@ -736,11 +675,9 @@ function drawRelation(parent: SVGElement, relation: DiagramRelation) {
   return relationRenderer.draw(parent, relation);
 }
 
-/* ── Hit testing ───────────────────────────────────────────── */
 const hitTesting = UMLHitTesting.create(provide(UMLHitTesting));
 register(hitTesting);
 
-/* ── Mouse interaction ─────────────────────────────────────── */
 function svgPoint(ev: MouseEvent) {
   return UMLCanvasInteraction.canvasPoint(ev, svg, state.zoom);
 }
@@ -768,27 +705,21 @@ const {
 } = diagramTabs;
 register({ addDiagram, switchDiagram, openC4Container, c4ContextFor, closeTabMenu });
 
-/* the ERD column sheet closes QuickEdit's other two editors, so QuickEdit
-   constructs it; app.js wires the factory, not a controller */
 register({ erdColumnEditor: UMLErdColumnEditor, relationEndEditor: UMLRelationEndEditor });
 const quickEdit = UMLQuickEdit.create(provide(UMLQuickEdit));
 register(quickEdit);
 
-/* placing a view is independent of the drag/linking state machine, so it is a
-   sibling module the interaction handler delegates to */
 const elementPlacement = UMLElementPlacement.create(provide(UMLElementPlacement));
 register({ elementPlacement });
 
 const canvasInteraction = UMLCanvasInteraction.create({
   ...provide(UMLCanvasInteraction),
-  /* checked by this module separately from REQUIRED_VALUES */
   state,
   svg,
   eventRoot: window,
 });
 canvasInteraction.attach();
 
-/* ── Selection editing / clipboard ─────────────────────────── */
 const selectionEditing = UMLSelectionEditing.create(provide(UMLSelectionEditing));
 const {
   autoSizeSelection,
@@ -812,17 +743,14 @@ function cancelActiveInteraction() {
   renderAll();
 }
 
-/* ── Project model repository ─────────────────────────────── */
 const modelRepository = UMLModelRepository.create(provide(UMLModelRepository));
 const { open: openModelRepository } = modelRepository;
 register({ openModelRepository });
 
-/* ── Explorer ──────────────────────────────────────────────── */
 const modelExplorer = UMLModelExplorer.create(provide(UMLModelExplorer));
 const { focus: focusExplorer } = modelExplorer;
 modelExplorer.attach();
 
-/* ── Canvas keyboard navigation ────────────────────────────── */
 const canvasKeyboard = UMLCanvasKeyboard.create(provide(UMLCanvasKeyboard));
 canvasKeyboard.attach();
 
@@ -830,31 +758,21 @@ const erdNameTools = UMLErdNameTools.create(provide(UMLErdNameTools));
 erdNameTools.attach();
 register({ openErdNameTools: erdNameTools.open });
 
-/* ── Validation results panel ─────────────────────────────── */
 const validationPanelController = UMLValidationPanel.create(provide(UMLValidationPanel));
 const { run: runValidation, toggle: toggleValidationPanel } = validationPanelController;
 validationPanelController.attach();
-/* deliberately not `register(validationPanelController)` — its controller exports
-   a generic `render`, and app.js reaches its methods directly anyway */
 
-/* ── Properties panel ──────────────────────────────────────── */
 function focusProps() {
   const first = document.querySelector<HTMLInputElement | HTMLTextAreaElement>('#props input[type=text], #props textarea');
   if (first) { first.focus(); first.select(); }
 }
-/* the ER-only property blocks need the panel's own row and heading helpers, so
-   the panel constructs them; app.js wires the factory, not a controller */
 register({ erdPropertySections: UMLErdPropertySections });
-/* GRID and FILL_DEFAULT are read with fallbacks rather than declared, so they
-   stay outside `provide` — the same shape UMLCanvasInteraction uses */
 const propertyPanel = UMLPropertyPanel.create({ ...provide(UMLPropertyPanel), GRID, FILL_DEFAULT });
 
 function renderProps() {
   return propertyPanel.render();
 }
 
-/* ── Export bounds ──────────────────────────────────────────── */
-/* bounding box of the active diagram's content, with margin */
 function contentBBox() {
   const d = dg();
   if (!d.elements.length) return null;
@@ -884,7 +802,6 @@ function contentBBox() {
   return { x: Math.max(0, x0 - P), y: Math.max(0, y0 - P), w: (x1 - x0) + P * 2, h: (y1 - y0) + P * 2 };
 }
 
-/* ── Project store / persistence UI ────────────────────────── */
 const projectStore = UMLProjectStore.create(provide(UMLProjectStore));
 const {
   createNewProject,
@@ -898,13 +815,8 @@ projectStore.attach();
 const fileInput = document.getElementById('fileInput');
 register({ fileInput });
 
-/* the import preview sheets read only the parsed file, so the import module
-   builds them; app.js wires the factory, not a controller */
 register({ importPreview: UMLImportPreview });
-/* export writers and the import pipeline share nothing but the download helper,
-   so they are independent siblings rather than one module */
 const diagramExport = UMLDiagramExport.create(provide(UMLDiagramExport));
-/* app.js's own Save writes project.json through the same helper */
 const { download } = diagramExport;
 
 const importExport = UMLProjectImport.create(provide(UMLProjectImport));
@@ -957,7 +869,6 @@ register({ commands });
 const commandRouter = UMLCommandRouter.create(provide(UMLCommandRouter));
 commandRouter.attach();
 
-/* ── Init ──────────────────────────────────────────────────── */
 const projectReady = projectStore.restoreOnStartup();
 const settingsButton = document.querySelector<HTMLButtonElement>('#language-settings');
 if (settingsButton) UMLLanguageSettings.attach(settingsButton, projectStore, projectReady);

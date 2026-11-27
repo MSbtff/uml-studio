@@ -69,7 +69,6 @@ function createPresentationRegistry() {
   };
 
   const KIND_META = {
-    /* elements */
     class:        { label: 'Class', labelKo: '클래스', icon: 'C',  color: '#c98f2c' },
     interface:    { label: 'Interface', labelKo: '인터페이스', icon: 'I',  color: '#2e9e5b' },
     enumeration:  { label: 'Enumeration', labelKo: '열거형', icon: 'E',  color: '#7b46d3' },
@@ -168,7 +167,6 @@ function createPresentationRegistry() {
     timetick:     { label: 'Time Tick', labelKo: '시간 눈금', icon: 'TT', color: '#ad6b3d' },
     timeconstraint:{ label: 'Time Constraint', labelKo: '시간 제약', icon: 'TC', color: '#ad6b3d' },
     durationconstraint:{ label: 'Duration Constraint', labelKo: '기간 제약', icon: 'DC', color: '#ad6b3d' },
-    /* relations */
     association:  { label: 'Association', labelKo: '연관', icon: '—',  color: '#5a7ba6' },
     directed:     { label: 'Directed Association', labelKo: '방향성 연관', icon: '→', color: '#5a7ba6' },
     c4relationship:{ label: 'Relationship', labelKo: '관계', icon: '→', color: '#35739c' },

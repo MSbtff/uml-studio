@@ -1,8 +1,5 @@
 import { test, expect } from './fixtures.mjs';
 
-/* 첫 실행은 샘플 프로젝트를 생성하므로, 이 스펙은 지원하는 모든 다이어그램 종류가
-   실제로 그려지고 UML 검증을 통과하는지를 한 번에 확인한다. 모듈을 떼어낼 때
-   특정 종류만 조용히 깨지는 일을 막는 그물이다. */
 test('샘플 프로젝트의 모든 다이어그램이 그려지고 검증을 통과한다', async ({ studioPage: page }) => {
   const tabs = page.locator('#tabs .tab');
   const names = await tabs.locator('.tab-name').allTextContents();

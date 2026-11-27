@@ -32,7 +32,7 @@ from server import (
 
 
 class QuietHandler(UMLStudioHandler):
-    def log_message(self, format: str, *args: object) -> None:  # noqa: A002
+    def log_message(self, format: str, *args: object) -> None:
         pass
 
 
@@ -284,7 +284,6 @@ class StorageServerTestCase(unittest.TestCase):
         current = self.request("GET", f"/api/projects/{project_id}")[1]
         self.assertEqual(current["json"], old_snapshot["json"])
 
-        # Retrying the exact restored content is idempotent even with the now-stale expectation.
         status, repeated, _ = self.request(
             "PUT",
             f"/api/projects/{project_id}",
@@ -329,7 +328,6 @@ class StorageServerTestCase(unittest.TestCase):
         self.assertEqual(self.request("GET", "/api/recovery/autosave")[1]["json"], second_json)
         self.assertEqual(self.request("GET", "/api/recovery/previous")[1]["json"], first_json)
 
-        # Saving identical content must not replace the previous distinct recovery point.
         self.assertEqual(
             self.request(
                 "PUT",
@@ -427,7 +425,6 @@ class StorageServerTestCase(unittest.TestCase):
                 self.assertIn(b'"ok":true', response.read())
                 self.assertNotEqual(response.getheader("Connection", "").lower(), "close")
 
-            # an error response may leave an unread body behind, so it must close
             sock.sendall(
                 b"PUT /api/projects/burst HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\n"
                 b"Content-Length: 99999999\r\n\r\n"

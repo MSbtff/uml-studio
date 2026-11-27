@@ -1,9 +1,5 @@
 'use strict';
 
-/* Relation rules — the per-diagram legality checks that decide whether a link
-   the user is drawing may exist.  Every rule is pure: it takes the relation
-   kind and the two endpoint views and returns a Korean message, or '' when the
-   link is allowed. */
 type RelationRulesApi = ReturnType<typeof createRelationRulesModule>;
 declare var UMLRelationRules: RelationRulesApi;
 
@@ -396,8 +392,6 @@ function createRelationRulesModule() {
       return '';
     }
 
-    /* The per-diagram rules in the order completeLink applies them; the first
-       non-empty message wins. */
     const DIAGRAM_RULES = Object.freeze([
       compositeRelationError,
       activityRelationError,

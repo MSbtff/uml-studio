@@ -1,10 +1,5 @@
 'use strict';
 
-/* Canvas rendering orchestration — decides paint order per diagram type,
-   rebuilds the SVG scene graph, draws the selection overlay and its drag
-   handles, and refreshes the toolbar toggles that belong to the canvas.
-   Element and relation painting, layout passes and hit geometry are injected
-   so this module only owns the sequencing of a frame. */
 interface CanvasRendererDependencies {
   assignTemporalDepths<T extends { el: string | undefined; y0: number; y1: number }>(items: T[]): (T & { depth: number })[];
   bindingRoute: RelationRendererDependencies['bindingRoute'];
@@ -141,8 +136,6 @@ function createCanvasRendererModule() {
     'state',
     'svg',
   ] as const);
-  /* selection overlay look — the visual handles and the wider transparent
-     areas that make them easy to grab */
   const RENDER_STYLE = Object.freeze({
     accent: '#1a73e8',
     reconnectTarget: '#2e9e5b',
@@ -157,7 +150,6 @@ function createCanvasRendererModule() {
     curveHighlightWidth: 4,
     highlightOpacity: 0.25,
   });
-  /* diagram types whose paint order is decided by containment nesting alone */
   const CONTAINMENT_ORDERED_TYPES = Object.freeze(['composite', 'bdd', 'ibd', 'parametric', 'package']);
   const SEQ_OPTS_HOLDER_ID = 'seqopts';
   const ERD_MODE_HOLDER_ID = 'erdmode';
@@ -238,14 +230,12 @@ function createCanvasRendererModule() {
       svg,
     } = deps as CanvasRendererDependencies;
 
-    /* ── Paint order ─────────────────────────────────────────── */
-
     function drawOrder(kind: string) {
-      if (kind === 'frame') return -3;      // behind everything
+      if (kind === 'frame') return -3;
       if (kind === 'compositestate') return -2;
       if (kind === 'region') return -1;
       if (kind === 'lifeline') return 0;
-      if (kind === 'execution') return 0.5; // on the lifeline, under fragments/messages
+      if (kind === 'execution') return 0.5;
       if (kind === 'fragment') return 1;
       return 2;
     }
@@ -300,8 +290,6 @@ function createCanvasRendererModule() {
       return d.elements;
     }
 
-    /* ── Layout passes run before a frame is painted ─────────── */
-
     function runLayoutPasses(d: EditorDiagram) {
       d.elements.forEach(normalizeSize);
       if (d.type === 'c4container') c4Model.layoutContainers(d);
@@ -314,8 +302,6 @@ function createCanvasRendererModule() {
       if (d.type === 'activity') layoutActivityAttachments(d);
       if (d.type === 'timing') layoutTimingDiagram(d);
       if (d.type === 'sequence') {
-        /* keep Execution boxes glued to their lifeline centre; nested boxes
-           on the same lifeline step right whenever their time ranges overlap */
         const execs = d.elements.filter(e => e.kind === 'execution');
         const intervals = assignTemporalDepths(execs.map(e => ({ id: e.id, el: e.lifeId, y0: e.y, y1: e.y + e.h, ref: e })));
         intervals.forEach(interval => {
@@ -333,8 +319,6 @@ function createCanvasRendererModule() {
       } else { clearSequenceBars(); clearSequenceNumbers(); }
       computeBindingRoutes(d);
     }
-
-    /* ── Scene graph ─────────────────────────────────────────── */
 
     function buildCanvasRoot() {
       svg.setAttribute('viewBox', `0 0 ${CANVAS_W} ${CANVAS_H}`);
@@ -354,11 +338,9 @@ function createCanvasRendererModule() {
       return root;
     }
 
-    /* activation bars above lifelines, below messages — follow the
-       owning lifeline's fill colour so recolouring a lifeline is consistent */
     function drawActivationBars(gRel: SVGGElement) {
       getSequenceBars().forEach(b => {
-        if (b.manual) return; // manual Execution elements were already rendered above
+        if (b.manual) return;
         const life = byId(b.el);
         if (!life) return;
         const cx = life.x + life.w / 2;
@@ -369,8 +351,6 @@ function createCanvasRendererModule() {
         }, gRel);
       });
     }
-
-    /* ── In-progress interaction feedback ────────────────────── */
 
     function drawLinkingPreview(root: SVGElement, linking: CanvasLinking) {
       const from = byId(linking.fromId);
@@ -437,7 +417,6 @@ function createCanvasRendererModule() {
       el('circle', { cx: entity.x + entity.w - 2, cy: insertY, r: 3, fill: RENDER_STYLE.accent, 'pointer-events': 'none' }, root);
     }
 
-    /* 끝점 드래그 중: 현재 연결점 링 + 재연결 대상 하이라이트 */
     function drawEndpointDragFeedback(root: SVGElement, drag: CanvasEndpointDrag) {
       const rr = drag.rel;
       const ep2 = rr.kind === 'mindbranch' ? branchGeom(rr) : relEndpoints(rr);
@@ -516,9 +495,6 @@ function createCanvasRendererModule() {
       renderMinimap();
     }
 
-    /* ── Canvas-owned toolbar toggles ────────────────────────── */
-
-    /* sequence-number toggle for sequence diagrams (shares the toolbar holder) */
     function renderSeqOpts() {
       const holder = document.getElementById(SEQ_OPTS_HOLDER_ID);
       if (!holder) return;
@@ -537,7 +513,6 @@ function createCanvasRendererModule() {
       holder.appendChild(b);
     }
 
-    /* logical / physical / both view toggle for ER diagrams */
     function renderErdMode() {
       const holder = document.getElementById(ERD_MODE_HOLDER_ID);
       if (!holder) return;
@@ -558,8 +533,6 @@ function createCanvasRendererModule() {
       });
     }
 
-    /* ── Selection overlay ───────────────────────────────────── */
-
     function handlePositions(e: DiagramBounds) {
       const midx = e.x + e.w / 2, midy = e.y + e.h / 2;
       return [
@@ -574,8 +547,6 @@ function createCanvasRendererModule() {
       ];
     }
 
-    /* elements whose geometry is derived from a parent — resizing them by
-       hand would be undone by the next layout pass */
     const UNRESIZABLE_KINDS = ['region', 'connectionpointref', 'port', 'inputpin', 'outputpin',
       'expansioninput', 'expansionoutput', 'timingstate', 'timetick', 'timeconstraint'];
 
@@ -644,7 +615,6 @@ function createCanvasRendererModule() {
     }
 
     function endpointHandle(g: SVGElement, pt: DiagramPoint, which: 'src' | 'dst') {
-      /* 넉넉한 투명 히트 영역 (20px) — 시각적 핸들은 9px 유지 */
       const hit = RENDER_STYLE.endpointHitSize;
       const size = RENDER_STYLE.endpointHandleSize;
       el('rect', {
@@ -735,7 +705,6 @@ function createCanvasRendererModule() {
     }
 
     function drawSelection(g: SVGElement) {
-      /* multi-selection: dashed outlines only (no resize handles) */
       if (state.selection.length > 1) {
         state.selection.forEach(sid => {
           const se = byId(sid);

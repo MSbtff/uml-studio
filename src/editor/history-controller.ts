@@ -1,7 +1,5 @@
 'use strict';
 
-/* History Controller — owns the bounded Undo/Redo stacks while the host keeps
-   responsibility for serializing and restoring the project document. */
 type HistoryControllerApi = ReturnType<typeof createHistoryControllerModule>;
 declare var UMLHistoryController: HistoryControllerApi;
 

@@ -17,32 +17,27 @@ const kinds = (page) =>
 test('도구로 놓은 요소는 컨테이너에 붙고, 호스트가 필요한 도구는 안내만 한다', async ({ studioPage: page }) => {
   await createEmptyProject(page);
 
-  // 1. 평범한 배치 + 배치 후 select 도구로 복귀
   await clickTool(page, 'Class');
   await page.locator('#canvas').click({ position: { x: 220, y: 180 } });
   await expect(canvasElements(page)).toHaveCount(1);
   await expect(page.locator('#toolbox .tb-tool.active')).toHaveText('Select');
 
-  // 2. Region은 Composite State 안에서만 — 밖을 클릭하면 안내만
   await addDiagram(page, 'State Machine Diagram');
   await clickTool(page, 'Region');
   await page.locator('#canvas').click({ position: { x: 600, y: 500 } });
   await expect(canvasElements(page)).toHaveCount(0);
   await expect(status(page)).toContainText('inside a composite state');
 
-  // Composite State는 Region 하나와 함께 생긴다
   await clickTool(page, 'Composite State');
   await page.locator('#canvas').click({ position: { x: 260, y: 200 } });
   await expect(canvasElements(page)).toHaveCount(2);
   expect(await kinds(page)).toEqual(['state', 'state']);
 
-  // 안쪽을 클릭하면 두 번째 Region이 붙는다
   const composite = await canvasElements(page).first().boundingBox();
   await clickTool(page, 'Region');
   await page.mouse.click(composite.x + composite.width / 2, composite.y + composite.height - 12);
   await expect(canvasElements(page)).toHaveCount(3);
 
-  // 3. Execution은 라이프라인 위에서만
   await addDiagram(page, 'Sequence Diagram');
   await clickTool(page, 'Execution');
   await page.locator('#canvas').click({ position: { x: 500, y: 400 } });
@@ -130,7 +125,6 @@ test('시퀀스 전체를 위아래로 드래그하면 alt와 메시지의 간�
   await page.reload({ waitUntil: 'domcontentloaded' });
   await expect(message).toHaveAttribute('y1', String(original.relations[0].y + 80));
 
-  // 전체 이동 후에도 새 라이프라인은 기존 참가자와 같은 줄에 놓인다.
   await createCanvasElement(page, 'Lifeline', { x: 640, y: 300 });
   await waitForStoredProject(page, (data) => {
     const elements = sequence(data)?.elements;
@@ -169,7 +163,6 @@ test('시퀀스 중간 구간에서 선택한 alt와 화살표만 같이 이동�
   const original = sequence(data);
   const fragment = original.elements.at(-1);
 
-  // 화살표의 오른쪽 끝과 두 참가자의 머리 상자는 사각형 밖에 있다.
   await page.mouse.move(x + fragment.x - 12, y + fragment.y - 8);
   await page.mouse.down();
   await page.mouse.move(x + fragment.x + fragment.w + 12, y + fragment.y + fragment.h + 8, { steps: 8 });

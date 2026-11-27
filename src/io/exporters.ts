@@ -1,13 +1,5 @@
 'use strict';
 
-/*
- * Text exporters for UML Studio.
- *
- * Mermaid uses native diagram syntax where it can preserve UML semantics
- * (Class, Sequence and State) and an editable flowchart fallback elsewhere.
- * draw.io output is uncompressed mxGraph XML: every view and relationship is
- * emitted as a native mxCell so the result remains individually editable.
- */
 interface ExportCardinalityApi {
   erdDefaultCardinality(kind: string, side: 'source' | 'target'): string;
   erdMermaidMarker(value: unknown, fallback: string, side: 'left' | 'right'): string;
@@ -510,9 +502,6 @@ function createExporters(erdCardinalityApi: ExportCardinalityApi, erdColumnApi: 
     return map;
   }
 
-  /* every export*Mermaid takes (diagram, models) so exportMermaid can dispatch
-     uniformly; requirement fields are MODEL_FIELDS, so the hydrated view's
-     getters already read them from the model and the map itself is unused */
   function exportRequirementMermaid(diagram: EditorDiagram, _models: DiagramModels) {
     const elements = diagram.elements.filter(element => element.kind !== 'note');
     const ids = makeRequirementNameMap(elements);
@@ -629,7 +618,6 @@ function createExporters(erdCardinalityApi: ExportCardinalityApi, erdColumnApi: 
     const source = marker('source'), target = marker('target');
     if (source && target) {
       if (source === target) return { arrow: source === 'cross' ? 'x--x' : '<-->', reverse: false, omitted };
-      // Keep the arrow direction when Mermaid cannot draw two different end markers on one edge.
       omitted.push(source === 'cross' ? 'source cross' : 'target cross');
       return { arrow: '-->', reverse: source === 'arrow', omitted };
     }

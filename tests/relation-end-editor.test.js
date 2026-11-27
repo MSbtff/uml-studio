@@ -19,7 +19,6 @@ const {
   normalizeErdCardinality,
 } = require('../dist/browser/model/erd-cardinality.js');
 
-/* app.js가 배선하는 한 줄짜리 헬퍼 */
 const erdRelationCardinality = (relation, end) => normalizeErdCardinality(
   relation[end === 'source' ? 'sourceLabel' : 'targetLabel'],
   erdDefaultCardinality(relation.kind, end),
@@ -44,7 +43,6 @@ function fakeNode(tagName = 'div') {
     offsetHeight: 220,
     appendChild(child) {
       this.children.push(child); child.isConnected = true;
-      /* a real <select> takes the first option's value, and any selected one */
       if (this.tagName === 'SELECT' && child.tagName === 'OPTION') {
         if (child.selected || this.children.length === 1) this.value = child.value;
       }
@@ -145,11 +143,9 @@ assert.ok(Object.isFrozen(editorApi));
 assert.deepEqual(Object.keys(editorApi).sort(),
   ['closeRelationEndEditor', 'openRelationEndQuickEdit']);
 
-/* ── 지원하지 않는 관계는 시트를 열지 않는다 ───────────────── */
 assert.equal(editorApi.openRelationEndQuickEdit({ id: 'x', kind: 'transition' }, 'source'), false);
 assert.equal(closeOtherCalls, 0);
 
-/* ── UML association 끝점 ──────────────────────────────────── */
 const association = { id: 'rel-1', kind: 'association', from: 'a', to: 'b' };
 assert.equal(editorApi.openRelationEndQuickEdit(association, 'target'), true);
 flushDeferred();
@@ -175,7 +171,6 @@ assert.ok(named(sheet, 'navigability'), 'UML 끝점에는 탐색 가능성 선�
 assert.ok(named(sheet, 'aggregation'));
 assert.ok(named(sheet, 'qualifiers'), 'association은 한정자를 편집할 수 있습니다');
 
-/* 잘못된 다중도는 인라인 오류로 막고 모델을 건드리지 않는다 */
 const errorBox = byClass(sheet, 'relation-end-editor-error');
 assert.equal(errorBox.attributes['aria-live'], 'polite');
 named(sheet, 'multiplicity').value = '1..좋아요';
@@ -185,12 +180,10 @@ assert.equal(snapshotCalls, 0, '거절된 적용은 Undo 스냅샷을 만들지 
 assert.equal(sheet.isConnected, true);
 assert.equal(focused, named(sheet, 'multiplicity'));
 
-/* 다시 입력하면 오류 표시가 사라진다 */
 sheet.emit('input', { target: named(sheet, 'multiplicity') });
 assert.equal(errorBox.textContent, '');
 assert.equal(named(sheet, 'multiplicity').validationMessage, '');
 
-/* 이름 없는 가시성만 남은 표현식도 막는다 */
 expressionField.value = '+';
 named(sheet, 'multiplicity').value = '0..*';
 buttonLabelled(sheet, 'Apply').emit('click');
@@ -199,7 +192,6 @@ assert.equal(expressionField.validationMessage, '이름을 입력하세요.',
   '이름 표현식 오류는 컨트롤에 그대로 붙습니다');
 assert.equal(focused, expressionField);
 
-/* 올바른 값은 한 번의 스냅샷으로 관계에 반영된다 */
 sheet.emit('input', { target: expressionField });
 expressionField.value = '«role» - owner';
 named(sheet, 'navigability').value = 'navigable';
@@ -218,13 +210,11 @@ assert.deepEqual(association.targetQualifiers, ['key', 'region'],
 assert.equal(statusMessages.at(-1), 'Target End를 수정했습니다');
 assert.equal(sheet.isConnected, false);
 
-/* 값이 그대로면 스냅샷을 만들지 않고 닫기만 한다 */
 assert.equal(editorApi.openRelationEndQuickEdit(association, 'target'), true);
 flushDeferred();
 buttonLabelled(wrap.children.at(-1), 'Apply').emit('click');
 assert.equal(snapshotCalls, 1, '바뀐 값이 없으면 Undo 스냅샷을 만들지 않습니다');
 
-/* ── ER 관계 끝점: 표현식 대신 카디널리티 선택기 ───────────── */
 const erdRelation = { id: 'rel-2', kind: 'erd-1n', from: 'a', to: 'b' };
 assert.equal(editorApi.openRelationEndQuickEdit(erdRelation, 'source'), true);
 flushDeferred();
@@ -242,7 +232,6 @@ assert.equal(erdRelation.sourceLabel, '1..N');
 assert.equal(erdRelation.sourceEndStereotype, undefined,
   'ER 끝점은 표현식을 파싱하지 않고 이름 그대로 씁니다');
 
-/* ── Enter는 적용, Escape는 취소, 바깥 클릭은 닫기 ─────────── */
 assert.equal(editorApi.openRelationEndQuickEdit(association, 'source'), true);
 flushDeferred();
 const keySheet = wrap.children.at(-1);
@@ -266,7 +255,6 @@ escSheet.emit('keydown', {
 assert.equal(association.sourceEndName, 'placer', 'Escape는 아무것도 저장하지 않습니다');
 assert.equal(escSheet.isConnected, false);
 
-/* textarea 안의 Enter는 줄바꿈이므로 적용하지 않는다 */
 assert.equal(editorApi.openRelationEndQuickEdit(association, 'source'), true);
 flushDeferred();
 const areaSheet = wrap.children.at(-1);

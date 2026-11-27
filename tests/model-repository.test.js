@@ -11,8 +11,6 @@ const {
   create,
 } = require('../dist/browser/editor/model-repository.js');
 
-/* ── minimal DOM double ────────────────────────────────────── */
-
 class FakeNode {
   constructor(tag) {
     this.tag = tag;
@@ -68,8 +66,6 @@ function fakeDocument() {
     },
   };
 }
-
-/* ── harness ───────────────────────────────────────────────── */
 
 const KIND_META = {
   class: { label: 'Class', color: '#eee', icon: 'C' },
@@ -158,8 +154,6 @@ const rowAction = row => row.children[2];
 const rowName = row => row.children[1].children[0].textContent;
 const rowMeta = row => row.children[1].children[1].textContent;
 
-/* ── module contract ───────────────────────────────────────── */
-
 assert.ok(Object.isFrozen(REQUIRED_FUNCTIONS), 'REQUIRED_FUNCTIONS는 동결해야 합니다');
 assert.ok(Object.isFrozen(REQUIRED_VALUES), 'REQUIRED_VALUES는 동결해야 합니다');
 assert.ok(Object.isFrozen(DERIVED_VIEW_KINDS), 'DERIVED_VIEW_KINDS는 동결해야 합니다');
@@ -185,8 +179,6 @@ assert.throws(() => create({}), err => {
   assert.throws(() => create({ ...deps, document: { body: {}, getElementById: () => null } }), /document\.createElement/);
 }
 
-/* ── placement rules ───────────────────────────────────────── */
-
 {
   const h = harness();
   assert.ok(h.repo.canPlaceKind('class'));
@@ -197,8 +189,6 @@ assert.throws(() => create({}), err => {
     assert.ok(!h.repo.canPlaceKind(kind), `${kind}은 Timing 내부 요소입니다`));
 }
 
-/* ── createViewForModel ────────────────────────────────────── */
-
 {
   const h = harness({ models: { m1: { id: 'm1', kind: 'class', name: 'Order' } } });
   const view = h.repo.createViewForModel('m1');
@@ -206,25 +196,21 @@ assert.throws(() => create({}), err => {
   assert.equal(view.modelId, 'm1');
   assert.deepEqual([view.w, view.h], [0, 0], '기본 크기는 렌더러가 정합니다');
   assert.equal(view.fill, '#fffbd8');
-  /* 800/2 - 60 = 340 → snap 8 → 344; 600/2 - 30 = 270 → snap 8 → 272 */
   assert.deepEqual([view.x, view.y], [344, 272]);
   assert.equal(h.named('adoptView').length, 1, '새 뷰는 adoptView를 거쳐야 합니다');
 }
 
 {
-  /* the centre follows the scroll position and the zoom level */
   const h = harness({
     models: { m1: { id: 'm1', kind: 'class' } },
     wrap: { scrollLeft: 400, scrollTop: 200, clientWidth: 800, clientHeight: 600 },
     state: { zoom: 2 },
   });
   const view = h.repo.createViewForModel('m1');
-  /* (400 + 400) / 2 - 60 = 340 → 344; (200 + 300) / 2 - 30 = 220 → 224 */
   assert.deepEqual([view.x, view.y], [344, 224]);
 }
 
 {
-  /* a view never lands in the negative margin */
   const h = harness({
     models: { m1: { id: 'm1', kind: 'class' } },
     wrap: { scrollLeft: 0, scrollTop: 0, clientWidth: 10, clientHeight: 10 },
@@ -234,7 +220,6 @@ assert.throws(() => create({}), err => {
 }
 
 {
-  /* sequence lifelines always start at the top of the diagram */
   const h = harness({
     diagram: { id: 'd1', type: 'sequence', elements: [], relations: [] },
     models: { m1: { id: 'm1', kind: 'lifeline' } },
@@ -244,7 +229,6 @@ assert.throws(() => create({}), err => {
   assert.equal(view.x, 344, 'x는 여전히 화면 중앙을 따릅니다');
 }
 {
-  /* timing lifelines are full-width lanes instead */
   const h = harness({
     diagram: { id: 'd1', type: 'timing', elements: [], relations: [] },
     models: { m1: { id: 'm1', kind: 'lifeline' } },
@@ -288,8 +272,6 @@ DERIVED_VIEW_KINDS.concat(['timingstate']).forEach(kind => {
   assert.equal(h.repo.createViewForModel('m1'), null, `${kind}은 직접 배치할 수 없습니다`);
 });
 
-/* ── dialog ────────────────────────────────────────────────── */
-
 {
   const h = harness({
     models: {
@@ -320,7 +302,6 @@ DERIVED_VIEW_KINDS.concat(['timingstate']).forEach(kind => {
 }
 
 {
-  /* view counts are summed across every diagram, and singular/plural differ */
   const other = { id: 'd2', type: 'class', elements: [{ id: 'v9', modelId: 'm1' }], relations: [] };
   const h = harness({
     models: { m1: { id: 'm1', kind: 'class', name: 'Order' } },
@@ -336,14 +317,12 @@ DERIVED_VIEW_KINDS.concat(['timingstate']).forEach(kind => {
 }
 
 {
-  /* an unnamed model still gets a readable row */
   const h = harness({ models: { m1: { id: 'm1', kind: 'class' } } });
   h.repo.open();
   assert.equal(rowName(h.rows()[0]), '(unnamed)');
 }
 
 {
-  /* search filters on both the name and the kind label */
   const h = harness({
     models: {
       m1: { id: 'm1', kind: 'class', name: 'Order' },
@@ -373,7 +352,6 @@ DERIVED_VIEW_KINDS.concat(['timingstate']).forEach(kind => {
 }
 
 {
-  /* 목록·행·버튼이 이름으로 구분된다 */
   const h = harness({
     models: {
       m1: { id: 'm1', kind: 'class', name: 'Order' },
@@ -402,7 +380,6 @@ DERIVED_VIEW_KINDS.concat(['timingstate']).forEach(kind => {
 }
 
 {
-  /* rows offer Select when the model is already on this diagram */
   const diagram = { id: 'd1', type: 'class', elements: [{ id: 'v1', modelId: 'm1' }], relations: [] };
   const h = harness({ diagram, models: { m1: { id: 'm1', kind: 'class', name: 'Order' } } });
   h.repo.open();
@@ -417,7 +394,6 @@ DERIVED_VIEW_KINDS.concat(['timingstate']).forEach(kind => {
 }
 
 {
-  /* incompatible kinds are shown but disabled */
   const h = harness({ models: { m1: { id: 'm1', kind: 'actor', name: 'User' } } });
   h.repo.open();
   const action = rowAction(h.rows()[0]);
@@ -426,7 +402,6 @@ DERIVED_VIEW_KINDS.concat(['timingstate']).forEach(kind => {
 }
 
 {
-  /* Add View places the model and selects it */
   const h = harness({ models: { m1: { id: 'm1', kind: 'class', name: 'Order' } } });
   h.repo.open();
   const action = rowAction(h.rows()[0]);
@@ -441,7 +416,6 @@ DERIVED_VIEW_KINDS.concat(['timingstate']).forEach(kind => {
 }
 
 {
-  /* a composite state always arrives with its first region */
   const h = harness({
     diagram: { id: 'd1', type: 'state', elements: [], relations: [] },
     models: { m1: { id: 'm1', kind: 'compositestate', name: 'Running' } },
@@ -459,14 +433,13 @@ DERIVED_VIEW_KINDS.concat(['timingstate']).forEach(kind => {
 }
 
 {
-  /* if the view cannot be built the diagram is left untouched */
   const h = harness({
     models: { m1: { id: 'm1', kind: 'class', name: 'Order' } },
     deps: { diagramAllowsElementKind: () => true },
   });
   h.repo.open();
   const action = rowAction(h.rows()[0]);
-  h.state.models = {}; // the model disappeared between listing and clicking
+  h.state.models = {};
   action.click();
   assert.equal(h.diagram.elements.length, 0);
   assert.equal(h.named('renderAll').length, 0);
@@ -474,7 +447,6 @@ DERIVED_VIEW_KINDS.concat(['timingstate']).forEach(kind => {
 }
 
 {
-  /* per-diagram hints */
   const hintOf = type => {
     const h = harness({ diagram: { id: 'd1', type, elements: [], relations: [] } });
     const overlay = h.repo.open();
@@ -486,7 +458,6 @@ DERIVED_VIEW_KINDS.concat(['timingstate']).forEach(kind => {
 }
 
 {
-  /* closing: the × button, a click on the backdrop, and reopening */
   const h = harness({ models: { m1: { id: 'm1', kind: 'class', name: 'Order' } } });
   const overlay = h.repo.open();
   const closeButton = overlay.children[0].children[0].children[1];

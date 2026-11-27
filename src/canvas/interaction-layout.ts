@@ -1,7 +1,5 @@
 'use strict';
 
-/* Interaction Layout — owns Sequence/Communication numbering, activation-bar
-   cache, message geometry and connector/message synchronization. */
 type InteractionLayoutApi = ReturnType<typeof createInteractionLayoutModule>;
 declare var UMLInteractionLayout: InteractionLayoutApi;
 

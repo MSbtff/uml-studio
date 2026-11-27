@@ -83,7 +83,6 @@ assert.ok(Object.isFrozen(quickEdit));
 assert.equal(quickEdit.openSelectedQuickEdit(), false);
 assert.equal(quickEdit.openSelectedMemberQuickEdit(), false);
 
-/* ERD 컬럼 명령은 erd-column-editor 모듈이 소유하고 QuickEdit는 그대로 다시 내보낸다 */
 const erdColumnEditorModule = require('../dist/browser/editor/erd-column-editor.js');
 [
   'copyErdColumn', 'deleteErdColumn', 'getErdColumnClipboard', 'moveErdColumn',

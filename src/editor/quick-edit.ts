@@ -82,7 +82,6 @@ function createQuickEditModule() {
   const { label: uiLabel, text: uiText } = globalThis.UMLLanguage
     ?? require('./language.js') as typeof UMLLanguage;
 
-  /* every field caption needs a stable id so its control can point at it */
   let fieldSequence = 0;
   const REQUIRED_FUNCTIONS = Object.freeze([
     'addBindingWaypoint',
@@ -177,8 +176,6 @@ function createQuickEditModule() {
       throw new TypeError(`QuickEdit 의존성이 없습니다: ${[...new Set(missing)].join(', ')}`);
     }
 
-    /* names QuickEdit only forwards to erdColumnEditor stay in the REQUIRED
-       lists above — app.js provides by declared name — but are not destructured */
     const {
       addBindingWaypoint,
       bindingRoute,
@@ -361,10 +358,6 @@ function createQuickEditModule() {
       render(); renderProps();
     }
 
-    /* The ERD column clipboard, commands and sheet are their own module. It
-       needs `selectQuickEditTarget` and a way to close the other two editors,
-       which are QuickEdit internals, so QuickEdit constructs it here; the
-       controller comes back and QuickEdit re-exports it unchanged. */
     const erdColumns = erdColumnEditor.create({
       ...deps,
       closeOtherQuickEditors: () => { closeInlineEditor(); closeRelationEndEditor(); },
@@ -383,8 +376,6 @@ function createQuickEditModule() {
       replaceErdColumns,
     } = erdColumns;
 
-    /* the relation end sheet is its own module for the same reason — the two
-       editors must close each other, and only QuickEdit knows about both */
     const {
       closeRelationEndEditor,
       openRelationEndQuickEdit,
@@ -518,8 +509,6 @@ function createQuickEditModule() {
       }
       const z = state.zoom;
 
-      /* Pointer QuickEdit can address a concrete member row. Keyboard QuickEdit
-         intentionally edits the owning element name instead. */
       const row = !options.keyboard && point ? memberRowAt(e, point) : null;
       if (row) {
         return openMemberRowQuickEdit(e, row.kind, row.index);
@@ -600,15 +589,11 @@ function createQuickEditModule() {
         }
       }
 
-      /* double-click directly on a label text (name / multiplicity) — labels
-         render on top of everything, so check them first */
       const labelHit = relationLabelAt(p);
       if (labelHit) {
         return openRelationQuickEdit(labelHit.r, labelHit);
       }
 
-      /* End handles overlap their owning elements. Resolve them before element
-         hit-testing so a border double-click edits the relationship end. */
       const endHit = relationEndAt(p);
       if (endHit) return openRelationEndQuickEdit(endHit.r, endHit.end, p);
 

@@ -1,13 +1,5 @@
 'use strict';
 
-/*
- * Safe, dependency-free draw.io importer for UML Studio.
- *
- * It accepts the native uncompressed mxGraph XML emitted by exporters.js and
- * draw.io's standard compressed <diagram> payload.  Only cells carrying
- * UML Studio's explicit umlKind metadata are converted; arbitrary draw.io
- * shapes are never guessed into UML semantics.
- */
 type DrawioImporterApi = ReturnType<typeof createDrawioImporter>;
 declare var UMLDrawioImporter: DrawioImporterApi;
 
@@ -235,7 +227,6 @@ function createDrawioImporter() {
         '이 브라우저는 압축 draw.io 파일 해제를 지원하지 않습니다. 비압축 XML로 저장해 주세요.',
       ));
     }
-    // Bound the amount of compressed input consumed per transform call.
     const chunkSize = 4 * 1024;
     let offset = 0;
     const compressed = new ReadableStream<Uint8Array<ArrayBuffer>>({
@@ -404,7 +395,6 @@ function createDrawioImporter() {
       if (value !== undefined) model[field] = value;
     });
     if (kind === 'entity') {
-      // The project validator checks the schema entries after the XML attributes are decoded.
       const details = jsonSchemaAttribute(cell, 'umlErdColumnDetails', 'object') as ModelFields['erdColumnDetails'];
       const checks = jsonSchemaAttribute(cell, 'umlErdChecks', 'array') as ModelFields['erdChecks'];
       const indexes = jsonSchemaAttribute(cell, 'umlErdIndexes', 'array') as ModelFields['erdIndexes'];
@@ -426,7 +416,6 @@ function createDrawioImporter() {
 
   function applyCommunicationPathMarkers(style: string, model: Omit<DiagramModel, 'id'>) {
     const properties = new Map<string, string>();
-    // Legacy exports can repeat endArrow. Draw.io resolves the last value.
     for (const entry of style.split(';')) {
       const separator = entry.indexOf('=');
       if (separator < 0) continue;
@@ -608,7 +597,6 @@ function createDrawioImporter() {
     const modelFor = (cell: XmlNode, kind: string, relation = false) => {
       const original = ID_PATTERN.test(cell.attrs.umlModelId || '') ? cell.attrs.umlModelId : '';
       const pathModel = relation && kind === 'commpath' ? relationModel(cell, kind) : undefined;
-      // A separately edited connector needs its own model when shared views now disagree.
       const pathEnds = pathModel ? `|${pathModel.sourceNavigability ?? 'unspecified'}|${pathModel.targetNavigability ?? 'unspecified'}`
         + `|${pathModel.sourceAggregation ?? 'none'}|${pathModel.targetAggregation ?? 'none'}` : '';
       const key = original ? `${kind}|${original}${pathEnds}` : `${kind}|cell:${cell.attrs.id}`;

@@ -51,10 +51,6 @@ function createSequenceLayout() {
     return { boundaries, minHeight };
   }
 
-  /*
-   * Assign the smallest available depth to time intervals that overlap on the
-   * same lifeline. Longer intervals win the outer slot when start times match.
-   */
   function assignTemporalDepths<Interval extends TemporalInterval>(items: Interval[]): (Interval & PositionedInterval)[] {
     const groups = new Map<string, Interval[]>();
     items.forEach(item => {

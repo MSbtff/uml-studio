@@ -53,9 +53,6 @@ interface ProjectStoreDependencies {
 type ProjectStoreApi = ReturnType<typeof createProjectStoreModule>;
 declare var UMLProjectStore: ProjectStoreApi;
 
-/* Project store — recovery autosave scheduling across SQLite/IndexedDB/local
-   storage, the stored-project catalogue, and the Project Manager · Rename ·
-   Recovery History dialogs that sit on top of them. */
 (function initProjectStoreModule(root: typeof globalThis, factory: () => ProjectStoreApi) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
@@ -271,7 +268,7 @@ function createProjectStoreModule() {
 
     function rememberActiveProject() {
       try { localStorage.setItem(ACTIVE_PROJECT_KEY, state.projectId); }
-      catch (_) { /* 비상 저장본은 별도로 계속 시도한다 */ }
+      catch (_) {}
     }
 
     async function projectRecords(projectId: string): Promise<ProjectRecords> {
@@ -364,10 +361,6 @@ function createProjectStoreModule() {
       return button;
     }
 
-    /* every row repeats the same five button labels, so on their own they read as
-       "열기 · 복구 · 이름 …" over and over with no way to tell the rows apart.
-       Naming each button with its own label *plus* the row name keeps the visible
-       text at the front (WCAG 2.5.3) and still says which project it acts on. */
     let rowNameSequence = 0;
     function nameRowActions(row: HTMLElement, nameNode: HTMLElement) {
       row.setAttribute('role', 'listitem');
@@ -378,8 +371,6 @@ function createProjectStoreModule() {
       });
     }
 
-    /* a `list` may only contain `listitem` children, so the loading and empty
-       states drop the role instead of sitting inside a broken list */
     function markProjectList(list: HTMLElement, hasRows: boolean, label: string) {
       if (hasRows) {
         list.setAttribute('role', 'list');
@@ -590,7 +581,6 @@ function createProjectStoreModule() {
       });
     }
 
-    /* ── Autosave lifecycle events ───────────────────────────── */
     function handleHeartbeat() {
       if (recoveryDirty) scheduleRecoverySave(0);
     }
@@ -606,7 +596,7 @@ function createProjectStoreModule() {
     function handleBeforeUnload(ev: BeforeUnloadEvent) {
       try {
         if (state.diagrams.length) writeLocalRecovery(serialize(), Date.now());
-      } catch (_) { /* the debounced IndexedDB copy remains available */ }
+      } catch (_) {}
       if (state.dirty) { ev.preventDefault(); ev.returnValue = ''; }
     }
 
@@ -629,7 +619,6 @@ function createProjectStoreModule() {
       eventRoot.removeEventListener('beforeunload', handleBeforeUnload);
     }
 
-    /* ── Startup recovery ────────────────────────────────────── */
     async function restoreOnStartup() {
       const [projects, databaseRecovery, serverRecovery] = await Promise.all([
         listStoredProjects(),
@@ -642,7 +631,7 @@ function createProjectStoreModule() {
         localRecovery = localStorage.getItem(RECOVERY_STORAGE_KEY) || '';
         localSavedAt = Number(localStorage.getItem(RECOVERY_META_KEY)) || 0;
         preferredProjectId = localStorage.getItem(ACTIVE_PROJECT_KEY) || '';
-      } catch (_) { /* IndexedDB may still be available */ }
+      } catch (_) {}
 
       let recovered = false;
       if (projects.length) {

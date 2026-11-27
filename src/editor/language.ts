@@ -19,7 +19,6 @@ function createStudioLanguage() {
     }
   }
 
-  // CommonJS consumers retain the diagnostics provided by the existing parser APIs.
   const browser = !(typeof module === 'object' && module.exports);
   const current = browser ? storedLanguage() : 'ko';
   const locale = current === 'ko' ? 'ko-KR' : 'en-US';
@@ -36,7 +35,6 @@ function createStudioLanguage() {
     return interpolate(browser && current === 'ko' ? korean : english, values);
   }
 
-  // Registry labels are also used as default names in project data.
   function displayLabel(meta: { label: string; labelKo?: string } | undefined, fallback = ''): string {
     if (!meta) return fallback;
     return label(meta.label, meta.labelKo ?? meta.label);

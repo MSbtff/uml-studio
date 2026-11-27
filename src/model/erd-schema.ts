@@ -1,8 +1,5 @@
 'use strict';
 
-/* ERD table constraints and indexes shared by editing, DDL import/export,
-   persistence validation, and tests. Column names remain the stable join key
-   so older projects that only contain the compact `columns` array still load. */
 type ErdSchemaApi = ReturnType<typeof createErdSchema>;
 declare var UMLErdSchema: ErdSchemaApi;
 

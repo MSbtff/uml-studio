@@ -1,8 +1,5 @@
 'use strict';
 
-/* Sample project diagrams — the built-in examples, the model
-   links that let one sample reuse another sample's model, and the layout
-   upgrades that repair samples saved by older project versions. */
 type SampleDiagramsApi = ReturnType<typeof createSampleDiagramsModule>;
 declare var UMLSampleDiagrams: SampleDiagramsApi;
 

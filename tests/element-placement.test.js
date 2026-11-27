@@ -82,7 +82,6 @@ assert.throws(() => create({ ...harness().deps, state: undefined }), /state/);
   assert.deepEqual(Object.keys(placement), ['placeElementForTool']);
 }
 
-/* ── 평범한 요소 배치 ──────────────────────────────────────── */
 {
   const { placement, state, diagram } = harness();
   placement.placeElementForTool({ x: 131, y: 74 }, 'class', null);
@@ -95,7 +94,6 @@ assert.throws(() => create({ ...harness().deps, state: undefined }), /state/);
   assert.equal(called('renderAll').length, 1);
 }
 
-/* ── 컨테이너 부착 ─────────────────────────────────────────── */
 {
   const { placement, diagram } = harness({ diagram: { type: 'state' } });
   placement.placeElementForTool({ x: 40, y: 40 }, 'state', null);
@@ -119,7 +117,6 @@ assert.throws(() => create({ ...harness().deps, state: undefined }), /state/);
   assert.equal(diagram.elements[0].parentId, 'pkg', '패키지 안에 놓으면 부모가 됩니다');
 }
 
-/* ── Composite State는 항상 Region 하나를 가진다 ───────────── */
 {
   const { placement, diagram, state } = harness({ diagram: { type: 'state' } });
   placement.placeElementForTool({ x: 40, y: 40 }, 'compositestate', null);
@@ -130,7 +127,6 @@ assert.throws(() => create({ ...harness().deps, state: undefined }), /state/);
   assert.deepEqual(state.selection, [composite.id], '선택은 Region이 아니라 Composite State입니다');
 }
 
-/* ── 호스트가 필요한 도구는 안내만 하고 아무것도 만들지 않는다 ── */
 {
   const { placement, diagram, state } = harness();
   placement.placeElementForTool({ x: 40, y: 40 }, 'execution', null);
@@ -165,7 +161,6 @@ assert.throws(() => create({ ...harness().deps, state: undefined }), /state/);
   assert.equal(diagram.elements[0].borderAnchor, 0.25);
 }
 
-/* ── 컨테이너 안에만 놓을 수 있는 도구들 ──────────────────── */
 const owner = (kind, extra = {}) => ({ id: `${kind}-owner`, kind, x: 40, y: 60, w: 200, h: 120, ...extra });
 
 [
@@ -195,7 +190,6 @@ const owner = (kind, extra = {}) => ({ id: `${kind}-owner`, kind, x: 40, y: 60, 
   }
 });
 
-/* 테두리에 붙는 도구는 borderAnchor 비율을 함께 저장한다 */
 [
   { tool: 'port', dep: 'compositePortOwnerAtPoint', type: 'class', reject: /클래스, 협업 또는 파트의 테두리/ },
   { tool: 'constraintparameter', dep: 'parametricContainerAtPoint', type: 'parametric',
@@ -218,14 +212,12 @@ const owner = (kind, extra = {}) => ({ id: `${kind}-owner`, kind, x: 40, y: 60, 
   }
 });
 
-/* Port 안내 문구는 다이어그램 종류마다 다르다 */
 ['bdd', 'ibd'].forEach(type => {
   const { placement } = harness({ diagram: { type } });
   placement.placeElementForTool({ x: 10, y: 10 }, 'port', null);
   assert.match(statuses.at(-1), type === 'bdd' ? /블록, 인터페이스 블록/ : /내부 블록 프레임, 파트 또는 참조/);
 });
 
-/* ── Timing ────────────────────────────────────────────────── */
 {
   const { placement, diagram } = harness({ diagram: { type: 'timing' } });
   placement.placeElementForTool({ x: 10, y: 10 }, 'timingstate', null);
@@ -281,7 +273,6 @@ const owner = (kind, extra = {}) => ({ id: `${kind}-owner`, kind, x: 40, y: 60, 
   assert.equal(diagram.elements[0].anchorRatio, 0.5, '메시지에는 가운데로 붙습니다');
 }
 
-/* ── Region은 Composite State 안에서만 ────────────────────── */
 {
   const { placement, diagram } = harness({ diagram: { type: 'state' } });
   placement.placeElementForTool({ x: 10, y: 10 }, 'region', null);
@@ -309,7 +300,6 @@ const owner = (kind, extra = {}) => ({ id: `${kind}-owner`, kind, x: 40, y: 60, 
   assert.equal(diagram.elements[0].regionOrder, 1, '기존 Region 다음 순서를 받습니다');
 }
 
-/* ── 인라인 Sequence는 새 다이어그램을 만들고 원래 화면에 남는다 ── */
 {
   const { placement, state, diagram } = harness();
   placement.placeElementForTool({ x: 40, y: 40 }, 'interactioninline', null);

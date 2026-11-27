@@ -12,7 +12,6 @@ const {
   create,
 } = require('../dist/browser/io/project-store.js');
 
-/* ── DOM / storage doubles ─────────────────────────────────── */
 function fakeNode(tag = 'div') {
   const listeners = new Map();
   const node = {
@@ -208,7 +207,6 @@ assert.equal(ACTIVE_PROJECT_KEY, 'uml-studio-v7-active-project');
 assert.equal(PROJECT_VERSION, 30, '저장 포맷 버전은 유지되어야 합니다');
 assert.equal(AUTOSAVE_HEARTBEAT_MS, 10000);
 
-/* ── 의존성 검증 ────────────────────────────────────────────── */
 assert.throws(() => create(), /Project Store 의존성이 없습니다/);
 assert.throws(() => create({}), /serialize/);
 {
@@ -220,7 +218,6 @@ assert.throws(() => create({}), /serialize/);
   assert.throws(() => create({ ...deps, persistence: { saveProject: () => {} } }), /persistence\.saveServerProject/);
 }
 
-/* ── 공개 API ───────────────────────────────────────────────── */
 {
   const { controller } = harness();
   assert.ok(Object.isFrozen(controller));
@@ -232,7 +229,6 @@ assert.throws(() => create({}), /serialize/);
   }
 }
 
-/* ── attach/detach는 중복 등록하지 않는다 ───────────────────── */
 {
   const { controller, document, eventRoot, timers } = harness();
   controller.attach();
@@ -250,7 +246,6 @@ assert.throws(() => create({}), /serialize/);
   assert.equal(timers.clearedIntervals.length, 1);
 }
 
-/* ── 비상 복구본은 localStorage에 기록한다 ──────────────────── */
 {
   const { controller, localStorage } = harness();
   assert.equal(controller.writeLocalRecovery('{"a":1}', 1234), true);
@@ -259,7 +254,6 @@ assert.throws(() => create({}), /serialize/);
   assert.equal(localStorage.getItem(ACTIVE_PROJECT_KEY), 'p-1');
 }
 {
-  /* localStorage가 막혀 있어도 예외를 밖으로 내보내지 않는다 */
   const h = harness();
   const blocked = { ...h.deps, localStorage: { setItem() { throw new Error('quota'); }, getItem: () => null } };
   const controller = create(blocked);
@@ -267,7 +261,6 @@ assert.throws(() => create({}), /serialize/);
   assert.doesNotThrow(() => controller.rememberActiveProject());
 }
 
-/* ── 자동저장 예약과 저장 ───────────────────────────────────── */
 {
   const { controller, state, timers } = harness();
   controller.scheduleRecoverySave();
@@ -295,7 +288,6 @@ assert.throws(() => create({}), /serialize/);
   assert.equal(saved.args[2].name, 'Demo');
 }
 {
-  /* SQLite만 실패하면 IndexedDB 결과로 저장 완료 처리한다 */
   const { controller, state } = harness({
     persistenceOverrides: { saveServerProject: () => Promise.reject(new Error('offline')) },
   });
@@ -303,7 +295,6 @@ assert.throws(() => create({}), /serialize/);
   assert.equal(state.autosaveBackend, 'indexeddb');
 }
 {
-  /* IndexedDB만 실패하면 SQLite 결과와 revision을 유지한다 */
   const { controller, state } = harness({
     persistenceOverrides: {
       saveProject: () => Promise.reject(new Error('indexeddb closed')),
@@ -316,7 +307,6 @@ assert.throws(() => create({}), /serialize/);
   assert.equal(state.sqliteRevision, 4);
 }
 {
-  /* 리비전 충돌은 안내 한 번만 띄우고 오류 상태로 남긴다 */
   const conflict = Object.assign(new Error('conflict'), { code: 'revision_conflict' });
   const { controller, state, log } = harness({
     persistenceOverrides: {
@@ -331,7 +321,6 @@ assert.throws(() => create({}), /serialize/);
   assert.equal(log.statuses.filter(m => /다른 탭에서/.test(m)).length, 1, '충돌 안내는 반복하지 않습니다');
 }
 {
-  /* 두 백엔드가 모두 죽으면 로컬 비상 저장소로 물러난다 */
   const { controller, state, log } = harness({
     persistenceOverrides: {
       saveProject: () => Promise.reject(new Error('closed')),
@@ -344,7 +333,6 @@ assert.throws(() => create({}), /serialize/);
   assert.match(log.statuses.at(-1), /IndexedDB 저장 실패/);
 }
 {
-  /* 직렬화가 실패하면 저장을 시도하지 않는다 */
   const h = harness();
   const controller = create({ ...h.deps, serialize: () => { throw new Error('cycle'); } });
   assert.equal(await controller.saveRecoveryCopy(), false);
@@ -353,7 +341,6 @@ assert.throws(() => create({}), /serialize/);
   assert.equal(h.persistence.calls.length, 0);
 }
 
-/* ── 프로젝트 목록은 두 백엔드를 최신본 기준으로 합친다 ─────── */
 {
   const { controller } = harness({
     persistenceOverrides: {
@@ -386,7 +373,6 @@ assert.throws(() => create({}), /serialize/);
   );
 }
 
-/* ── 저장된 프로젝트 열기 ───────────────────────────────────── */
 {
   const { controller, state, log, localStorage } = harness({
     persistenceOverrides: {
@@ -413,7 +399,6 @@ assert.throws(() => create({}), /serialize/);
   assert.deepEqual(log.loads, []);
 }
 
-/* ── 새 프로젝트 ────────────────────────────────────────────── */
 {
   const { controller, state, log, setConfirm } = harness();
   setConfirm(false);
@@ -435,9 +420,7 @@ assert.throws(() => create({}), /serialize/);
   assert.deepEqual(log.confirms, [], '확인 없이 만들 수도 있어야 합니다');
 }
 
-/* ── 시작 시 복구 ───────────────────────────────────────────── */
 {
-  /* 저장된 프로젝트가 있으면 마지막 활성 프로젝트를 복원한다 */
   const h = harness({
     persistenceOverrides: {
       listServerProjects: () => Promise.resolve([
@@ -454,7 +437,6 @@ assert.throws(() => create({}), /serialize/);
   assert.equal(h.state.autosaveBackend, 'sqlite');
   assert.equal(h.state.sqliteRevision, 2);
   assert.equal(h.state.lastAutosavedAt, 900);
-  /* SQLite에만 저장본이 있으므로 IndexedDB로 즉시 동기화를 예약한다 */
   assert.equal(h.state.autosaveStatus, 'saving');
   assert.equal(h.timers.timeouts.at(-1).ms, 0);
   assert.match(h.log.statuses.at(-1), /프로젝트를 복원했습니다/);
@@ -462,7 +444,6 @@ assert.throws(() => create({}), /serialize/);
   assert.equal(h.state.storagePersistent, true);
 }
 {
-  /* 두 백엔드가 같은 저장본을 갖고 있으면 추가 동기화 없이 복원만 한다 */
   const record = { id: 'p-keep', json: '{"v":1}', name: 'Keep', updatedAt: 900, revision: 2 };
   const h = harness({
     persistenceOverrides: {
@@ -477,7 +458,6 @@ assert.throws(() => create({}), /serialize/);
   assert.ok(h.log.renders.includes('renderStatus'));
 }
 {
-  /* 저장본이 하나도 없으면 샘플 프로젝트를 만든다 */
   const h = harness();
   assert.equal(await h.controller.restoreOnStartup(), false);
   assert.ok(h.log.renders.includes('sampleProject'));
@@ -486,7 +466,6 @@ assert.throws(() => create({}), /serialize/);
   assert.equal(h.localStorage.getItem(ACTIVE_PROJECT_KEY), 'p-new');
 }
 {
-  /* 구버전 단일 자동저장본은 프로젝트 저장소로 이전한다 */
   const h = harness({
     persistenceOverrides: {
       loadServerAutosave: () => Promise.resolve({ json: '{"legacy":1}', savedAt: 777 }),
@@ -498,7 +477,6 @@ assert.throws(() => create({}), /serialize/);
   assert.match(h.log.statuses.at(-1), /새 프로젝트 저장소로 이전했습니다/);
 }
 
-/* ── 프로젝트 UI ────────────────────────────────────────────── */
 {
   const { controller } = harness();
   const button = controller.projectActionButton('열기', () => {}, true);
@@ -545,7 +523,6 @@ assert.throws(() => create({}), /serialize/);
   assert.equal(otherActions[0].disabled, false);
   assert.equal(otherActions[4].disabled, false);
 
-  /* 같은 라벨의 버튼이 행마다 반복되므로 어느 프로젝트인지 이름으로 구분한다 */
   const list = nodes.find(n => n.className === 'project-list');
   assert.equal(list.getAttribute('aria-live'), 'polite');
   assert.equal(list.getAttribute('role'), 'list');
@@ -613,7 +590,6 @@ assert.throws(() => create({}), /serialize/);
   assert.equal(empty.textContent, '복구 이력이 없습니다.');
 }
 {
-  /* 이름 변경은 두 백엔드에 모두 반영하고 현재 프로젝트면 상태도 갱신한다 */
   const { controller, state, persistence, body, log } = harness();
   controller.openProjectRenameDialog({ id: 'p-1', name: 'Demo' });
   const overlay = body.children.at(-1);
@@ -630,7 +606,6 @@ assert.throws(() => create({}), /serialize/);
   assert.ok(log.renders.includes('renderStatus'));
 }
 
-/* ── 자동저장 생명주기 이벤트 ───────────────────────────────── */
 {
   const { controller, document, eventRoot, timers, localStorage, state } = harness();
   controller.attach();

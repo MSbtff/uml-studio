@@ -7,8 +7,6 @@ interface DocumentLoadOptions {
   projectName?: string;
 }
 
-/* Project Document — owns project JSON composition, serialization, loading,
-   version migrations, and the state adapters used by Undo/Redo. */
 type ProjectDocumentApi = ReturnType<typeof createProjectDocumentModule>;
 declare var UMLProjectDocument: ProjectDocumentApi;
 
@@ -258,7 +256,6 @@ function createProjectDocumentModule() {
           state.diagrams = document.diagrams;
           state.activeId = document.diagrams.find(diagram => diagram.id === document.activeId)?.id
             ?? document.diagrams[0].id;
-          /* v8 → v9: add the new diagram-type samples once */
           if (sourceVersion < 9) {
             state.diagrams.push(
               sampleDiagrams.sampleERD(),
@@ -266,72 +263,55 @@ function createProjectDocumentModule() {
               sampleDiagrams.sampleMindmap(),
             );
           }
-          /* v11 → v12: add the first State Machine sample once */
           if (sourceVersion < 12 && !state.diagrams.some(diagram => diagram.type === 'state')) {
             state.diagrams.push(sampleDiagrams.sampleState());
           }
-          /* v12 → v13: add the Composite/Orthogonal State sample once */
           if (sourceVersion < 13 && !state.diagrams.some(diagram => diagram.name === 'Concurrent Order State')) {
             state.diagrams.push(sampleDiagrams.sampleCompositeState());
           }
-          /* v13 → v14: add Submachine/Connection Point examples once */
           if (sourceVersion < 14 && !state.diagrams.some(diagram => diagram.name === 'Checkout State Machine')) {
             state.diagrams.push(...sampleDiagrams.sampleSubmachineStatePair());
           }
-          /* v14 → v15: add the first Object Diagram sample once */
           if (sourceVersion < 15 && !state.diagrams.some(diagram => diagram.type === 'object')) {
             state.diagrams.push(sampleDiagrams.sampleObject());
           }
-          /* v15 → v16: add the first Communication Diagram sample once */
           if (sourceVersion < 16 && !state.diagrams.some(diagram => diagram.type === 'communication')) {
             state.diagrams.push(sampleDiagrams.sampleCommunication());
           }
-          /* v17 → v18: add the first Composite Structure Diagram sample once */
           if (sourceVersion < 18 && !state.diagrams.some(diagram => diagram.type === 'composite')) {
             state.diagrams.push(sampleDiagrams.sampleCompositeStructure());
           }
-          /* v18 → v19: add the first Timing Diagram sample once */
           if (sourceVersion < 19 && !state.diagrams.some(diagram => diagram.type === 'timing')) {
             state.diagrams.push(sampleDiagrams.sampleTiming());
           }
-          /* v19 → v20: add an advanced Activity example without replacing user diagrams */
           if (sourceVersion < 20 && !state.diagrams.some(diagram => diagram.name === 'Advanced Activity Workflow')) {
             state.diagrams.push(sampleDiagrams.sampleActivity('Advanced Activity Workflow'));
           }
-          /* v20 → v21: add the first Package Diagram sample once */
           if (sourceVersion < 21 && !state.diagrams.some(diagram => diagram.type === 'package')) {
             state.diagrams.push(sampleDiagrams.samplePackage());
           }
-          /* v21 → v22: add the first Profile Diagram sample once */
           if (sourceVersion < 22 && !state.diagrams.some(diagram => diagram.type === 'profile')) {
             state.diagrams.push(sampleDiagrams.sampleProfile());
           }
-          /* v22 → v23: add the first Interaction Overview sample and its inline Sequence once */
           if (sourceVersion < 23 && !state.diagrams.some(diagram => diagram.type === 'interactionoverview')) {
             const referencedSequence = state.diagrams.find(diagram => diagram.type === 'sequence') || null;
             state.diagrams.push(...sampleDiagrams.sampleInteractionOverviewPair(referencedSequence));
           }
-          /* v23 → v24: add the first Information Flow Diagram sample once */
           if (sourceVersion < 24 && !state.diagrams.some(diagram => diagram.type === 'informationflow')) {
             state.diagrams.push(sampleDiagrams.sampleInformationFlow());
           }
-          /* v24 → v25: add the first SysML Requirement Diagram sample once */
           if (sourceVersion < 25 && !state.diagrams.some(diagram => diagram.type === 'requirement')) {
             state.diagrams.push(sampleDiagrams.sampleRequirement());
           }
-          /* v25 → v26: add the first SysML Block Definition Diagram sample once */
           if (sourceVersion < 26 && !state.diagrams.some(diagram => diagram.type === 'bdd')) {
             state.diagrams.push(sampleDiagrams.sampleBlockDefinition());
           }
-          /* v26 → v27: add the first SysML Internal Block Diagram sample once */
           if (sourceVersion < 27 && !state.diagrams.some(diagram => diagram.type === 'ibd')) {
             state.diagrams.push(sampleDiagrams.sampleInternalBlock());
           }
-          /* v27 → v28: add the first SysML Parametric Diagram sample once */
           if (sourceVersion < 28 && !state.diagrams.some(diagram => diagram.type === 'parametric')) {
             state.diagrams.push(sampleDiagrams.sampleParametric());
           }
-          /* v9 → v10: give the untouched v9 ERD sample logical names */
           if (sourceVersion === 9) {
             const upgrades: Partial<Record<string, Pick<ModelFields, 'name' | 'logicalName' | 'columns'>>> = {
               User: {
@@ -372,7 +352,6 @@ function createProjectDocumentModule() {
             });
           }
         } else {
-          /* migrate v7 single-diagram format, and add the new sample diagrams */
           state.models = {};
           const sequence = sampleDiagrams.sampleSequence();
           const interactionOverviewPair = sampleDiagrams.sampleInteractionOverviewPair(sequence);

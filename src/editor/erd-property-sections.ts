@@ -1,9 +1,5 @@
 'use strict';
 
-/* ERD property sections — the Entity/relation property blocks that only ER
-   diagrams use (표시 방식, Columns, DDL 제약조건과 인덱스, FK 보유 엔티티).
-   The property panel owns the panel shell and hands this module its row and
-   heading primitives, so the ERD-only markup lives in one place. */
 type ErdPropertySectionsApi = ReturnType<typeof createErdPropertySectionsModule>;
 declare var UMLErdPropertySections: ErdPropertySectionsApi;
 

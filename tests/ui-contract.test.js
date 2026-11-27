@@ -683,7 +683,6 @@ assert.match(app, /MutationObserver,/, 'MutationObserver도 주입하는 호스�
 assert.match(canvasRenderer, /holder\.setAttribute\('role', 'group'\)/);
 assert.match(css, /#toolbar button:focus-visible/);
 
-/* ── 속성 패널 접근성 ──────────────────────────────────────── */
 assert.match(html, /id="props-panel" role="region" aria-labelledby="props-panel-title"/,
   '속성 패널은 제목으로 이름 붙인 구역이어야 합니다');
 assert.match(html, /id="props-panel-title" role="heading" aria-level="2"/);
@@ -716,7 +715,6 @@ assert.match(erdColumnEditor, /input\.setAttribute\('aria-describedby', small\.i
 assert.match(relationEndEditor, /editor\.setAttribute\('aria-labelledby', title\.id\)/,
   'QuickEdit 대화상자는 화면에 보이는 제목으로 이름 붙여야 합니다');
 
-/* ── 캔버스 키보드 탐색 ────────────────────────────────────── */
 assert.match(canvasKeyboard, /root\.UMLCanvasKeyboard = api/);
 assert.match(canvasKeyboard, /function navigableItems\(/);
 assert.match(canvasKeyboard, /function reveal\(/,
@@ -736,7 +734,6 @@ assert.doesNotMatch(canvasInteraction, /function handleKeydown\(/,
 assert.doesNotMatch(app, /function (?:addDiagram|switchDiagram|renderTabs|toolIcon|renderToolbox|fitToWindow|renderMinimap|openAppMenu|closeAppMenu)\(/,
   '분리한 탭·도구상자·뷰포트·메뉴 구현은 app.js에 중복으로 남기지 않아야 합니다');
 
-/* ── Sample Diagrams 모듈 ───────────────────────────────────── */
 assert.match(sampleDiagrams, /function sampleProject\(/);
 assert.match(sampleDiagrams, /function sampleEmpty\(/);
 assert.match(sampleDiagrams, /function linkSampleBlockDefinitionModels\(/);
@@ -745,7 +742,6 @@ assert.match(sampleDiagrams, /function upgradeSampleCommunicationLayout\(/);
 assert.match(sampleDiagrams, /Sample Diagrams 의존성이 없습니다/);
 assert.match(sampleDiagrams, /root\.UMLSampleDiagrams = api/);
 assert.match(sampleDiagrams, /return Object\.freeze\(\{ REQUIRED_FUNCTIONS, REQUIRED_VALUES, create \}\)/);
-/* 샘플 데이터 ID 연결은 그대로 유지되어야 한다 */
 assert.match(sampleDiagrams, /Rendering System Block Definition/);
 assert.match(sampleDiagrams, /Rendering System Internal Structure/);
 assert.match(sampleDiagrams, /Render Budget Parametric Analysis/);
@@ -766,7 +762,6 @@ assert.doesNotMatch(app, /function (?:linkSample|upgradeSample|reconcileTraceabi
 assert.doesNotMatch(app, /^const N[ER] = /m,
   '샘플 뷰 생성 헬퍼는 app.js에 중복으로 남기지 않아야 합니다');
 
-/* ── Import/Export 모듈 ─────────────────────────────────────── */
 assert.match(importExport, /function attach\(\)/);
 assert.match(importExport, /function detach\(\)/);
 assert.match(diagramExport, /function exportSvg\(/);
@@ -823,7 +818,6 @@ assert.doesNotMatch(app, /UMLDrawioImporter\.(?:importDrawio|analyzeImport|filte
 assert.doesNotMatch(app, /UMLExporters\.export(?:Mermaid|Drawio)\b/,
   'Exporter 호출은 app.js에 중복으로 남기지 않아야 합니다');
 
-/* ── ERD DDL Exporter ──────────────────────────────────────── */
 assert.match(exporters, /const ERD_DDL_DIALECTS(?:[^=]+)?= Object\.freeze\(\{/);
 assert.match(exporters, /function exportErdDdl\(/);
 assert.match(exporters, /FOREIGN KEY/);
@@ -844,7 +838,6 @@ assert.doesNotMatch(ddlImporter, /\beval\s*\(|new Function\s*\(/,
   'DDL Importer는 SQL을 코드로 실행하면 안 됩니다');
 assert.doesNotMatch(erdSchema, /\beval\s*\(|new Function\s*\(/,
   'ERD Schema는 SQL 표현식을 코드로 실행하면 안 됩니다');
-/* ── Project Store 모듈 ─────────────────────────────────────── */
 assert.match(projectStore, /function attach\(\)/);
 assert.match(projectStore, /function detach\(\)/);
 assert.match(projectStore, /function saveRecoveryCopy\(/);
@@ -890,7 +883,6 @@ assert.doesNotMatch(app, /\b(?:RECOVERY_STORAGE_KEY|RECOVERY_META_KEY|ACTIVE_PRO
 assert.doesNotMatch(app, /addEventListener\('(?:pagehide|beforeunload|visibilitychange)'/,
   '자동저장 생명주기 이벤트는 Project Store 모듈이 소유해야 합니다');
 
-/* ── Project Document 모듈 ──────────────────────────────────── */
 assert.match(projectDocument, /const PROJECT_VERSION = 30/);
 assert.match(projectDocument, /function projectData\(/);
 assert.match(projectDocument, /function captureState\(/);
@@ -911,7 +903,6 @@ assert.doesNotMatch(app, /function (?:projectData|captureHistoryState|restoreHis
 assert.doesNotMatch(app, /v(?:7 single-diagram|8 → v9|9 → v10|27 → v28)/,
   '프로젝트 버전 마이그레이션은 Project Document 모듈이 소유해야 합니다');
 
-/* ── History Controller 모듈 ────────────────────────────────── */
 assert.match(historyController, /const MAX_HISTORY_ENTRIES = 100/);
 assert.match(historyController, /function snapshot\(/);
 assert.match(historyController, /function undo\(/);
@@ -929,7 +920,6 @@ assert.doesNotMatch(app, /\b(?:undoStack|redoStack|stateJson)\b/,
 assert.doesNotMatch(app, /function (?:snapshot|undo|redo|resetHistory|rollbackLastSnapshot)\(/,
   'Undo/Redo 구현은 History Controller 모듈이 소유해야 합니다');
 
-/* ── Element Factory 모듈 ───────────────────────────────────── */
 assert.match(elementFactory, /const NAME_PREFIXES(?::[^=\n]+)? = Object\.freeze\(/);
 assert.match(elementFactory, /function nextName\(/);
 assert.match(elementFactory, /function createElement\(/);
@@ -941,7 +931,6 @@ assert.match(app, /register\(elementFactory\)/);
 assert.doesNotMatch(app, /function (?:nextName|createElement)\(/,
   '요소 이름·초기 데이터 생성 구현은 app.js에 중복으로 남기지 않아야 합니다');
 
-/* ── Element Measure 모듈 ───────────────────────────────────── */
 assert.match(elementMeasure, /function measure\(e: DiagramElement\)/);
 assert.match(elementMeasure, /function normalizeSize\(e: DiagramElement\)/);
 assert.match(elementMeasure, /function bddCompartments\(/);
@@ -957,7 +946,6 @@ assert.match(elementMeasure, /const erdMode = \(\) => dg\(\)\.erdMode \|\| 'phys
 assert.match(elementMeasure, /Element Measure 의존성이 없습니다/);
 assert.match(elementMeasure, /root\.UMLElementMeasure = api/);
 assert.match(elementMeasure, /VISIBILITY_SYMBOLS = Object\.freeze\(\{ public: '\+', protected: '#', private: '-', package: '~' \}\)/);
-/* 측정값이 바뀌면 캔버스가 달라지므로 핵심 치수는 계약으로 고정한다 */
 assert.match(elementMeasure, /case 'timingstate':\s*\n\s*return \{ minW: 760, minH: TIMING_ROW_HEIGHT \}/);
 assert.match(elementMeasure, /parseIconScript\(e\.iconContent \|\| ''\)/);
 assert.match(elementMeasure, /const headH = hasIcon \? 64 :/);
@@ -970,12 +958,10 @@ assert.doesNotMatch(app, /function (?:measure|normalizeSize|bddCompartments|wrap
 assert.doesNotMatch(app, /\bconst erdMode = /,
   'ERD 표시 모드 조회는 Element Measure 모듈이 소유해야 합니다');
 assert.doesNotMatch(app, /\bminW:/, '최소 크기 계산은 app.js에 남기지 않아야 합니다');
-/* 측정을 소비하는 쪽은 계속 app.js가 연결한다 */
 assert.match(app, /function setErdMode\(/);
 assert.match(app, /^  syncConstraintParameters,$/m,
   'Constraint Parameter 동기화는 Parametric Binding 모듈에서 연결해야 합니다');
 
-/* ── Member Lists 모듈 ─────────────────────────────────────── */
 assert.match(memberListsModule, /function ensureMemberArray\(element: MemberArrays, field: MemberField\)/);
 assert.match(memberListsModule, /function memberLists\(element: MeasuredElement\)/);
 assert.match(memberListsModule, /function memberListByKind\(element: MeasuredElement, kind: MemberKind\)/);
@@ -987,7 +973,6 @@ assert.match(app, /register\(memberListsController\);/);
 assert.doesNotMatch(app, /function (?:ensureMemberArray|memberLists|memberListByKind)\(/,
   '멤버 배열·행 영역 계산 구현은 app.js에 중복으로 남기지 않아야 합니다');
 
-/* ── Status Bar 모듈 ───────────────────────────────────────── */
 assert.match(statusBar, /root\.UMLStatusBar = api/);
 assert.match(statusBar, /const FLASH_DURATION_MS = 1800;/);
 assert.match(statusBar, /function toolInstruction\(\)/);
@@ -1005,7 +990,6 @@ assert.doesNotMatch(app, /function (?:flashStatus|renderStatus)\(/,
 assert.match(html, /id="status-left" role="status" aria-live="polite" aria-atomic="true"/,
   '일시 상태 안내는 보조기기에 정중한 라이브 영역으로 전달해야 합니다');
 
-/* ── Modal Focus 모듈 ──────────────────────────────────────── */
 assert.match(modalFocus, /root\.UMLModalFocus = api/);
 assert.match(modalFocus, /function handleKeydown\(event(?:: KeyboardEvent)?\)/);
 assert.match(modalFocus, /event\.key === 'Escape'/);
@@ -1022,7 +1006,6 @@ assert.match(importPreview, /modal\.setRequestCloseHandler/);
 assert.doesNotMatch(commandRouter, /querySelector\('\.modal-overlay'\)/,
   'Esc는 모달 DOM을 직접 제거하지 않고 공통 수명주기를 거쳐야 합니다');
 
-/* ── Containment Layout 모듈 ────────────────────────────────── */
 assert.match(containmentLayout, /function childViews\(/);
 assert.match(containmentLayout, /function descendantViews\(/);
 assert.match(containmentLayout, /function containmentOrder\(/);
@@ -1042,7 +1025,6 @@ assert.match(containmentLayout, /Containment Layout 의존성이 없습니다/);
 assert.match(containmentLayout, /root\.UMLContainmentLayout = api/);
 assert.match(containmentLayout, /const regionLayoutCache = new WeakMap(?:<[^>]+>)?\(\)/,
   'Region 이전 크기는 모듈 내부 캐시로만 추적해야 합니다');
-/* 레이아웃 상수가 바뀌면 캔버스 배치가 달라지므로 계약으로 고정한다 */
 assert.match(containmentLayout, /lifeline\.h = Math\.max\(lifeline\.h, 44 \+ Math\.max\(1, states\.length\) \* TIMING_ROW_HEIGHT\)/);
 assert.match(containmentLayout, /lifeline\.x \+ TIMING_LABEL_WIDTH \+ 8/);
 assert.match(containmentLayout, /owner\.kind === 'ibdframe' \? 44 : 12/);
@@ -1058,7 +1040,6 @@ assert.doesNotMatch(app, /function (?:childViews|descendantViews|containmentDept
 assert.doesNotMatch(app, /\bregionLayoutCache\b/,
   'Region 레이아웃 캐시는 Containment Layout 모듈이 소유해야 합니다');
 
-/* ── Relation Rules 모듈 ────────────────────────────────────── */
 assert.match(relationRules, /function transitionDirectionError\(/);
 assert.match(relationRules, /function compositeRelationError\(/);
 assert.match(relationRules, /function activityRelationError\(/);
@@ -1066,10 +1047,8 @@ assert.match(relationRules, /function packageRelationError\(/);
 assert.match(relationRules, /function relationError\(/);
 assert.match(relationRules, /Relation Rules 의존성이 없습니다/);
 assert.match(relationRules, /root\.UMLRelationRules = api/);
-/* 규칙 순서가 바뀌면 사용자가 보는 안내 문구가 달라진다 */
 assert.match(relationRules, /const DIAGRAM_RULES = Object\.freeze\(\[\s*\n\s*compositeRelationError,\s*\n\s*activityRelationError,\s*\n\s*packageRelationError,\s*\n\s*profileRelationError,\s*\n\s*informationFlowRelationError,\s*\n\s*requirementRelationError,\s*\n\s*bddRelationError,\s*\n\s*ibdRelationError,\s*\n\s*parametricRelationError,\s*\n\s*\]\)/,
   'relationError는 completeLink가 쓰던 순서를 그대로 유지해야 합니다');
-/* 안내 문구는 사용자가 보는 UI 계약이다 */
 assert.match(relationRules, /Composite Structure Connector는 Part 또는 Port 사이에만 연결할 수 있습니다/);
 assert.match(relationRules, /Role Binding은 Collaboration Use에서 Part 방향으로 연결하세요/);
 assert.match(relationRules, /Object Node와 Pin에는 Object Flow를 사용하세요/);
@@ -1089,7 +1068,6 @@ assert.match(relationCreation, /const legalityError = relationError\(kind, from,
 assert.doesNotMatch(app, /function (?:transitionDirectionError|compositeRelationError|activityRelationError|packageRelationError|profileRelationError|informationFlowRelationError|requirementRelationError|bddRelationError|ibdRelationError|parametricRelationError)\(/,
   '관계 유효성 규칙은 app.js에 중복으로 남기지 않아야 합니다');
 
-/* ── Relation Creation 모듈 ─────────────────────────────────── */
 assert.match(relationCreation, /function createCommunicationMessage\(/);
 assert.match(relationCreation, /function completeLink\(/);
 assert.match(relationCreation, /function finishLink\(/);
@@ -1103,7 +1081,6 @@ assert.match(app, /register\(relationCreation\)/);
 assert.doesNotMatch(app, /function (?:createCommunicationMessage|completeLink)\(/,
   '관계 생성·커밋 구현은 app.js에 중복으로 남기지 않아야 합니다');
 
-/* ── Validation Panel 모듈 ─────────────────────────────────── */
 assert.match(validationPanel, /function updateSummary\(\)/);
 assert.match(validationPanel, /function run\(\)/);
 assert.match(validationPanel, /function clear\(\)/);
@@ -1123,7 +1100,6 @@ assert.match(app, /validationPanelController\.attach\(\)/);
 assert.doesNotMatch(app, /function (?:updateValidationSummary|runValidation|clearValidationResults|renderValidationResults|navigateToValidationIssue)\(/,
   '검증 결과 UI 구현은 app.js에 중복으로 남기지 않아야 합니다');
 
-/* ── Selection Editing 모듈 ─────────────────────────────────── */
 assert.match(selectionEditing, /function copySelection\(/);
 assert.match(selectionEditing, /function pasteClipboard\(/);
 assert.match(selectionEditing, /function cutSelection\(/);
@@ -1141,7 +1117,6 @@ assert.match(selectionEditing, /root\.UMLSelectionEditing = api/);
 assert.match(selectionEditing, /let clipboard: Clipboard \| null = null/,
   '클립보드 상태는 모듈 내부에만 있어야 합니다');
 assert.match(selectionEditing, /const PASTE_OFFSET = 24/);
-/* 복사본이 원본과 배열을 공유하면 원본이 함께 바뀐다 */
 assert.match(selectionEditing, /CLONED_MODEL_LIST_FIELDS\.forEach\(k => \{\s*const list = state\.models\[nextId\]\[k\];\s*if \(list\) state\.models\[nextId\]\[k\] = \[\.\.\.list\];/);
 assert.match(selectionEditing, /const cloneModels = options\.cloneModels \?\? els\.some\(view => view\.kind in INDEPENDENT_COPY_KINDS\)/,
   'ERD 테이블과 라이프라인은 기본적으로 독립 모델로 복사해야 합니다');
@@ -1150,7 +1125,6 @@ assert.match(selectionEditing, /클립보드가 비어 있습니다/);
 assert.match(selectionEditing, /복사한 요소를 이 다이어그램에 붙여넣을 수 없습니다/);
 assert.match(selectionEditing, /일부 요소는 이 다이어그램 타입에 맞지 않아 제외되었습니다/);
 assert.match(selectionEditing, /잘라내기 완료 — Ctrl\+V로 붙여넣기/);
-assert.match(selectionEditing, /Ctrl\+D는 클립보드를 건드리지 않음/);
 assert.match(selectionEditing, /모델 \{0\}개와 모든 다이어그램의 연결된 뷰를 삭제했습니다/);
 assert.match(selectionEditing, /자동 크기를 적용할 요소를 선택하세요/);
 assert.match(selectionEditing, /순서를 변경할 요소 또는 Binding Connector를 선택하세요/);
@@ -1162,7 +1136,6 @@ assert.doesNotMatch(app, /function (?:copySelection|pasteClipboard|cutSelection|
 assert.doesNotMatch(app, /\blet clipboard\b|\bclipboard\.(?:data|count|cloneModels|sourceRepository)\b/,
   '뷰 클립보드 상태는 app.js에 남기지 않아야 합니다');
 
-/* ── Interaction Layout 모듈 ───────────────────────────────── */
 assert.match(interactionLayout, /function computeSeqNumbers\(diagram\b/);
 assert.match(interactionLayout, /function computeSequenceLayout\(diagram\b/);
 assert.match(interactionLayout, /function msgDisplayLabel\(relation\b/);
@@ -1181,7 +1154,6 @@ assert.doesNotMatch(app, /\blet (?:seqBars|seqBottom|seqNoMap)\b/,
 assert.doesNotMatch(app, /function (?:computeSeqNumbers|computeSequenceLayout|msgDisplayLabel|msgPoints|communicationSelfConnectorGeom|communicationMessagePoints|syncCommunicationMessages)\(/,
   'Interaction 배치 구현은 app.js에 중복으로 남기지 않아야 합니다');
 
-/* ── Hit Testing 모듈 ───────────────────────────────────────── */
 assert.match(hitTesting, /function elementAt\(/);
 assert.match(hitTesting, /function lifelineAt\(/);
 assert.match(hitTesting, /function relationAt\(/);
@@ -1199,7 +1171,6 @@ assert.match(app, /register\(hitTesting\);/);
 assert.doesNotMatch(app, /function (?:elementAt|lifelineAt|relationAt|communicationConnectorAt|relationLabelAt|memberRowAt|inRect|nearFragmentEdge)\(/,
   '히트 테스트 구현은 app.js에 중복으로 남기지 않아야 합니다');
 
-/* ── Canvas Renderer 모듈 ───────────────────────────────────── */
 assert.match(canvasRenderer, /function render\(/);
 assert.match(canvasRenderer, /function drawSelection\(/);
 assert.match(canvasRenderer, /function handlePositions\(/);
@@ -1228,7 +1199,6 @@ assert.doesNotMatch(app, /function (?:render|drawSelection|handlePositions|drawO
 assert.doesNotMatch(app, /svg\.setAttribute\('viewBox'/,
   '캔버스 장면 그래프 생성은 app.js에 남기지 않아야 합니다');
 
-/* ── Model Repository 모듈 ──────────────────────────────────── */
 assert.match(modelRepository, /function createViewForModel\(/);
 assert.match(modelRepository, /function canPlaceKind\(/);
 assert.match(modelRepository, /function browsableModels\(/);
@@ -1261,7 +1231,6 @@ assert.doesNotMatch(app, /function (?:createViewForModel|openModelRepository)\(/
 assert.doesNotMatch(app, /model-repository-dialog|model-repository-row/,
   '모델 저장소 대화상자 마크업은 app.js에 남기지 않아야 합니다');
 
-/* ── Parametric Binding 모듈 ────────────────────────────────── */
 assert.match(parametricBinding, /function portDirection\(/);
 assert.match(parametricBinding, /function obstaclesFor\(/);
 assert.match(parametricBinding, /function declaredParameters\(/);
@@ -1290,7 +1259,6 @@ assert.doesNotMatch(app, /function (?:syncConstraintParameters|computeBindingRou
 assert.doesNotMatch(app, /bindingRouteCache/,
   '라우트 캐시는 app.js에 남기지 않아야 합니다');
 
-/* ── 의존성 레지스트리 배선 ─────────────────────────────────── */
 assert.match(app, /const wiring: Record<string, unknown> = Object\.create\(null\);/);
 assert.match(app, /const register = \(\.\.\.sources: object\[\]\) => \{/);
 assert.match(app, /배선 이름 충돌/,
@@ -1305,7 +1273,6 @@ assert.match(app, /function provide<Module extends WiredModule>\(mod: Module\)[\
   'provide는 모듈이 선언한 이름만 넘겨야 합니다');
 assert.doesNotMatch(app, /function provide<Module extends WiredModule>[\s\S]{0,600}Object\.assign\(out, wiring\)/,
   '레지스트리를 통째로 넘기면 선언하지 않은 의존성에 닿을 수 있습니다');
-/* 배선을 다시 손으로 나열하는 회귀를 막는다 */
 [
   'UMLContainmentLayout', 'UMLElementFactory', 'UMLElementMeasure', 'UMLStatusBar', 'UMLModalFocus', 'UMLRelationRules', 'UMLRelationCreation', 'UMLParametricBinding', 'UMLInteractionLayout',
   'UMLCanvasRenderer', 'UMLHitTesting', 'UMLViewportController', 'UMLToolbox',
@@ -1316,7 +1283,6 @@ assert.doesNotMatch(app, /function provide<Module extends WiredModule>[\s\S]{0,6
   assert.match(app, new RegExp(`${name}\\.create\\((?:provide\\(${name}\\)|\\{\\n  \\.\\.\\.provide\\(${name}\\),)`),
     `${name}은 레지스트리에서 의존성을 받아야 합니다`);
 });
-/* 지연이 필요한 배선은 화살표로 등록해야 TDZ에 걸리지 않는다 */
 assert.match(app, /interactionState: \(\) => canvasInteraction\.state\(\),/);
 assert.match(app, /getLinking: \(\) => canvasInteraction\.getLinking\(\),/);
 assert.match(app, /clearValidationResults: \(\) => validationPanelController\.clear\(\),/);
@@ -1324,9 +1290,7 @@ assert.match(app, /renderExplorer: \(\) => modelExplorer\.render\(\),/);
 assert.match(app, /renderMinimap: \(\) => viewportController\.renderMinimap\(\),/);
 assert.match(app, /cancelInteraction: \(\) => cancelActiveInteraction\(\),/,
   '명령 라우터의 취소는 도구·선택까지 되돌리는 app.js 동작이어야 합니다');
-/* 선언은 하지 않지만 값을 검사하는 모듈은 인라인으로 남긴다 */
 assert.match(app, /\.\.\.provide\(UMLCanvasInteraction\),[\s\S]{0,200}eventRoot: window,/);
-/* 렌더러 두 개는 measureText·stroke처럼 자체 이름을 쓰므로 계속 명시적으로 연결한다 */
 ['UMLElementRenderer', 'UMLRelationRenderer'].forEach(name => {
   assert.doesNotMatch(app, new RegExp(`provide\\(${name}\\)`),
     `${name}은 의존성 이름을 바꿔 받으므로 provide를 쓸 수 없습니다`);
@@ -1334,7 +1298,6 @@ assert.match(app, /\.\.\.provide\(UMLCanvasInteraction\),[\s\S]{0,200}eventRoot:
 assert.match(propertyPanel, /return Object\.freeze\(\{ REQUIRED_FUNCTIONS, REQUIRED_VALUES, selectionMode, create \}\)/,
   '속성 패널이 선언한 의존성 목록을 내보내야 provide가 채울 수 있습니다');
 
-/* ER 전용 속성 블록은 별도 모듈이 소유하고, 속성 패널은 자기 propRow·sectionHeading만 넘긴다 */
 assert.match(erdPropertySections, /root\.UMLErdPropertySections = api/);
 assert.match(erdPropertySections, /ERD 속성 섹션 의존성이 없습니다/);
 assert.match(erdPropertySections, /return Object\.freeze\(\{ REQUIRED_FUNCTIONS, REQUIRED_VALUES, create \}\)/);
@@ -1360,7 +1323,6 @@ assert.match(html,
     `${name} 구현이 속성 패널로 되돌아오면 안 됩니다`);
 });
 
-/* ERD 컬럼 클립보드·명령·편집 시트는 별도 모듈이 소유하고, QuickEdit가 만들어 다시 내보낸다 */
 assert.match(erdColumnEditor, /root\.UMLErdColumnEditor = api/);
 assert.match(erdColumnEditor, /ERD 컬럼 편집기 의존성이 없습니다/);
 assert.match(erdColumnEditor, /return Object\.freeze\(\{ REQUIRED_FUNCTIONS, REQUIRED_VALUES, create \}\)/);
@@ -1377,7 +1339,6 @@ assert.match(app,
   /register\(\{ erdColumnEditor: UMLErdColumnEditor, relationEndEditor: UMLRelationEndEditor \}\);/,
   'QuickEdit의 두 편집기 모두 컨트롤러가 아니라 팩토리를 배선합니다');
 
-/* 관계 끝점 편집 시트도 별도 모듈이 소유한다 */
 assert.match(relationEndEditor, /root\.UMLRelationEndEditor = api/);
 assert.match(relationEndEditor, /관계 끝점 편집기 의존성이 없습니다/);
 assert.match(relationEndEditor, /return Object\.freeze\(\{ REQUIRED_FUNCTIONS, REQUIRED_VALUES, create \}\)/);
@@ -1388,7 +1349,6 @@ assert.match(quickEdit, /'relationEndEditor',/);
 assert.ok(html.indexOf('relation-end-editor.js?v=') < html.indexOf('quick-edit.js?v='),
   '관계 끝점 편집기 모듈은 QuickEdit보다 먼저 로드해야 합니다');
 
-/* 도구로 요소를 놓는 일은 드래그 상태 머신과 무관하므로 형제 모듈이 맡는다 */
 assert.match(elementPlacement, /root\.UMLElementPlacement = api/);
 assert.match(elementPlacement, /요소 배치 의존성이 없습니다/);
 assert.match(elementPlacement, /return Object\.freeze\(\{ REQUIRED_FUNCTIONS, REQUIRED_VALUES, create \}\)/);
@@ -1402,7 +1362,6 @@ assert.match(canvasInteraction, /'elementPlacement',/);
 assert.match(canvasInteraction, /deps\.elementPlacement\?\.placeElementForTool !== 'function'/,
   '배치 모듈의 계약도 init에서 확인해야 합니다');
 
-/* 드래그 중 캔버스 다시 그리기는 프레임당 한 번으로 합친다 */
 assert.match(canvasInteraction, /function scheduleRender\(\) \{[\s\S]{0,200}requestAnimationFrame\(/,
   '드래그 그리기는 requestAnimationFrame으로 합쳐야 합니다');
 assert.doesNotMatch(
@@ -1414,7 +1373,6 @@ assert.match(canvasInteraction, /cancelAnimationFrame\(renderFrame\)/,
   'detach는 예약된 프레임을 취소해야 합니다');
 assert.match(app, /requestAnimationFrame, cancelAnimationFrame,/);
 
-/* 잡히지 않은 오류는 콘솔에만 남지 않고 상태 표시줄에 닿는다 */
 assert.match(runtimeErrors, /root\.UMLRuntimeErrors = api/);
 assert.match(runtimeErrors, /런타임 오류 표시 의존성이 없습니다/);
 assert.match(runtimeErrors, /addEventListener\('error', report\)/);
@@ -1450,7 +1408,6 @@ assert.ok(html.indexOf('erd-column-editor.js?v=') < html.indexOf('quick-edit.js?
     `QuickEdit는 ${name}을(를) 계속 내보내야 배선이 그대로 유지됩니다`);
 });
 
-/* draw.io·DDL 가져오기 미리보기 시트는 별도 모듈이 소유한다 */
 assert.match(importPreview, /root\.UMLImportPreview = api/);
 assert.match(importPreview, /가져오기 미리보기 의존성이 없습니다/);
 assert.match(importPreview, /return Object\.freeze\(\{ REQUIRED_FUNCTIONS, REQUIRED_VALUES, create \}\)/);
@@ -1473,7 +1430,6 @@ assert.ok(html.indexOf('import-preview.js?v=') < html.indexOf('project-import.js
     `project-import는 ${name}을(를) 계속 내보내야 합니다`);
 });
 
-/* 파일로 내보내는 일은 가져오기와 아무것도 공유하지 않으므로 형제 모듈이다 */
 assert.match(diagramExport, /root\.UMLDiagramExport = api/);
 assert.match(diagramExport, /다이어그램 내보내기 의존성이 없습니다/);
 assert.match(diagramExport, /return Object\.freeze\(\{ REQUIRED_FUNCTIONS, REQUIRED_VALUES, create \}\)/);
@@ -1493,9 +1449,6 @@ assert.ok(html.indexOf('diagram-export.js?v=') < html.indexOf('app.js?v='),
 assert.match(app, /const \{ download \} = diagramExport;/,
   'app.js의 Save도 같은 download 헬퍼를 씁니다');
 
-/* 부모가 만드는 자식 모듈은 `provide`가 채운 부모의 deps를 그대로 넘겨받는다.
-   그래서 자식이 요구하는 이름 중 부모가 직접 주는 것을 뺀 나머지는 전부 부모의
-   REQUIRED 목록에 선언되어 있어야 한다 — 빠지면 브라우저에서만 터진다. */
 [
   {
     parent: require(path.join(root, 'dist/browser/editor/property-panel.js')),
@@ -1536,7 +1489,6 @@ for (const name of ['AUTO_LABEL', 'INSTANCE_CLASSIFIER_KINDS', 'REQUIREMENT_TYPE
     `${name}은 registry에 등록해야 provide가 전달할 수 있습니다`);
 }
 
-/* app.js는 모듈 생성과 의존성 연결을 담당하는 얇은 bootstrap이어야 한다 */
 assert.ok(app.split('\n').length < 1750, 'app.js는 분리한 모듈만큼 줄어야 합니다');
 assert.match(app, /const projectReady = projectStore\.restoreOnStartup\(\);/);
 assert.match(app, /UMLLanguageSettings\.attach\(settingsButton, projectStore, projectReady\)/,

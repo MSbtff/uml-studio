@@ -1,7 +1,5 @@
 'use strict';
 
-/* Validation Panel — owns validation result state, rendering, navigation and
-   panel event lifecycle while validation rules remain in validation.js. */
 type ValidationPanelApi = ReturnType<typeof createValidationPanelModule>;
 declare var UMLValidationPanel: ValidationPanelApi;
 

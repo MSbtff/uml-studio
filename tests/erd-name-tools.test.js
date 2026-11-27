@@ -150,7 +150,6 @@ test('한도를 넘는 검색어와 변경 건수는 적용 전에 막는다', (
   assert.deepEqual(tooLong.changes, []);
   assert.match(tooLong.errors.join('\n'), /찾을 이름은 120자 이하여야 합니다\./);
 
-  /* 한 글자 검색은 프로젝트 전체를 건드릴 수 있으므로 건수 상한이 필요하다 */
   const many = { models: {}, diagrams: [{ id: 'd', type: 'erd', elements: [], relations: [] }] };
   for (let index = 0; index < 5001; index++) {
     many.models[`m${index}`] = {

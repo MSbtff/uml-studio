@@ -1,5 +1,9 @@
 # UML Studio repository instructions
 
+## Code comments
+
+- Do not add comments to source code, tests, or configuration files. Put necessary explanations in project documentation.
+
 ## Pull requests
 
 - Use a feature branch and a pull request targeting `main` for repository changes. Direct pushes to `main` are prohibited.

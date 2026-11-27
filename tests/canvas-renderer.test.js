@@ -9,8 +9,6 @@ const {
   create,
 } = require('../dist/browser/canvas/canvas-renderer.js');
 
-/* ── minimal SVG/DOM doubles ───────────────────────────────── */
-
 class FakeNode {
   constructor(tag) {
     this.tag = tag;
@@ -23,8 +21,6 @@ class FakeNode {
   }
   get textContent() { return this._text; }
   set textContent(value) { this._text = value; this.children = []; }
-  /* assigning markup drops the existing children, as the real DOM does; the
-     markup itself is kept verbatim rather than parsed */
   get innerHTML() { return this._html; }
   set innerHTML(value) { this._html = value; this.children = []; }
   setAttribute(name, value) { this.attrs[name] = value; }
@@ -48,8 +44,6 @@ const walk = (node, out = []) => {
 };
 const findAll = (node, predicate) => walk(node).filter(predicate);
 const byTag = (node, tag) => findAll(node, n => n.tag === tag);
-
-/* ── harness ───────────────────────────────────────────────── */
 
 const element = (id, kind, extra = {}) => ({ id, kind, x: 0, y: 0, w: 100, h: 60, ...extra });
 const relation = (id, kind, extra = {}) => ({ id, kind, name: '', ...extra });
@@ -148,7 +142,6 @@ function harness(overrides = {}) {
     getSeqBars: () => seqBars,
     getSeqNumbers: () => seqNumbers,
     named: name => calls.filter(c => c.name === name),
-    /* the selection layer is the third group under the canvas root */
     selectionLayer() {
       const root = svg.children[svg.children.length - 1];
       return root.children[root.children.length - 1];
@@ -163,8 +156,6 @@ function selectionOf(overrides) {
   h.renderer.drawSelection(g);
   return { h, g, nodes: walk(g).slice(1) };
 }
-
-/* ── module contract ───────────────────────────────────────── */
 
 assert.ok(Object.isFrozen(REQUIRED_FUNCTIONS), 'REQUIRED_FUNCTIONS는 동결해야 합니다');
 assert.ok(Object.isFrozen(REQUIRED_VALUES), 'REQUIRED_VALUES는 동결해야 합니다');
@@ -190,8 +181,6 @@ assert.throws(() => create({}), err => {
   assert.throws(() => create({ ...deps, ACTIVITY_PIN_KINDS: ['inputpin'] }), /ACTIVITY_PIN_KINDS\.has/);
   assert.throws(() => create({ ...deps, document: { getElementById: () => null } }), /document\.createElement/);
 }
-
-/* ── paint order ───────────────────────────────────────────── */
 
 {
   const { renderer } = harness();
@@ -221,7 +210,6 @@ assert.throws(() => create({}), err => {
 }
 
 {
-  /* sequence: containers first, nested Execution boxes by depth then by y */
   const diagram = {
     id: 'd1', type: 'sequence',
     elements: [
@@ -240,7 +228,6 @@ assert.throws(() => create({}), err => {
 }
 
 {
-  /* state: frame behind, composite state, region, then the rest */
   const diagram = {
     id: 'd1', type: 'state',
     elements: [element('s', 'state'), element('r', 'region'), element('f', 'frame'), element('c', 'compositestate')],
@@ -251,7 +238,6 @@ assert.throws(() => create({}), err => {
 }
 
 {
-  /* timing: kind order wins, containment depth breaks the tie */
   const diagram = {
     id: 'd1', type: 'timing',
     elements: [
@@ -297,7 +283,6 @@ assert.throws(() => create({}), err => {
 });
 
 {
-  /* class diagrams keep author order — and the array is not copied */
   const diagram = {
     id: 'd1', type: 'class',
     elements: [element('b', 'class'), element('a', 'class')],
@@ -306,8 +291,6 @@ assert.throws(() => create({}), err => {
   const { renderer } = harness({ diagram });
   assert.equal(renderer.orderedElements(diagram), diagram.elements);
 }
-
-/* ── render: layout passes ─────────────────────────────────── */
 
 {
   const h = harness({ diagram: { id: 'd1', type: 'state', elements: [element('a', 'state')], relations: [] } });
@@ -344,7 +327,6 @@ assert.throws(() => create({}), err => {
 }
 
 {
-  /* sequence: Execution boxes are pinned to their lifeline centre and stepped by depth */
   const life = element('life', 'lifeline', { x: 100, w: 40 });
   const exec1 = element('x1', 'execution', { y: 10, h: 40, lifeId: 'life' });
   const exec2 = element('x2', 'execution', { y: 20, h: 40, lifeId: 'life' });
@@ -363,7 +345,6 @@ assert.throws(() => create({}), err => {
 }
 
 {
-  /* communication reuses the sequence numbering but has no activation bars */
   const h = harness({
     diagram: { id: 'd1', type: 'communication', elements: [], relations: [] },
     seqBars: [{ el: 'life', y0: 0, y1: 10, depth: 0 }],
@@ -374,8 +355,6 @@ assert.throws(() => create({}), err => {
   assert.equal(h.named('computeSeqNumbers').length, 1);
   assert.deepEqual(h.getSeqBars(), []);
 }
-
-/* ── render: scene graph ───────────────────────────────────── */
 
 {
   const diagram = {
@@ -410,7 +389,6 @@ assert.throws(() => create({}), err => {
   assert.deepEqual(h.named('drawElement').map(c => c.args[0]), ['a', 'b']);
   assert.deepEqual(h.named('drawRelation').map(c => c.args[0]), ['r1', 'r2']);
 
-  /* the canvas is rebuilt from scratch on every frame */
   h.renderer.render();
   assert.equal(byTag(h.svg, 'defs').length, 1, '이전 프레임의 노드는 지워야 합니다');
 }
@@ -424,7 +402,6 @@ assert.throws(() => create({}), err => {
 }
 
 {
-  /* refresh callbacks fire once per frame */
   const h = harness();
   h.renderer.render();
   ['renderExplorer', 'renderStatus', 'renderTabs', 'renderMinimap'].forEach(name => {
@@ -433,7 +410,6 @@ assert.throws(() => create({}), err => {
 }
 
 {
-  /* activation bars follow their lifeline's fill; manual Execution views are skipped */
   const life = element('life', 'lifeline', { x: 100, w: 40, fill: '#eef' });
   const h = harness({
     diagram: { id: 'd1', type: 'sequence', elements: [life], relations: [] },
@@ -457,7 +433,6 @@ assert.throws(() => create({}), err => {
 }
 
 {
-  /* a lifeline with no fill falls back to the default */
   const h = harness({
     diagram: { id: 'd1', type: 'sequence', elements: [element('life', 'lifeline', { x: 0, w: 40 })], relations: [] },
     seqBars: [{ el: 'life', y0: 0, y1: 30, depth: 0 }],
@@ -466,8 +441,6 @@ assert.throws(() => create({}), err => {
   const gRel = h.canvasRoot().children.filter(n => n.tag === 'g')[1];
   assert.equal(gRel.children[0].getAttribute('fill'), '#fffbd8');
 }
-
-/* ── render: in-progress interaction feedback ──────────────── */
 
 {
   const from = element('a', 'class', { x: 10, y: 20 });
@@ -517,7 +490,6 @@ assert.throws(() => create({}), err => {
   assert.equal(root.children.filter(n => n.tag === 'circle').length, 2);
 }
 {
-  /* dragging upward inserts above the target row */
   const entity = element('t', 'entity', { x: 0, y: 0, w: 100, _metrics: { headH: 10, RH: 20 } });
   const h = harness({
     diagram: { id: 'd1', type: 'erd', elements: [entity], relations: [] },
@@ -528,7 +500,6 @@ assert.throws(() => create({}), err => {
   assert.equal(line.getAttribute('y1'), 10 + 1 * 20);
 }
 {
-  /* nothing is drawn until the pointer actually moved */
   const entity = element('t', 'entity');
   const h = harness({
     diagram: { id: 'd1', type: 'erd', elements: [entity], relations: [] },
@@ -556,7 +527,6 @@ assert.throws(() => create({}), err => {
   assert.equal(highlight.getAttribute('stroke'), RENDER_STYLE.reconnectTarget);
 }
 {
-  /* mind-map branches use their curve geometry for the endpoint ring */
   const rel = relation('r1', 'mindbranch', { branch: { p1: { x: 1, y: 2 }, p2: { x: 3, y: 4 }, c: { x: 2, y: 3 } } });
   const h = harness({
     diagram: { id: 'd1', type: 'mindmap', elements: [], relations: [rel] },
@@ -567,10 +537,7 @@ assert.throws(() => create({}), err => {
   assert.deepEqual([ring.getAttribute('cx'), ring.getAttribute('cy')], [1, 2]);
 }
 
-/* ── selection overlay ─────────────────────────────────────── */
-
 {
-  /* multi-selection: dashed outlines only, no handles */
   const { nodes } = selectionOf({
     diagram: {
       id: 'd1', type: 'class',
@@ -595,7 +562,6 @@ assert.throws(() => create({}), err => {
 }
 
 {
-  /* single element: outline + eight resize handles */
   const { nodes } = selectionOf({
     diagram: { id: 'd1', type: 'class', elements: [element('a', 'class', { x: 0, y: 0, w: 100, h: 60 })], relations: [] },
     state: { selection: ['a'], selectedId: 'a' },
@@ -625,7 +591,6 @@ assert.throws(() => create({}), err => {
 });
 
 {
-  /* time segments resize horizontally only */
   const { nodes } = selectionOf({
     diagram: { id: 'd1', type: 'timing', elements: [element('a', 'timesegment')], relations: [] },
     state: { selection: ['a'], selectedId: 'a' },
@@ -634,7 +599,6 @@ assert.throws(() => create({}), err => {
 }
 
 {
-  /* handles that would sit on a connection point reference are dropped */
   const host = element('a', 'submachinestate', { x: 0, y: 0, w: 100, h: 60 });
   const ref = element('cp', 'connectionpointref', { parentId: 'a', x: 46, y: -8, w: 16, h: 16 });
   const { nodes } = selectionOf({
@@ -647,7 +611,6 @@ assert.throws(() => create({}), err => {
 }
 
 {
-  /* plain relation: translucent highlight plus a hit area and a visible handle per end */
   const rel = relation('r1', 'assoc', { endpoints: straight(0, 0, 100, 0) });
   const { nodes } = selectionOf({
     diagram: { id: 'd1', type: 'class', elements: [], relations: [rel] },
@@ -677,7 +640,6 @@ assert.throws(() => create({}), err => {
 }
 
 {
-  /* mind-map branch: quadratic highlight + both endpoint handles */
   const rel = relation('r1', 'mindbranch', {
     branch: { p1: { x: 0, y: 0 }, c: { x: 5, y: 10 }, p2: { x: 10, y: 0 } },
   });
@@ -699,7 +661,6 @@ assert.throws(() => create({}), err => {
 }
 
 {
-  /* a communication self-call has no draggable ends */
   const rel = relation('r1', 'commconnector', { communicationCurve: curve() });
   const { nodes } = selectionOf({
     diagram: { id: 'd1', type: 'communication', elements: [], relations: [rel] },
@@ -710,7 +671,6 @@ assert.throws(() => create({}), err => {
 }
 
 {
-  /* a state self-transition keeps both ends draggable */
   const rel = relation('r1', 'transition', { stateCurve: curve() });
   const { nodes } = selectionOf({
     diagram: { id: 'd1', type: 'state', elements: [], relations: [rel] },
@@ -722,7 +682,6 @@ assert.throws(() => create({}), err => {
 }
 
 {
-  /* binding connector: routed highlight, endpoints, and waypoints only in manual mode */
   const points = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }];
   const auto = relation('r1', 'bindingconnector', { route: { points, jumpCrossings: [] } });
   const { nodes: autoNodes } = selectionOf({
@@ -751,7 +710,6 @@ assert.throws(() => create({}), err => {
   assert.equal(routePoints[1].getAttribute('cursor'), 'move');
 }
 {
-  /* a route that never resolved to two points is not selectable */
   const rel = relation('r1', 'bindingconnector', { route: { points: [{ x: 0, y: 0 }], jumpCrossings: [] } });
   const { nodes } = selectionOf({
     diagram: { id: 'd1', type: 'parametric', elements: [], relations: [rel] },
@@ -761,7 +719,6 @@ assert.throws(() => create({}), err => {
 }
 
 {
-  /* communication message, self and straight */
   const self = relation('r1', 'comm-forward', {
     communicationPoints: { self: true, startX: 20, y: 30, width: 40, height: 10 },
   });
@@ -792,7 +749,6 @@ assert.throws(() => create({}), err => {
 }
 
 {
-  /* sequence message, self and straight */
   const self = relation('r1', 'msg-sync', { y: 100, messagePoints: { self: true, startX: 10, endX: 30, y: 100, width: 44, height: 20 } });
   const { nodes: selfNodes } = selectionOf({
     diagram: { id: 'd1', type: 'sequence', elements: [], relations: [self] },
@@ -820,8 +776,6 @@ assert.throws(() => create({}), err => {
   });
   assert.equal(nodes.length, 0);
 }
-
-/* ── canvas-owned toolbar toggles ──────────────────────────── */
 
 {
   const diagram = { id: 'd1', type: 'sequence', elements: [], relations: [] };
@@ -857,7 +811,6 @@ assert.throws(() => create({}), err => {
   assert.equal(h.holders.seqopts.innerHTML, '');
 }
 {
-  /* the toolbar holder is optional — older pages must not crash */
   const h = harness({ deps: { document: { getElementById: () => null, createElement: tag => new FakeNode(tag) } } });
   assert.doesNotThrow(() => h.renderer.renderSeqOpts());
 }

@@ -1,7 +1,5 @@
 'use strict';
 
-/* Member Lists — normalizes editable member arrays and maps measured
-   compartments to the rows consumed by Quick Edit and hit testing. */
 type MemberListsApi = ReturnType<typeof createMemberListsModule>;
 declare var UMLMemberLists: MemberListsApi;
 

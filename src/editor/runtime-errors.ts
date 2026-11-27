@@ -1,12 +1,5 @@
 'use strict';
 
-/* Runtime errors — an uncaught exception or rejected promise used to reach the
-   console only. The user saw an action silently do nothing, and because the
-   status bar still showed the last successful autosave, had no reason to
-   suspect that the edit they just made was never written. This module turns
-   those into a status-bar notice and a per-session error count. It never
-   swallows the event: the console entry, and Playwright's pageerror, still
-   fire exactly as before. */
 type RuntimeErrorsApi = ReturnType<typeof createRuntimeErrorsModule>;
 declare var UMLRuntimeErrors: RuntimeErrorsApi;
 
@@ -29,7 +22,6 @@ function createRuntimeErrorsModule() {
     'eventRoot',
     'state',
   ] as const);
-  /* the same error re-thrown by every mousemove should read as one problem */
   const REPEAT_WINDOW_MS = 3000;
   const MAX_MESSAGE_LENGTH = 140;
 

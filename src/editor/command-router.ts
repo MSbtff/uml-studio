@@ -179,7 +179,6 @@ function createCommandRouterModule() {
       return true;
     }
 
-    /* the menubar triggers, falling back to the DOM before attach() has run */
     function triggerList() {
       return menuTriggers.length ? menuTriggers : [...document.querySelectorAll<HTMLElement>('#menubar .menu')];
     }
@@ -196,7 +195,6 @@ function createCommandRouterModule() {
       trigger.tabIndex = index === 0 ? 0 : -1;
     }
 
-    /* roving tabindex: the menubar is a single tab stop */
     function setTabStop(activeTrigger: HTMLElement) {
       triggerList().forEach(trigger => { trigger.tabIndex = trigger === activeTrigger ? 0 : -1; });
     }
@@ -210,7 +208,6 @@ function createCommandRouterModule() {
       return target;
     }
 
-    /* W3C APG keeps unavailable menu items focusable so they stay discoverable */
     function isItemDisabled(item: HTMLButtonElement) {
       return item.getAttribute?.('aria-disabled') === 'true' || item.attributes?.getNamedItem?.('aria-disabled')?.value === 'true';
     }
@@ -259,7 +256,6 @@ function createCommandRouterModule() {
       return hadMenu;
     }
 
-    /* ArrowLeft/ArrowRight inside an open menu walks the menubar, as W3C APG requires */
     function moveToAdjacentMenu(step: number) {
       const triggers = triggerList();
       const index = openTrigger ? triggers.indexOf(openTrigger) : -1;
@@ -282,7 +278,6 @@ function createCommandRouterModule() {
         case 'ArrowLeft': consume(); moveToAdjacentMenu(-1); return;
         case 'Escape': consume(); closeMenu({ restoreFocus: true }); return;
         case 'Tab': event.stopPropagation?.(); closeMenu({ restoreFocus: true }); return;
-        /* let the button fire its own click, but keep app shortcuts out of it */
         case 'Enter': case ' ': event.stopPropagation?.(); return;
         default: break;
       }
@@ -313,7 +308,6 @@ function createCommandRouterModule() {
       item.append(check, label, shortcut);
       item.addEventListener('click', (event: Partial<MouseEvent> = {}) => {
         if (isItemDisabled(item)) return;
-        /* a keyboard-fired click has detail 0; only then does focus belong on the menubar */
         closeMenu({ restoreFocus: !event.detail });
         run(definition.cmd);
       });
@@ -447,10 +441,6 @@ function createCommandRouterModule() {
       if (menuPopup && !menuPopup.contains(target) && !target?.closest?.('#menubar .menu')) closeMenu();
     }
 
-    /* ── Toolbar: one tab stop, arrow keys inside ─────────────── */
-
-    /* #erdmode and #seqopts are rebuilt on every canvas render, so the button
-       list is queried live rather than cached */
     function toolbarButtons() {
       return [...toolbar.querySelectorAll<HTMLButtonElement>('button:not([disabled])')]
         .filter(button => button.offsetParent === undefined || button.offsetParent !== null);
@@ -491,7 +481,6 @@ function createCommandRouterModule() {
         case 'ArrowLeft': consume(); focusToolbarAt(index - 1); return;
         case 'Home': consume(); focusToolbarAt(0); return;
         case 'End': consume(); focusToolbarAt(toolbarButtons().length - 1); return;
-        /* the canvas answers these same keys — keep them out of the diagram */
         case 'ArrowUp': case 'ArrowDown': case 'Enter': case ' ':
           event.stopPropagation();
           return;
@@ -507,7 +496,6 @@ function createCommandRouterModule() {
       syncToolbarTabStops(button);
     }
 
-    /* replacing a holder's innerHTML drops the focused button on the floor */
     function handleToolbarMutations() {
       const active = document.activeElement;
       const lostFocus = toolbarFocused

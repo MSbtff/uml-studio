@@ -91,7 +91,6 @@ test('모달은 포커스를 가두고 닫은 뒤 호출 버튼으로 돌려보�
   await expect(page.locator('#app')).toHaveAttribute('inert', '');
   await expect(manager.getByRole('button', { name: 'New Project', exact: true })).toBeFocused();
 
-  // 행 버튼 이름은 보이는 라벨 뒤에 프로젝트 이름이 붙는다
   const renameButton = manager.getByRole('button', { name: /^Rename / }).first();
   await renameButton.click();
   const rename = page.getByRole('dialog', { name: 'Rename Project', exact: true });
@@ -208,9 +207,7 @@ test('Model Explorer 트리를 방향키로 탐색하고 항목을 선택할 수
 
   await page.keyboard.press('ArrowRight');
   await expect(classRoot).toHaveAttribute('aria-expanded', 'true');
-  await expect(erdRoot).not.toHaveAttribute('aria-expanded', /.*/, {
-    // 비어 있는 다이어그램은 펼칠 자식이 없으므로 aria-expanded를 붙이지 않는다
-  });
+  await expect(erdRoot).not.toHaveAttribute('aria-expanded', /.*/, {});
   await expect(classRoot).toBeFocused();
 
   await page.keyboard.press('ArrowRight');
@@ -246,7 +243,6 @@ test('툴바는 탭 정지점 하나로 들어가 방향키로 이동한다', as
   await expect(toolbar).toBeVisible();
   const newButton = toolbar.getByRole('button', { name: 'New', exact: true });
   const openButton = toolbar.getByRole('button', { name: 'Open', exact: true });
-  // 프로젝트를 만들 때 누른 버튼이 탭 정지점을 이어받는다
   await expect(toolbar.getByRole('button', { name: 'Projects', exact: true })).toHaveAttribute('tabindex', '0');
   await expect(newButton).toHaveAttribute('tabindex', '-1');
   await expect(openButton).toHaveAttribute('tabindex', '-1');
@@ -268,7 +264,6 @@ test('툴바는 탭 정지점 하나로 들어가 방향키로 이동한다', as
   await page.keyboard.press('Home');
   await expect(newButton).toBeFocused();
 
-  // 캔버스가 같은 키를 쓰므로 툴바에서는 새어 나가면 안 된다
   await createCanvasElement(page, 'Class', { x: 300, y: 220 });
   const before = await page.locator('#canvas g[data-id]').first().getAttribute('transform');
   await newButton.focus();
@@ -276,7 +271,6 @@ test('툴바는 탭 정지점 하나로 들어가 방향키로 이동한다', as
   await page.keyboard.press('ArrowDown');
   expect(await page.locator('#canvas g[data-id]').first().getAttribute('transform')).toBe(before);
 
-  // ERD 모드 버튼은 다시 그려져도 포커스와 탭 정지점을 유지한다
   await addDiagram(page, 'ER Diagram');
   const erdGroup = page.getByRole('group', { name: 'ERD display mode' });
   await expect(erdGroup).toBeVisible();
@@ -304,7 +298,6 @@ test('속성 패널은 구획을 이름으로 구분하고 다시 그려도 포�
   const box = await createCanvasElement(page, 'Class', { x: 300, y: 220 });
   await renameSelectedElement(page, 'Customer');
 
-  // 다시 그려도 편집 중이던 자리로 포커스가 돌아온다
   const abstract = panel.getByRole('checkbox', { name: /Abstract/ });
   await abstract.focus();
   await abstract.press('Space');
@@ -315,7 +308,6 @@ test('속성 패널은 구획을 이름으로 구분하고 다시 그려도 포�
   await nameInput.focus();
   await expect(nameInput).toBeFocused();
 
-  // 관계는 출발·도착 끝점이 같은 라벨을 반복하므로 그룹으로 갈라야 한다
   const other = await createCanvasElement(page, 'Class', { x: 620, y: 220 });
   await renameSelectedElement(page, 'Order');
   await clickTool(page, 'Association');
@@ -327,7 +319,6 @@ test('속성 패널은 구획을 이름으로 구분하고 다시 그려도 포�
   await expect(sourceEnd).toBeVisible();
   await expect(targetEnd).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Source End', exact: true })).toBeVisible();
-  // 같은 라벨이 두 번 나오지만 그룹 안에서는 하나씩만 잡힌다
   await expect(panel.getByLabel('Name Expression', { exact: true })).toHaveCount(2);
   await expect(sourceEnd.getByLabel('Name Expression', { exact: true })).toHaveCount(1);
   await expect(targetEnd.getByLabel('Name Expression', { exact: true })).toHaveCount(1);
@@ -348,7 +339,6 @@ test('캔버스 요소를 Tab으로 순회하고 끝에서는 캔버스를 벗�
   const name = page.getByLabel('Name', { exact: true });
   const status = page.locator('#status-left');
 
-  // 선택을 지우고 캔버스에서 다시 키보드로 들어간다
   await canvas.focus();
   await page.keyboard.press('Escape');
   await expect(page.locator('#props')).toContainText('Nothing selected.');
@@ -371,11 +361,9 @@ test('캔버스 요소를 Tab으로 순회하고 끝에서는 캔버스를 벗�
   await expect(page.locator('#props')).toContainText('Nothing selected.');
   await expect(canvas).not.toBeFocused();
 
-  // 선택한 요소는 방향키로 계속 옮길 수 있다
   await canvas.focus();
   await page.keyboard.press('Tab');
   await expect(name).toHaveValue('First');
-  // 그리드보다 작은 미세 이동이 스냅에 먹혀 사라지면 안 된다
   const before = await canvasElements(page).first().boundingBox();
   await page.keyboard.press('ArrowRight');
   await expect.poll(async () => (await canvasElements(page).first().boundingBox())?.x).toBeGreaterThan(before.x);
@@ -389,7 +377,6 @@ test('목록형 대화상자의 행 버튼은 어느 항목인지 이름으로 �
   await createCanvasElement(page, 'Class', { x: 220, y: 180 });
   await renameSelectedElement(page, 'Order');
 
-  // Models: 검색창에 이름이 있고, 목록은 list/listitem으로 읽힌다
   await page.getByRole('button', { name: 'Models', exact: true }).click();
   const models = page.locator('#model-repository-modal');
   await expect(models).toBeVisible();
@@ -397,12 +384,10 @@ test('목록형 대화상자의 행 버튼은 어느 항목인지 이름으로 �
   const modelList = models.getByRole('list', { name: /^Models: \d+$/ });
   await expect(modelList).toBeVisible();
   await expect(modelList.getByRole('listitem')).not.toHaveCount(0);
-  // 버튼 이름은 보이는 라벨로 시작하고 모델 이름이 뒤따른다
   await expect(models.getByRole('button', { name: 'Select Order', exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(models).toBeHidden();
 
-  // Project Manager: 행마다 같은 다섯 버튼이 반복되므로 프로젝트 이름이 붙는다
   await page.getByRole('button', { name: 'Projects', exact: true }).click();
   const projects = page.locator('#project-manager-modal');
   await expect(projects).toBeVisible();

@@ -1,9 +1,5 @@
 'use strict';
 
-/* Minimal asynchronous IndexedDB test double for persistence integration tests.
-   It models the request/transaction lifecycle used by persistence.js without
-   adding a browser emulator dependency to this dependency-free project. */
-
 function clone(value) {
   if (value == null) return value;
   return typeof structuredClone === 'function'

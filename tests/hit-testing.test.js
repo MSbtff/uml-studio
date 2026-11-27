@@ -65,7 +65,6 @@ assert.equal(HIT_TOLERANCES.relation, 6);
 assert.equal(HIT_TOLERANCES.message, 7);
 assert.equal(HIT_TOLERANCES.connector, 9);
 
-/* ── 의존성 계약 ────────────────────────────────────────────── */
 assert.throws(() => create(), /Hit Testing 의존성이 없습니다/);
 assert.throws(() => create({}), /bezierPoint/);
 {
@@ -77,7 +76,6 @@ assert.throws(() => create({}), /bezierPoint/);
   assert.ok(Object.isFrozen(create(deps)));
 }
 
-/* ── 사각형·컨테이너·요소 우선순위 ─────────────────────────── */
 {
   const { hit } = harness();
   const box = element('box', 'class', { x: 10, y: 20, w: 30, h: 40 });
@@ -111,7 +109,6 @@ assert.throws(() => create({}), /bezierPoint/);
   assert.equal(h.hit.elementAt({ x: 120, y: 100 }), null);
 }
 
-/* Sequence 실행 박스는 배열 순서보다 시간 중첩 깊이가 우선한다. */
 {
   const shallow = element('exec-1', 'execution', { x: 96, y: 90, w: 12, h: 80, _depth: 1 });
   const deep = element('exec-2', 'execution', { x: 100, y: 100, w: 12, h: 50, _depth: 3 });
@@ -136,7 +133,6 @@ assert.throws(() => create({}), /bezierPoint/);
   assert.equal(h.hit.lifelineAt({ x: 160, y: 200 }), null);
 }
 
-/* ── 관계·메시지·곡선·라우트 판정 ─────────────────────────── */
 {
   const first = relation('r1', 'association', { endpoints: straight(0, 20, 100, 20) });
   const front = relation('r2', 'dependency', { endpoints: straight(0, 20, 100, 20) });
@@ -200,7 +196,6 @@ assert.throws(() => create({}), /bezierPoint/);
   assert.equal(h.hit.communicationConnectorAt({ x: 50, y: 20 }), null, '일반 관계는 메시지 생성 대상이 아니다');
 }
 
-/* ── 관계 라벨 판정 ─────────────────────────────────────────── */
 {
   const named = relation('named', 'association', { name: 'link', endpoints: straight(0, 50, 100, 50) });
   const h = harness({ diagram: { id: 'd1', type: 'class', elements: [], relations: [named] } });
@@ -235,7 +230,6 @@ assert.throws(() => create({}), /bezierPoint/);
   assert.equal(h.hit.relationLabelAt({ x: 70, y: 50 }).r, named);
 }
 
-/* ── 컴파트먼트 멤버 행 ─────────────────────────────────────── */
 {
   const rows = ['id', 'name'];
   const entity = element('entity', 'entity', {

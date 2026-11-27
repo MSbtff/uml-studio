@@ -10,7 +10,6 @@ const {
 } = require('../dist/browser/io/project-import.js');
 const importPreview = require('../dist/browser/io/import-preview.js');
 
-/* ── Minimal DOM / browser doubles ─────────────────────────── */
 function fakeNode(tag = 'div') {
   const listeners = new Map();
   return {
@@ -217,7 +216,6 @@ assert.ok(Object.isFrozen(REQUIRED_VALUES));
 assert.ok(Object.isFrozen(DRAWIO_IMPORT_POLICIES));
 assert.equal(MAX_IMPORT_BYTES, 10 * 1024 * 1024);
 
-/* ── 의존성 검증 ────────────────────────────────────────────── */
 assert.throws(() => create(), /프로젝트 가져오기 의존성이 없습니다/);
 assert.throws(() => create({}), /diagramAllowsElementKind/);
 {
@@ -229,7 +227,6 @@ assert.throws(() => create({}), /diagramAllowsElementKind/);
   assert.throws(() => create({ ...deps, ddlImporter: {} }), /ddlImporter\.parseDdl/);
 }
 
-/* ── 공개 API ───────────────────────────────────────────────── */
 {
   const { controller } = harness();
   assert.ok(Object.isFrozen(controller));
@@ -239,7 +236,6 @@ assert.throws(() => create({}), /diagramAllowsElementKind/);
   }
 }
 
-/* ── attach/detach는 중복 등록하지 않는다 ───────────────────── */
 {
   const { controller, fileInput } = harness();
   controller.attach();
@@ -250,7 +246,6 @@ assert.throws(() => create({}), /diagramAllowsElementKind/);
   assert.equal(fileInput.listenerCount('change'), 0);
 }
 
-/* ── 파일 대화상자 ──────────────────────────────────────────── */
 {
   const { controller, fileInput } = harness();
   controller.openProjectFileDialog();
@@ -264,7 +259,6 @@ assert.throws(() => create({}), /diagramAllowsElementKind/);
   assert.equal(fileInput.clicked, 3);
 }
 
-/* ── 10MB 초과 파일은 거절한다 ──────────────────────────────── */
 {
   const { controller, fileInput, alerts } = harness();
   controller.attach();
@@ -284,7 +278,6 @@ assert.throws(() => create({}), /diagramAllowsElementKind/);
   assert.equal(fileInput.accept, '.json,.drawio,.xml');
 }
 
-/* ── 비동기 흐름: 파일 종류 라우팅 ─────────────────────────── */
 async function asyncFlows() {
   {
     const { controller, statuses } = harness();
@@ -297,7 +290,6 @@ async function asyncFlows() {
     assert.match(alerts[0], /^파일을 읽을 수 없습니다: /);
   }
   {
-    /* .drawio 확장자와 mxfile 본문 모두 draw.io 경로로 보낸다 */
     const seen = [];
     const { controller } = harness({
       drawioImporter: {
@@ -313,7 +305,6 @@ async function asyncFlows() {
     assert.deepEqual(seen, ['importDrawio', 'importDrawio']);
   }
   {
-    /* .sql 확장자와 CREATE TABLE 본문은 실행하지 않고 DDL 파서로 보낸다 */
     const seen = [];
     const { controller } = harness({
       ddlImporter: {
@@ -351,7 +342,6 @@ async function asyncFlows() {
   }
 }
 
-/* ── draw.io 다이어그램 이름 충돌 ───────────────────────────── */
 {
   const { controller } = harness();
   const used = new Set(['class diagram']);
@@ -361,7 +351,6 @@ async function asyncFlows() {
   assert.equal(controller.importedDiagramName('   ', used), 'Imported draw.io');
 }
 
-/* ── draw.io 다이어그램 종류 판별 ───────────────────────────── */
 {
   const { controller } = harness();
   assert.equal(controller.resolveImportedDrawioType([{ kind: 'class' }], [{ kind: 'association' }]), 'class');
@@ -380,7 +369,6 @@ async function asyncFlows() {
   );
 }
 
-/* ── 가져온 프로젝트는 새 id로 다시 매핑된다 ────────────────── */
 {
   const { controller, state } = harness();
   state.models = { existing: { id: 'existing', kind: 'class', name: 'CanvasView' } };
@@ -408,7 +396,6 @@ async function asyncFlows() {
   assert.ok(state.models.existing, '기존 모델은 keepBoth에서 그대로 유지됩니다');
 }
 {
-  /* reuse 정책은 호환 충돌 모델을 기존 모델로 합친다 */
   const { controller, state } = harness();
   state.models = { existing: { id: 'existing', kind: 'class', name: 'CanvasView' } };
   const imported = {
@@ -428,7 +415,6 @@ async function asyncFlows() {
 }
 
 {
-  /* replace 정책은 기존 모델의 필드를 가져온 값으로 갈아끼운다 */
   const { controller, state } = harness();
   state.models = {
     existing: { id: 'existing', kind: 'class', name: 'CanvasView', stale: 'gone' },
@@ -453,7 +439,6 @@ async function asyncFlows() {
 }
 
 {
-  /* 요청한 종류가 셀 구성과 맞으면 추론하지 않고 그대로 쓴다 */
   const { controller } = harness();
   assert.equal(
     controller.resolveImportedDrawioType([{ kind: 'class' }], [{ kind: 'association' }], 'class'),
@@ -461,7 +446,6 @@ async function asyncFlows() {
   );
 }
 
-/* ── 가져오기 실패와 되돌리기 ───────────────────────────────── */
 const drawioSource = (models, diagrams) => ({
   importDrawio: async () => ({ version: 30, models, diagrams }),
   inferDiagramType: () => 'class',
@@ -481,14 +465,11 @@ const drawioProject = () => ({
     elements: [{ id: 'v1', kind: 'class', modelId: 'm1' }], relations: [],
   }],
 });
-/* 미리보기의 마지막 버튼이 "가져오기", 첫 버튼이 "취소"다 */
 const previewFooter = modals => modals.at(-1).dialog.children.at(-1);
-/* 미리보기는 파서를 await한 뒤에야 열리므로 마이크로태스크를 한 번 흘려보낸다 */
 const settle = () => new Promise(resolve => setImmediate(resolve));
 
 async function importFailureFlows() {
   {
-    /* 미리보기를 취소하면 아무것도 바꾸지 않는다 */
     const { models, diagrams } = drawioProject();
     const { controller, state, statuses, modals } = harness({ drawioImporter: drawioSource(models, diagrams) });
     const before = state.diagrams.length;
@@ -500,7 +481,6 @@ async function importFailureFlows() {
     assert.equal(statuses.at(-1), 'draw.io 가져오기를 취소했습니다');
   }
   {
-    /* 병합이 검증을 통과하면 새 다이어그램이 활성화된다 */
     const { models, diagrams } = drawioProject();
     const { controller, state, statuses, modals } = harness({ drawioImporter: drawioSource(models, diagrams) });
     const importing = controller.importDrawioProjectFile('<mxfile/>', 'merge.drawio', true);
@@ -512,7 +492,6 @@ async function importFailureFlows() {
     assert.match(statuses.at(-1), /draw\.io 다이어그램 1개를 프로젝트로 가져왔습니다/);
   }
   {
-    /* 검증이 실패하면 되돌리고 사용자에게 알린다 */
     const { models, diagrams } = drawioProject();
     const rollbacks = [];
     const { controller, alerts, modals } = harness({
@@ -528,7 +507,6 @@ async function importFailureFlows() {
     assert.match(alerts.at(-1), /^draw\.io 병합 검증에 실패하여 변경을 되돌렸습니다: 알 수 없는 요소 종류$/);
   }
   {
-    /* 새 프로젝트로 열기는 현재 프로젝트를 먼저 복구본으로 저장한다 */
     const { models, diagrams } = drawioProject();
     const saved = [];
     const { controller, state, statuses, modals } = harness({
@@ -545,7 +523,6 @@ async function importFailureFlows() {
     assert.match(statuses.at(-1), /draw\.io 프로젝트를 열었습니다/);
   }
   {
-    /* DDL 병합도 같은 방식으로 되돌린다 */
     const rollbacks = [];
     const { controller, alerts, modals } = harness({
       validateProjectData: () => { throw new Error('컬럼 정의가 올바르지 않습니다'); },
@@ -559,7 +536,6 @@ async function importFailureFlows() {
     assert.match(alerts.at(-1), /^DDL 병합 검증에 실패하여 변경을 되돌렸습니다: 컬럼 정의가 올바르지 않습니다$/);
   }
   {
-    /* 파일을 읽지 못하면 안내만 하고 입력을 되돌린다 */
     const { controller, fileInput, alerts } = harness();
     controller.attach();
     const target = {

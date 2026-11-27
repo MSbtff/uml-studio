@@ -1,9 +1,5 @@
 'use strict';
 
-/* Hit testing — maps canvas coordinates back to diagram views, relations,
-   labels, lifelines, communication connectors, and editable member rows.
-   Geometry is injected so this module stays independent from rendering and
-   from the application's mutable bootstrap state. */
 type HitTestingApi = ReturnType<typeof createHitTestingModule>;
 declare var UMLHitTesting: HitTestingApi;
 
@@ -182,7 +178,6 @@ function createHitTestingModule() {
           .sort((a, b) => (b._depth || 0) - (a._depth || 0) || b.y - a.y)[0];
         if (execution) return execution;
       }
-      /* Non-lifelines draw above lifelines in sequence diagrams. */
       for (let index = elements.length - 1; index >= 0; index--) {
         const element = elements[index];
         if (element.kind === 'lifeline') continue;
@@ -351,7 +346,6 @@ function createHitTestingModule() {
       return null;
     }
 
-    /* Returns { r, field, bx, by, bw }; field identifies the editable label. */
     function relationLabelAt(point: DiagramPoint) {
       const relations = dg().relations;
       const labelHit = (relation: HitRelation, field: LabelField, text: string, x: number, baseY: number, anchor: 'start' | 'middle') => {

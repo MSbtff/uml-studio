@@ -10,8 +10,6 @@ const {
 const BDD_CLASSIFIER_KINDS = new Set(['block', 'valuetype', 'interfaceblock', 'constraintblock']);
 const FILL_DEFAULT = '#fffbd8';
 
-/* A miniature of app.js' model repository: every view gets a model, and the
-   sample linkers rewrite those modelIds so one sample reuses another's model. */
 function harness() {
   let idSeq = 1;
   const state = {
@@ -59,7 +57,6 @@ function harness() {
 assert.ok(Object.isFrozen(REQUIRED_FUNCTIONS));
 assert.ok(Object.isFrozen(REQUIRED_VALUES));
 
-/* 의존성 누락은 초기화 시점에 명확한 오류를 낸다 */
 assert.throws(() => create(), /Sample Diagrams 의존성이 없습니다/);
 assert.throws(() => create({}), /uid/);
 {
@@ -73,7 +70,6 @@ assert.throws(() => create({}), /uid/);
 const { state, samples } = harness();
 assert.ok(Object.isFrozen(samples));
 
-/* ── 개별 샘플 빌더 ─────────────────────────────────────────── */
 const klass = samples.sampleClass();
 assert.equal(klass.type, 'class');
 assert.equal(klass.name, 'Class Diagram');
@@ -118,7 +114,6 @@ for (const [builder, type] of [
   });
 }
 
-/* ── 전체 샘플 프로젝트 ─────────────────────────────────────── */
 samples.sampleProject();
 assert.equal(state.projectId, 'p-test');
 assert.equal(state.projectName, 'UML Studio Samples');
@@ -133,7 +128,6 @@ const byType = type => state.diagrams.filter(d => d.type === type);
 assert.equal(byType('sequence').length, 2, 'Sequence 샘플과 인라인 Sequence가 모두 있어야 합니다');
 assert.equal(byType('state').length, 4);
 
-/* 샘플 사이 모델 연결: Object 인스턴스는 Class 샘플의 모델을 가리킨다 */
 const objectSample = state.diagrams.find(d => d.name === 'Runtime Object Snapshot');
 const canvasViewInstance = objectSample.elements.find(e => e.name === 'canvasView');
 assert.ok(canvasViewInstance.classifierModelId, 'Object 인스턴스에 classifier가 연결되어야 합니다');
@@ -148,7 +142,6 @@ const timingSample = state.diagrams.find(d => d.name === 'Frame Rendering Timing
 const timingRenderer = timingSample.elements.find(e => e.kind === 'lifeline' && e.name === 'renderer');
 assert.equal(state.models[timingRenderer.classifierModelId].name, 'RenderEngine');
 
-/* IBD의 part/port는 BDD 블록 모델을 재사용한다 */
 const bddSample = state.diagrams.find(d => d.type === 'bdd');
 const ibdSample = state.diagrams.find(d => d.type === 'ibd');
 const bddEngine = bddSample.elements.find(e => e.name === 'Rendering Engine');
@@ -162,7 +155,6 @@ assert.ok(ibdSample.relations.filter(r => r.kind === 'connector')
   .every(r => Array.isArray(r.itemFlowModelIds) && !('itemFlowNames' in r)),
 'connector의 itemFlowNames는 modelId로 변환되어야 합니다');
 
-/* Parametric은 BDD의 Constraint Block / ValueType을 참조한다 */
 const parametricSample = state.diagrams.find(d => d.type === 'parametric');
 const renderBudget = bddSample.elements.find(e => e.name === 'Render Budget');
 const milliseconds = bddSample.elements.find(e => e.name === 'Milliseconds');
@@ -171,7 +163,6 @@ assert.equal(parametricSample.elements.find(e => e.kind === 'constraintproperty'
 assert.ok(parametricSample.elements.filter(e => e.kind === 'constraintparameter' || e.kind === 'value')
   .every(e => e.classifierModelId === milliseconds.modelId));
 
-/* Information Flow는 conveyedNames를 modelId로 바꾸고 앵커를 유지한다 */
 const flowSample = state.diagrams.find(d => d.type === 'informationflow');
 const loadFlow = flowSample.relations.find(r => r.name === 'load');
 assert.deepEqual(loadFlow.srcAnchor, { fx: 1, fy: 0.3 });
@@ -179,13 +170,11 @@ assert.ok(!('conveyedNames' in loadFlow));
 assert.equal(loadFlow.conveyedModelIds.length, 1);
 assert.equal(state.models[loadFlow.conveyedModelIds[0]].name, 'DiagramDocument');
 
-/* Composite Structure의 collaboration use는 collaboration 뷰 모델을 참조한다 */
 const compositeSample = state.diagrams.find(d => d.type === 'composite');
 const collaboration = compositeSample.elements.find(e => e.kind === 'collaboration');
 const collaborationUse = compositeSample.elements.find(e => e.kind === 'collaborationuse');
 assert.equal(collaborationUse.collaborationModelId, collaboration.modelId);
 
-/* ── 오래된 프로젝트 보정(upgrade) ──────────────────────────── */
 {
   const fresh = harness();
   fresh.samples.sampleProject();
@@ -210,7 +199,6 @@ assert.equal(collaborationUse.collaborationModelId, collaboration.modelId);
   assert.equal(rolebinding.name, 'canvasRole');
   assert.equal(rolebinding.targetLabel, '');
 
-  /* 샘플이 없는 프로젝트에서도 보정 함수는 조용히 통과한다 */
   fresh.state.diagrams = [];
   assert.doesNotThrow(() => {
     fresh.samples.upgradeSampleTimingLayout();
@@ -223,7 +211,6 @@ assert.equal(collaborationUse.collaborationModelId, collaboration.modelId);
   });
 }
 
-/* ── 빈 프로젝트 ────────────────────────────────────────────── */
 {
   const fresh = harness();
   fresh.state.projectName = '  My Project  ';

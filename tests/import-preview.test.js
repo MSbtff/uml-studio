@@ -29,7 +29,6 @@ function fakeNode(tagName = 'div') {
     },
     appendChild(child) {
       this.children.push(child); child.parent = node;
-      /* a real <select> adopts its first option's value */
       if (this.tagName === 'SELECT' && child.tagName === 'OPTION' && !this.value) this.value = child.value;
       return child;
     },
@@ -48,7 +47,6 @@ function fakeNode(tagName = 'div') {
     },
     querySelector: () => fakeNode('strong'),
   };
-  /* the module writes tbody.textContent = '' to clear rows */
   Object.defineProperty(node, 'textContent', {
     get() { return this._text || ''; },
     set(value) { this._text = value; if (value === '') this.children = []; },
@@ -136,7 +134,6 @@ const analysis = {
 };
 
 async function flows() {
-  /* ── 새 프로젝트로 열기: 충돌 UI 없이 결정만 돌려준다 ─────── */
   {
     const pending = preview.openDrawioImportPreview(structuredClone(analysis), structuredClone(analysis),
       { filename: 'diagrams.drawio' });
@@ -162,7 +159,6 @@ async function flows() {
     assert.equal(modal.isClosed(), true);
   }
 
-  /* ── 취소와 바깥 닫기는 null을 돌려준다 ───────────────────── */
   {
     const pending = preview.openDrawioImportPreview(structuredClone(analysis), structuredClone(analysis), {});
     modals.at(-1).dialog.children.at(-1).children[0].emit('click');
@@ -174,7 +170,6 @@ async function flows() {
     assert.equal(await pending, null, '모달을 닫으면 가져오기를 취소한 것으로 봅니다');
   }
 
-  /* ── 현재 프로젝트에 추가: 충돌 표·검색·일괄 정책 ─────────── */
   {
     const pending = preview.openDrawioImportPreview(structuredClone(analysis), structuredClone(analysis),
       { append: true, filename: 'merge.drawio' });
@@ -227,7 +222,6 @@ async function flows() {
     filter.value = 'all';
     filter.emit('change');
 
-    /* 일괄 처리는 현재 검색 결과의 호환 충돌에만 적용된다 */
     const bulk = byId(body, 'drawio-conflict-policy');
     const summary = byClass(body, 'drawio-policy-summary')[0];
     search.value = 'alpha';
@@ -240,7 +234,6 @@ async function flows() {
     const footer = dialog.children.at(-1);
     assert.equal(footer.children[1].textContent, '가져오기 (2) · 덮어쓰기 1');
 
-    /* 행 단위 선택도 반영된다 */
     search.value = '';
     search.emit('input');
     const rowSelects = byClass(body, 'drawio-row-policy');
@@ -255,7 +248,6 @@ async function flows() {
       { alpha: 'replace', beta: 'reuse', gamma: 'keepBoth' });
   }
 
-  /* ── 충돌이 없는 병합 ─────────────────────────────────────── */
   {
     const clean = { ...structuredClone(analysis), conflicts: [], compatibleConflicts: 0 };
     const pending = preview.openDrawioImportPreview(clean, clean, { append: true });
@@ -268,7 +260,6 @@ async function flows() {
     assert.deepEqual(await pending, { policy: 'keepBoth', modelPolicies: {} });
   }
 
-  /* ── DDL 미리보기 ─────────────────────────────────────────── */
   {
     const imported = {
       importMeta: {

@@ -1,9 +1,5 @@
 'use strict';
 
-/* Project model repository — the browser over every semantic model in the
-   project, and the placement rules that turn a model into a view on the
-   active diagram. Diagram state, the element factory and the render passes
-   are injected so this module only owns the dialog and the view presets. */
 type ModelRepositoryApi = ReturnType<typeof createModelRepositoryModule>;
 declare var UMLModelRepository: ModelRepositoryApi;
 
@@ -44,11 +40,8 @@ function createModelRepositoryModule() {
     'state',
     'wrap',
   ] as const);
-  /* kinds that only ever exist as a child of another view — the owning
-     element creates and positions them, so they cannot be placed on their own */
   const DERIVED_VIEW_KINDS = Object.freeze(['region', 'connectionpointref', 'ibdframe', 'parametricframe',
     'part', 'reference', 'value', 'port', 'constraintproperty', 'constraintparameter', 'collaborationuse']);
-  /* starting geometry and fill for kinds that should not use the default box */
   const VIEW_PRESETS: Readonly<Partial<Record<string, { w?: number; h?: number; fill?: string }>>> = Object.freeze({
     fragment: Object.freeze({ w: 240, h: 160 }),
     frame: Object.freeze({ w: 520, h: 360, fill: '#ffffff' }),
@@ -153,10 +146,6 @@ function createModelRepositoryModule() {
       wrap,
     } = deps as ModelRepositoryDependencies;
 
-    /* ── Placement rules ─────────────────────────────────────── */
-
-    /* a model can get a view here when the diagram accepts its kind and the
-       kind is not one the owning element manages for us */
     function canPlaceKind(kind: string) {
       return diagramAllowsElementKind(dg().type, kind)
         && !DERIVED_VIEW_KINDS.includes(kind)
@@ -170,7 +159,6 @@ function createModelRepositoryModule() {
       return !!boundary && model.c4OwnerModelId === boundary.modelId;
     }
 
-    /* drop the new view in the middle of what the user is currently looking at */
     function viewportCentre() {
       return {
         x: snap((wrap.scrollLeft + wrap.clientWidth / 2) / state.zoom - DEFAULT_VIEW_SIZE.halfWidth),
@@ -206,8 +194,6 @@ function createModelRepositoryModule() {
       return adoptView(view);
     }
 
-    /* ── Repository dialog ───────────────────────────────────── */
-
     let activeModal: RepositoryModal | null = null;
 
     function close(restoreFocus = true) {
@@ -219,8 +205,6 @@ function createModelRepositoryModule() {
       return closed;
     }
 
-    /* models that can be browsed: real element kinds only, never relations,
-       and never the Execution bars a lifeline owns */
     function browsableModels(query: string) {
       const q = String(query || '').trim().toLowerCase();
       return Object.values(state.models)
@@ -250,8 +234,6 @@ function createModelRepositoryModule() {
       return uiText('Views of the same model share its name and properties.', '같은 모델을 여러 다이어그램에 배치하면 이름과 속성이 함께 동기화됩니다.');
     }
 
-    /* place the model on the active diagram; composite states arrive with the
-       one region they must always have */
     function addView(modelId: string, modal: RepositoryModal) {
       snapshot();
       const view = createViewForModel(modelId);
@@ -265,9 +247,6 @@ function createModelRepositoryModule() {
       setSelection([view.id]); modal.close(); renderAll();
     }
 
-    /* every row's action button reads "Add View" on its own, so each one is named
-       by its own visible label plus the model name — the visible text stays first
-       (WCAG 2.5.3) and the row is no longer ambiguous out of context */
     let rowNameSequence = 0;
 
     function buildRow(model: DiagramModel, modal: RepositoryModal) {
@@ -317,8 +296,6 @@ function createModelRepositoryModule() {
       header.append(title, closeButton);
       const search = document.createElement('input');
       search.className = 'model-search'; search.type = 'search'; search.placeholder = uiText('Search by model name or type', '모델 이름 또는 종류 검색');
-      /* the search box has no visible caption, so the placeholder is its only
-         label — and a placeholder is not an accessible name */
       search.setAttribute('aria-label', uiText('Search by model name or type', '모델 이름 또는 종류 검색'));
       const list = document.createElement('div'); list.className = 'model-repository-list';
       list.setAttribute('aria-live', 'polite');
@@ -330,7 +307,6 @@ function createModelRepositoryModule() {
         list.textContent = '';
         const models = browsableModels(search.value);
         if (!models.length) {
-          /* a `list` may only contain `listitem` children */
           list.removeAttribute('role'); list.removeAttribute('aria-label');
           const empty = document.createElement('div'); empty.className = 'model-repository-empty'; empty.textContent = uiText(
             'No matching models.',

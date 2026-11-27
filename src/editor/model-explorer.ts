@@ -115,7 +115,6 @@ function createModelExplorerModule() {
       KIND_META,
     } = deps as ModelExplorerDependencies;
 
-    /* the rendered tree, flattened: the DOM is a list, so ARIA carries the shape */
     let rowNodes: HTMLDivElement[] = [];
     let renderedRows: ExplorerRow[] = [];
     let focusKey: string | null = null;
@@ -129,7 +128,6 @@ function createModelExplorerModule() {
       return Boolean(active) && rowNodes.some(node => node === active);
     }
 
-    /* aria-posinset/aria-setsize per sibling group, derived from the level sequence */
     function annotatePositions(rows: ExplorerRow[]) {
       const groupKeys: string[] = [];
       const ancestors: number[] = [];
@@ -183,7 +181,6 @@ function createModelExplorerModule() {
         case 'End': consume(); focusRow(renderedRows.length - 1); return;
         case 'ArrowRight':
           consume();
-          /* open the node, or step into it when it is already open */
           if (next && next.level > row.level) focusRow(index + 1);
           else if (row.type === 'root' && row.expandable && !row.expanded) row.activate();
           return;

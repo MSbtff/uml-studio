@@ -1,6 +1,5 @@
 'use strict';
 
-/* UML AssociationEnd / LinkEnd and ER RelationshipEnd domain helpers. */
 type RelationEndApi = ReturnType<typeof createRelationEnd>;
 declare var UMLRelationEnd: RelationEndApi;
 

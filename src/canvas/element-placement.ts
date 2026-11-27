@@ -1,10 +1,5 @@
 'use strict';
 
-/* Element placement — the "active tool is an element kind, so put one where the
-   user clicked" half of the canvas mousedown handler. Every branch creates one
-   view, attaches it to whatever container it landed in, selects it and drops
-   back to the select tool; none of it touches the drag or linking state, which
-   is why it can live outside the interaction state machine. */
 type ElementPlacementApi = ReturnType<typeof createElementPlacementModule>;
 declare var UMLElementPlacement: ElementPlacementApi;
 
@@ -168,7 +163,6 @@ function createElementPlacementModule() {
       STATE_VERTEX_KINDS,
     } = deps as PlacementDependencies;
 
-    /* the caller has already decided the tool places an element */
     function placeElementForTool(p: DiagramPoint, tool: string, hitEl?: PlaceableElement | null) {
       if (tool === 'interactioninline') {
         snapshot();
@@ -194,7 +188,6 @@ function createElementPlacementModule() {
         return;
       }
       if (tool === 'execution') {
-        /* an Execution box must sit on a lifeline — snap to the one under the cursor */
         const life = lifelineAt(p);
         if (!life) { flashStatus(uiText('Click the dashed lifeline to create an execution.', '실행 구간을 추가하려면 라이프라인의 점선을 클릭하세요')); return; }
         snapshot();

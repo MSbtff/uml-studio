@@ -1,6 +1,5 @@
 'use strict';
 
-/* Diagram metadata and palette registry shared by the editor and tests. */
 type DiagramRegistryApi = ReturnType<typeof createDiagramRegistry>;
 declare var UMLDiagramRegistry: DiagramRegistryApi;
 
