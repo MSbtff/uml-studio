@@ -101,15 +101,20 @@ function harness(overrides = {}) {
     createElement: (kind, x, y) => ({ id: `el${++idSeq}`, kind, x, y, w: 0, h: 0 }),
     diagramAllowsElementKind: overrides.allows || ((type, kind) => kind !== 'actor'),
     dg: () => diagram,
+    flashStatus: record('flashStatus'),
+    measure: () => ({ minW: 192, minH: 96 }),
     render: record('render'),
     renderAll: record('renderAll'),
     renderProps: record('renderProps'),
     sequenceLifelineTop,
     setSelection: ids => { calls.push({ name: 'setSelection', args: [ids] }); state.selection = ids; },
     snap: value => Math.round(value / 8) * 8,
+    snapUp: value => Math.ceil(value / 8) * 8,
     snapshot: record('snapshot'),
     uid: () => `v${++idSeq}`,
     BDD_CLASSIFIER_KINDS: new Set(['block', 'valuetype', 'interfaceblock', 'constraintblock']),
+    CANVAS_W: 3000,
+    CANVAS_H: 2000,
     FILL_DEFAULT: '#fffbd8',
     KIND_META,
     REL_STYLE,
@@ -187,6 +192,61 @@ assert.throws(() => create({}), err => {
     assert.ok(!h.repo.canPlaceKind(kind), `${kind}은 부모 요소가 만들므로 직접 배치할 수 없습니다`));
   ['timingstate', 'timesegment', 'timetick', 'timeconstraint', 'durationconstraint'].forEach(kind =>
     assert.ok(!h.repo.canPlaceKind(kind), `${kind}은 Timing 내부 요소입니다`));
+}
+
+{
+  const boundary = { id: 'boundary', modelId: 'erp', c4Boundary: true, x: 96, y: 64, w: 448, h: 240 };
+  const note = { id: 'l2-note', kind: 'note', x: 32, y: 336, w: 192, h: 96 };
+  const existing = { id: 'manual', modelId: 'partner', x: 576, y: 64, w: 128, h: 96 };
+  const diagram = { id: 'l2', type: 'c4container', elements: [boundary, note, existing], relations: [] };
+  const context = {
+    id: 'l1', type: 'c4context', name: 'ERP context',
+    elements: ['erp', 'employee', 'identity', 'employee', 'partner', 'note'].map(modelId => ({ modelId })),
+    relations: [],
+  };
+  const models = {
+    erp: { id: 'erp', kind: 'c4system' },
+    employee: { id: 'employee', kind: 'c4person' },
+    identity: { id: 'identity', kind: 'c4system' },
+    partner: { id: 'partner', kind: 'c4system' },
+    note: { id: 'note', kind: 'note' },
+  };
+  const h = harness({ diagram, models, deps: { CANVAS_W: 744, CANVAS_H: 544 } });
+  h.repo.addC4ContextViews({ ...context, elements: [{ modelId: 'partner' }] });
+  assert.equal(h.calls.length, 0, 'An unrelated context does not add views');
+
+  h.repo.addC4ContextViews(context);
+  const added = diagram.elements.slice(3);
+  assert.deepEqual(added.map(view => view.modelId), ['employee', 'identity']);
+  assert.deepEqual(added.map(view => [view.x, view.y]), [[256, 336], [480, 336]]);
+  assert.deepEqual(diagram.elements.slice(0, 3), [boundary, note, existing]);
+  assert.deepEqual(diagram.relations, []);
+  assert.equal(h.calls[0].name, 'snapshot');
+  assert.equal(h.named('snapshot').length, 1);
+
+  h.repo.addC4ContextViews(context);
+  assert.equal(diagram.elements.length, 5);
+  assert.equal(h.named('snapshot').length, 1, 'Adding the same context again does not create an undo entry');
+}
+
+{
+  const boundary = { id: 'boundary', modelId: 'erp', c4Boundary: true, x: 32, y: 32, w: 640, h: 224 };
+  const diagram = { id: 'l2', type: 'c4container', elements: [boundary], relations: [] };
+  const context = {
+    id: 'l1', type: 'c4context', name: 'ERP context',
+    elements: ['erp', 'a', 'b', 'c'].map(modelId => ({ modelId })),
+    relations: [],
+  };
+  const models = {
+    erp: { id: 'erp', kind: 'c4system' },
+    a: { id: 'a', kind: 'c4person' },
+    b: { id: 'b', kind: 'c4person' },
+    c: { id: 'c', kind: 'c4person' },
+  };
+  const h = harness({ diagram, models, deps: { CANVAS_W: 696, CANVAS_H: 432 } });
+  h.repo.addC4ContextViews(context);
+  assert.deepEqual(diagram.elements, [boundary], 'A batch that cannot fit leaves the diagram intact');
+  assert.deepEqual(h.calls.map(call => call.name), ['flashStatus']);
 }
 
 {

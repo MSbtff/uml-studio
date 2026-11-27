@@ -745,7 +745,7 @@ function cancelActiveInteraction() {
 
 const modelRepository = UMLModelRepository.create(provide(UMLModelRepository));
 const { open: openModelRepository } = modelRepository;
-register({ openModelRepository });
+register({ openModelRepository, addC4ContextViews: modelRepository.addC4ContextViews });
 
 const modelExplorer = UMLModelExplorer.create(provide(UMLModelExplorer));
 const { focus: focusExplorer } = modelExplorer;
